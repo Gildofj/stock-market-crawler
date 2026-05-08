@@ -1,10 +1,12 @@
 import yfinance as yf
-from datetime import datetime, timedelta
-from ..models.schemas import CompanySchema, StockPriceSchema, FundamentalSchema
-from .data_service import DataService
 from loguru import logger
 
-class B3Spider:
+from ..models.schemas import CompanySchema, FundamentalSchema, StockPriceSchema
+from ..services.data_service import DataService
+from .base_spider import BaseSpider
+
+
+class B3Spider(BaseSpider):
     def __init__(self, data_service: DataService):
         self.data_service = data_service
 
@@ -12,9 +14,10 @@ class B3Spider:
         # B3 symbols in yfinance need .SA suffix
         yf_symbol = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
         logger.info(f"Crawling ticker: {yf_symbol}")
-        
+
+        # Create a fresh session for each ticker to avoid cookie conflicts in parallel
         ticker = yf.Ticker(yf_symbol)
-        
+
         # 1. Get/Create Company
         info = ticker.info
         company_schema = CompanySchema(
@@ -22,7 +25,7 @@ class B3Spider:
             name=info.get("longName"),
             sector=info.get("sector"),
             sub_sector=info.get("industry"),
-            segment=info.get("quoteType")
+            segment=info.get("quoteType"),
         )
         company = self.data_service.get_or_create_company(company_schema)
 
@@ -30,16 +33,18 @@ class B3Spider:
         history = ticker.history(period="1mo")
         prices = []
         for index, row in history.iterrows():
-            prices.append(StockPriceSchema(
-                time=index.to_pydatetime(),
-                open=row["Open"],
-                high=row["High"],
-                low=row["Low"],
-                close=row["Close"],
-                adj_close=row.get("Adj Close", row["Close"]),
-                volume=int(row["Volume"])
-            ))
-        
+            prices.append(
+                StockPriceSchema(
+                    time=index.to_pydatetime(),
+                    open=row["Open"],
+                    high=row["High"],
+                    low=row["Low"],
+                    close=row["Close"],
+                    adj_close=row.get("Adj Close", row["Close"]),
+                    volume=int(row["Volume"]),
+                )
+            )
+
         if prices:
             self.data_service.save_prices(company.id, prices)
             logger.info(f"Saved {len(prices)} price points for {symbol}")
@@ -50,7 +55,7 @@ class B3Spider:
             p_vp=info.get("priceToBook"),
             ev_ebitda=info.get("enterpriseToEbitda"),
             roe=info.get("returnOnEquity"),
-            dy=info.get("dividendYield", 0) * 100 if info.get("dividendYield") else None
+            dy=info.get("dividendYield", 0) * 100 if info.get("dividendYield") else None,
             # Add more mapping as needed
         )
         self.data_service.save_fundamentals(company.id, fundamental_schema)

@@ -1,31 +1,34 @@
-from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+
+from pydantic import BaseModel
+
 
 class StockPriceSchema(BaseModel):
     time: datetime
-    open: Optional[float]
-    high: Optional[float]
-    low: Optional[float]
+    open: float | None
+    high: float | None
+    low: float | None
     close: float
-    adj_close: Optional[float]
-    volume: Optional[int]
+    adj_close: float | None
+    volume: int | None
+
 
 class CompanySchema(BaseModel):
     symbol: str
-    name: Optional[str] = None
-    sector: Optional[str] = None
-    sub_sector: Optional[str] = None
-    segment: Optional[str] = None
+    name: str | None = None
+    sector: str | None = None
+    sub_sector: str | None = None
+    segment: str | None = None
+
 
 class FundamentalSchema(BaseModel):
-    p_l: Optional[float] = None
-    p_vp: Optional[float] = None
-    ev_ebitda: Optional[float] = None
-    roe: Optional[float] = None
-    roic: Optional[float] = None
-    net_margin: Optional[float] = None
-    dy: Optional[float] = None
-    liquid_debt_ebitda: Optional[float] = None
-    cagr_revenue_5y: Optional[float] = None
-    cagr_profit_5y: Optional[float] = None
+    p_l: float | None = None
+    p_vp: float | None = None
+    ev_ebitda: float | None = None
+    roe: float | None = None
+    roic: float | None = None
+    net_margin: float | None = None
+    dy: float | None = None
+    liquid_debt_ebitda: float | None = None
+    cagr_revenue_5y: float | None = None
+    cagr_profit_5y: float | None = None

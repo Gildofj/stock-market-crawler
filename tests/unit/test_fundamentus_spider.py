@@ -1,6 +1,5 @@
-import pytest
 from crawler.spiders.fundamentus_spider import FundamentusSpider
-from crawler.models.schemas import CompanySchema
+
 
 def test_fundamentus_parsing(mocker):
     # Mock data_service
@@ -23,17 +22,17 @@ def test_fundamentus_parsing(mocker):
         </table>
     </html>
     """
-    
+
     # We need to mock requests.get to return this HTML
     mock_resp = mocker.Mock()
     mock_resp.text = mock_html
     mock_resp.status_code = 200
-    mocker.patch('requests.get', return_value=mock_resp)
+    mocker.patch("requests.get", return_value=mock_resp)
 
     # Note: The spider uses a slightly more complex soup.find('span', string='P/L')
     # Let's adjust the test to match the spider's logic or vice-versa if needed.
     # The current spider logic: soup.find('span', string=label).parent.find_next_sibling('td').text
-    
+
     # Redoing mock_html to match EXACT logic of the spider
     mock_html_strict = """
     <table>
@@ -67,7 +66,7 @@ def test_fundamentus_parsing(mocker):
     assert mock_ds.save_fundamentals.called
     args, _ = mock_ds.save_fundamentals.call_args
     fundamental_data = args[1]
-    
+
     assert fundamental_data.p_l == 10.50
     assert fundamental_data.p_vp == 1.20
     assert fundamental_data.dy == 5.5

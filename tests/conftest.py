@@ -1,12 +1,14 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from crawler.services.database import Base
+
+from crawler.models.models import Base
 from crawler.services.data_service import DataService
 from crawler.services.etl_service import ETLService
 
 # Use a fast in-memory SQLite for core logic tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+
 
 @pytest.fixture(scope="session")
 def engine():
@@ -14,22 +16,24 @@ def engine():
     Base.metadata.create_all(bind=engine)
     return engine
 
+
 @pytest.fixture(scope="session")
-def Tables(engine):
+def tables(engine):
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
 
+
 @pytest.fixture
-def db_session(engine, Tables):
+def db_session(engine, tables):
     """
     Creates a new database session for a test, with a transaction that is rolled back.
     This is the fastest way to run database tests as it avoids disk I/O and re-seeding.
     """
     connection = engine.connect()
     transaction = connection.begin()
-    Session = sessionmaker(bind=connection)
-    session = Session()
+    session_factory = sessionmaker(bind=connection)
+    session = session_factory()
 
     yield session
 
@@ -37,9 +41,11 @@ def db_session(engine, Tables):
     transaction.rollback()
     connection.close()
 
+
 @pytest.fixture
 def data_service(db_session):
     return DataService(db_session)
+
 
 @pytest.fixture
 def etl_service(db_session):

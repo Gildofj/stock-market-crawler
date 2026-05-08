@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+
 from ..services.data_service import DataService
+
 
 class BaseSpider(ABC):
     def __init__(self, data_service: DataService):

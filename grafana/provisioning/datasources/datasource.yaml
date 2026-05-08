@@ -4,7 +4,7 @@ datasources:
   - name: TimescaleDB
     type: postgres
     url: timescaledb:5432
-    database: b3_data
+    database: stock_market_crawler_data
     user: crawler_user
     secureJsonData:
       password: crawler_pass
