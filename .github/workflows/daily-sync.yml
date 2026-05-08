@@ -1,0 +1,36 @@
+name: Daily B3 Sync
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Runs at 02:00 UTC daily (approx 23:00 BRT)
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Crawler
+        run: npm start
+        env:
+          MAX_TICKERS: 100 # Adjust as needed
+
+      - name: Commit and Push results
+        run: |
+          git config --global user.name 'B3 Bot'
+          git config --global user.email 'bot@b3-crawler.com'
+          git add output/*.json
+          git commit -m "chore: daily data sync [skip ci]" || echo "No changes to commit"
+          git push

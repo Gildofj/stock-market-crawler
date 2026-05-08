@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    url: timescaledb:5432
+    database: b3_data
+    user: crawler_user
+    secureJsonData:
+      password: crawler_pass
+    jsonData:
+      sslmode: 'disable'
+      postgresVersion: 1600
+      timescaledb: true
+    isDefault: true
+    editable: true

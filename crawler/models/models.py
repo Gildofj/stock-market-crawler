@@ -1,0 +1,95 @@
+from sqlalchemy import Column, Integer, String, Numeric, DateTime, BIGINT, ForeignKey, PrimaryKeyConstraint
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from ..services.database import Base
+
+class Company(Base):
+    __tablename__ = "companies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    symbol = Column(String(10), unique=True, nullable=False, index=True)
+    name = Column(String(255))
+    sector = Column(String(100))
+    sub_sector = Column(String(100))
+    segment = Column(String(100))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    prices = relationship("StockPrice", back_populates="company")
+    fundamentals = relationship("Fundamental", back_populates="company")
+
+class StockPrice(Base):
+    __tablename__ = "stock_prices"
+
+    time = Column(DateTime(timezone=True), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    open = Column(Numeric(12, 4))
+    high = Column(Numeric(12, 4))
+    low = Column(Numeric(12, 4))
+    close = Column(Numeric(12, 4), nullable=False)
+    adj_close = Column(Numeric(12, 4))
+    volume = Column(BIGINT)
+
+    __table_args__ = (
+        PrimaryKeyConstraint('time', 'company_id'),
+    )
+
+    company = relationship("Company", back_populates="prices")
+
+class Fundamental(Base):
+    __tablename__ = "fundamentals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    
+    # Valuation
+    p_l = Column(Numeric(10, 2))
+    p_vp = Column(Numeric(10, 2))
+    ev_ebitda = Column(Numeric(10, 2))
+    
+    # Profitability
+    roe = Column(Numeric(8, 2))
+    roic = Column(Numeric(8, 2))
+    net_margin = Column(Numeric(8, 2))
+    
+    # Dividends
+    dy = Column(Numeric(8, 2))
+    
+    # Debt
+    liquid_debt_ebitda = Column(Numeric(10, 2))
+    
+    # Growth
+    cagr_revenue_5y = Column(Numeric(8, 2))
+    cagr_profit_5y = Column(Numeric(8, 2))
+    
+    # Calculated
+    valuation_graham = Column(Numeric(12, 4))
+    valuation_bazin = Column(Numeric(12, 4))
+    
+    quality_score = Column(Integer)
+    collected_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    company = relationship("Company", back_populates="fundamentals")
+
+class MLFeature(Base):
+    __tablename__ = "ml_features"
+
+    time = Column(DateTime(timezone=True), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    
+    # Technical Indicators
+    sma_20 = Column(Numeric(12, 4))
+    sma_50 = Column(Numeric(12, 4))
+    rsi_14 = Column(Numeric(12, 4))
+    volatility_20 = Column(Numeric(12, 4))
+    
+    # Fundamental Ratios at the time
+    p_l_ratio = Column(Numeric(12, 4))
+    
+    target_next_day_change = Column(Numeric(12, 4)) # For Training
+
+    __table_args__ = (
+        PrimaryKeyConstraint('time', 'company_id'),
+    )
+
+    company = relationship("Company")
