@@ -24,7 +24,12 @@ class FundamentusSpider(BaseSpider):
             # Basic Company Info (if not exists)
             # Fundamentus tables are a bit messy, we extract specific <span> or <td>
             # This is a simplified example of scraping Fundamentus
-            company_name = soup.find("td", string="Empresa").find_next_sibling("td").text.strip()
+            empresa_td = soup.find("td", string="Empresa")
+            company_name = symbol
+            if empresa_td:
+                next_td = empresa_td.find_next_sibling("td")
+                if next_td:
+                    company_name = next_td.text.strip()
 
             company_schema = CompanySchema(
                 symbol=symbol,

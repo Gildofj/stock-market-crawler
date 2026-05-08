@@ -17,7 +17,17 @@ app.conf.update(
     result_serializer='json',
     timezone='UTC',
     enable_utc=True,
+    # Rate limit: max 2 tasks per second across all workers
+    # This prevents the 993 tickers from hitting APIs too fast
+    task_annotations={
+        'crawler.tasks.crawl_ticker_task': {'rate_limit': '2/s'}
+    }
 )
+
+# Initialize database tables
+from crawler.models.models import Base
+from crawler.services.database import engine
+Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
     app.start()

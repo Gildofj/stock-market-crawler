@@ -16,9 +16,9 @@ ifeq ($(OS),Windows_NT)
     LOCAL_UV_CHECK := ./uv.exe
 else
     OS_TYPE   := $(shell uname -s)
-    SEP       := /
-    BIN_DIR   := bin
+    BIN_DIR := bin
     EXT       :=
+    SEP       := /
     WHICH     := which
     RM        := rm -rf
     PYTHON    := python3
@@ -51,9 +51,10 @@ endif
 
 # --- TARGETS ---
 
-.PHONY: help install up down run-async test lint format clean install-uv-user install-uv-project
+.PHONY: help install up down run-async test lint format clean build build-no-cache install-uv-user install-uv-project start
 
-help: ## Show this help message
+## Show this help message
+help:
 	@echo Usage: make [target]
 	@echo.
 	@echo Targets:
@@ -69,33 +70,46 @@ else
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 endif
 
-install: ## Install dependencies using uv sync
+## Build, start infrastructure and run the crawler (Complete Cycle)
+start: build up
+	@echo "Waiting for services to stabilize (5s)..."
+	@$(if $(filter Windows,$(OS_TYPE)),timeout /t 5 /nobreak > nul,sleep 5)
+	@$(MAKE) --no-print-directory run-async
+
+## Install dependencies using uv sync
+install:
 	@echo "Syncing dependencies..."
 	@$(SYNC)
+
 ## Start Docker infrastructure (Database, Redis, Grafana)
 up:
 	@echo "Starting infrastructure (Cleaning old containers)..."
 	@docker-compose up -d --remove-orphans
 
-
-down: ## Stop Docker infrastructure
+## Stop Docker infrastructure
+down:
 	@docker-compose down
 
-run-async: ## Run the crawler in asynchronous mode
+## Run the crawler in asynchronous mode
+run-async:
 	@echo "Launching crawler..."
 	@$(RUN) $(PYTHON) main.py
 
-test: ## Run the optimized test suite
+## Run the optimized test suite
+test:
 	@echo "Running tests..."
 	@$(PYTEST) tests/ -v
 
-lint: ## Check code quality with Ruff
+## Check code quality with Ruff
+lint:
 	@echo "Checking linting..."
 	@$(RUFF) check .
 
-format: ## Format code according to project standards
+## Format code according to project standards
+format:
 	@echo "Formatting code..."
 	@$(RUFF) format .
+
 ## Deep clean project caches and temporary files
 clean:
 	@echo "Cleaning up for $(OS_TYPE)..."
@@ -120,7 +134,7 @@ build-no-cache:
 	@docker-compose build --no-cache
 
 ## [SETUP] Install uv globally for the current user
-
+install-uv-user:
 ifeq ($(OS_TYPE),Windows)
 	@echo "Iniciando instalacao global robusta..."
 	@powershell -NoProfile -ExecutionPolicy Bypass -Command " \
@@ -151,7 +165,8 @@ else
 	@curl -LsSf https://astral.sh/uv/install.sh | sh
 endif
 
-install-uv-project: ## [SETUP] Install uv only inside the project root
+## [SETUP] Install uv only inside the project root
+install-uv-project:
 ifeq ($(OS_TYPE),Windows)
 	@echo "Downloading uv.exe to project root..."
 	@curl.exe -L https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip -o uv.zip
@@ -170,6 +185,7 @@ else
 	@chmod +x ./uv
 endif
 
+# Internal helper to check for uv
 check-uv:
 ifeq ($(UV),MISSING)
 	@echo.

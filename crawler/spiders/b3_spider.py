@@ -15,22 +15,25 @@ class B3Spider(BaseSpider):
         yf_symbol = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
         logger.info(f"Crawling ticker: {yf_symbol}")
 
-        # Create a fresh session for each ticker to avoid cookie conflicts in parallel
         ticker = yf.Ticker(yf_symbol)
 
-        # 1. Get/Create Company
+        # 1. Get/Create Company with enriched data
         info = ticker.info
+        
+        # Priority: longName -> shortName -> symbol
+        display_name = info.get("longName") or info.get("shortName") or symbol.replace(".SA", "")
+        
         company_schema = CompanySchema(
             symbol=symbol.replace(".SA", ""),
-            name=info.get("longName"),
+            name=display_name,
             sector=info.get("sector"),
             sub_sector=info.get("industry"),
             segment=info.get("quoteType"),
         )
         company = self.data_service.get_or_create_company(company_schema)
 
-        # 2. Get Historical Prices (last 30 days for example)
-        history = ticker.history(period="1mo")
+        # 2. Get Historical Prices (Expanded to 1 year for better ML features)
+        history = ticker.history(period="1y")
         prices = []
         for index, row in history.iterrows():
             prices.append(
@@ -49,14 +52,16 @@ class B3Spider(BaseSpider):
             self.data_service.save_prices(company.id, prices)
             logger.info(f"Saved {len(prices)} price points for {symbol}")
 
-        # 3. Get Fundamentals
+        # 3. Get Fundamentals (Detailed Mapping)
+        # Using forwardPE for P/L and priceToBook for P/VP
         fundamental_schema = FundamentalSchema(
-            p_l=info.get("forwardPE"),
+            p_l=info.get("forwardPE") or info.get("trailingPE"),
             p_vp=info.get("priceToBook"),
             ev_ebitda=info.get("enterpriseToEbitda"),
             roe=info.get("returnOnEquity"),
-            dy=info.get("dividendYield", 0) * 100 if info.get("dividendYield") else None,
-            # Add more mapping as needed
+            dy=info.get("dividendYield", 0) * 100 if info.get("dividendYield") else 0,
+            net_margin=info.get("profitMargins"),
+            liquid_debt_ebitda=info.get("debtToEbitda")
         )
         self.data_service.save_fundamentals(company.id, fundamental_schema)
-        logger.info(f"Saved fundamentals for {symbol}")
+        logger.info(f"Saved enriched fundamentals for {symbol} (P/VP: {fundamental_schema.p_vp})")

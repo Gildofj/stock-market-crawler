@@ -41,11 +41,17 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   worker:
     build: .
     container_name: stock_market_crawler_worker
-    command: celery -A crawler.celery_app worker --loglevel=info
+    # Use -c 10 for 10 concurrent processes to speed up crawling
+    command: celery -A crawler.celery_app worker --loglevel=info -c 10 --prefetch-multiplier 1
     environment:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@timescaledb:5432/stock_market_crawler_data
       - CELERY_BROKER_URL=redis://redis:6379/0

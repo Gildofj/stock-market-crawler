@@ -1,19 +1,24 @@
 from loguru import logger
-
 from crawler.tasks import crawl_ticker_task
-
+from crawler.services.ticker_service import TickerService
 
 def main():
-    logger.info("Starting B3 Stock Market Crawler (Async Mode)...")
+    logger.info("Starting stock-market-crawler (Full Market Discovery)...")
+    
+    ticker_service = TickerService()
+    tickers = ticker_service.get_all_tickers()
+    
+    if not tickers:
+        logger.error("No tickers found. Aborting.")
+        return
 
-    # Example tickers
-    tickers = ["PETR4", "VALE3", "ITUB4", "BBDC4", "ABEV3", "B3SA3"]
-
+    logger.info(f"Distributing tasks for {len(tickers)} companies across the cluster...")
+    
     for ticker in tickers:
-        logger.info(f"Queuing task for {ticker}")
+        # We process in background via Celery
         crawl_ticker_task.delay(ticker)
 
-    logger.info(f"Queued {len(tickers)} tasks. Check Celery logs for progress.")
+    logger.info("All tasks dispatched. Workers are processing the data.")
 
 
 if __name__ == "__main__":
