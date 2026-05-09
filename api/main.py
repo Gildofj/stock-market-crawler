@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
-from fastapi_limiter import FastAPILimiter
 from loguru import logger
 
 from .routers import companies, fundamentals, prices
@@ -80,7 +79,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 if os.getenv("ENV") == "production":
     app.add_middleware(CloudflareMiddleware)
 
-# 4. Inicialização de Cache e Rate Limiting
+# 4. Inicialização de Cache
 @app.on_event("startup")
 async def startup():
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -90,13 +89,9 @@ async def startup():
         # Inicializa Cache
         FastAPICache.init(RedisBackend(r), prefix="stock-api-cache")
 
-        # Inicializa Rate Limiter
-        await FastAPILimiter.init(r)
-
-        logger.info("API initialized with Redis Cache and Rate Limiting.")
+        logger.info("API initialized with Redis Cache.")
     except Exception as e:
         logger.error(f"Failed to initialize Redis: {e}")
-
 # 4. Registro de Rotas
 app.include_router(companies.router, prefix="/api/v1")
 app.include_router(fundamentals.router, prefix="/api/v1")

@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi_cache.decorator import cache
 from fastapi_limiter.depends import RateLimiter
+from pyrate_limiter import Duration, Limiter, Rate
 from sqlalchemy.orm import Session
 
 from crawler.models.models import Company, StockPrice
@@ -13,11 +14,15 @@ from ..schemas import StockPriceRead
 
 router = APIRouter(prefix="/prices", tags=["Prices"])
 
+# Modern Rate Limiting (v0.2.0+)
+# 20 requests per minute
+prices_limiter = Limiter(Rate(20, Duration.MINUTE))
+
 
 @router.get(
     "/{symbol}",
     response_model=list[StockPriceRead],
-    dependencies=[Depends(RateLimiter(times=20, seconds=60))],
+    dependencies=[Depends(RateLimiter(limiter=prices_limiter))],
 )
 @cache(expire=3600)  # Cache de 1 hora para preços
 async def get_prices(
