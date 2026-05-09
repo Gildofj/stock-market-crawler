@@ -44,8 +44,9 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
         return self.cloudflare_ips
 
     async def dispatch(self, request: Request, call_next):
-        # Em ambiente local (dev), podemos pular essa validação se necessário
-        # Mas para produção (Fly.io), é obrigatório.
+        # Allow documentation routes to bypass Cloudflare check
+        if request.url.path in ["/docs", "/redoc", "/openapi.json", "/favicon.ico"]:
+            return await call_next(request)
 
         client_ip = request.client.host
         # O Fly.io passa o IP real em X-Forwarded-For ou o Cloudflare em CF-Connecting-IP

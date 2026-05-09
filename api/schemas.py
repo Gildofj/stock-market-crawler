@@ -17,11 +17,11 @@ class CompanyRead(CompanyBase):
     model_config = ConfigDict(from_attributes=True)
 
 class StockPriceRead(BaseModel):
-    time: date
+    time: datetime
     open: Decimal | None = None
     high: Decimal | None = None
     low: Decimal | None = None
-    close: Decimal
+    close: Decimal | None = None
     volume: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
