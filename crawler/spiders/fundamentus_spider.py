@@ -1,4 +1,3 @@
-import requests
 from bs4 import BeautifulSoup
 from loguru import logger
 
@@ -7,24 +6,24 @@ from ..services.logo_service import LogoService
 from .base_spider import BaseSpider
 
 
+from ..services.request_manager import RequestManager
+
 class FundamentusSpider(BaseSpider):
     BASE_URL = "https://www.fundamentus.com.br/detalhes.php?papel="
 
     def __init__(self, data_service):
         super().__init__(data_service)
         self.logo_service = LogoService(data_service)
+        self.request_manager = RequestManager()
 
     def crawl_ticker(self, symbol: str):
         url = f"{self.BASE_URL}{symbol}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"  # noqa: E501
-        }
 
         try:
             # Ensure logo is present (with fallback)
             self.logo_service.update_logo_if_missing(symbol)
 
-            response = requests.get(url, headers=headers, timeout=10)
+            response = self.request_manager.get(url, timeout=15)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, "lxml")
