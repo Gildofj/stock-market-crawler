@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+output/
+tests/
+grafana/
+docker-compose.yml
+README.md

@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Database Configuration
-    DATABASE_URL: str | None = None  # Highest priority
+    DATABASE_URL: str | None = None  # Highest priority (e.g., Supabase URL)
 
     DB_USER: str = "crawler_user"
     DB_PASSWORD: str = "crawler_pass"
@@ -14,8 +14,15 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         if self.DATABASE_URL:
+            # If using Supabase/Cloud, ensure we handle sslmode if not provided
+            if "supabase" in self.DATABASE_URL and "sslmode" not in self.DATABASE_URL:
+                separator = "&" if "?" in self.DATABASE_URL else "?"
+                return f"{self.DATABASE_URL}{separator}sslmode=require"
             return self.DATABASE_URL
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    # Celery Configuration
+    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
 
     # Crawler Settings
     LOG_LEVEL: str = "INFO"

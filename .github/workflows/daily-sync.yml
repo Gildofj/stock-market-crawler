@@ -1,36 +1,33 @@
-name: Daily B3 Sync
+name: Daily Market Crawler
 
 on:
   schedule:
-    - cron: '0 2 * * *' # Runs at 02:00 UTC daily (approx 23:00 BRT)
-  workflow_dispatch: # Allows manual trigger
+    - cron: '0 2 * * *' # Runs at 02:00 UTC daily
+  workflow_dispatch:
 
 jobs:
-  sync:
+  dispatch:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          node-version: 20
-          cache: 'npm'
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
 
       - name: Install dependencies
-        run: npm install
+        run: uv sync --frozen
 
-      - name: Run Crawler
-        run: npm start
+      - name: Run Dispatcher (main.py)
+        run: uv run python main.py
         env:
-          MAX_TICKERS: 100 # Adjust as needed
-
-      - name: Commit and Push results
-        run: |
-          git config --global user.name 'B3 Bot'
-          git config --global user.email 'bot@b3-crawler.com'
-          git add output/*.json
-          git commit -m "chore: daily data sync [skip ci]" || echo "No changes to commit"
-          git push
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CELERY_BROKER_URL: ${{ secrets.CELERY_BROKER_URL }}
+          LOG_LEVEL: INFO

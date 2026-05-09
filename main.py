@@ -7,9 +7,9 @@ from crawler.services.database import engine
 def main():
     logger.info("Starting stock-market-crawler (Full Market Discovery)...")
     
-    # 0. Initialize DB Schema (Once)
+    # 0. Initialize DB Schema (Migrations are preferred for production)
     logger.info("Initializing database schema...")
-    Base.metadata.create_all(bind=engine)
+    # Base.metadata.create_all(bind=engine) # Alternative: uv run alembic upgrade head
     
     # 1. Fetch Macro Data (Once per run)
     logger.info("Triggering macro data collection...")
