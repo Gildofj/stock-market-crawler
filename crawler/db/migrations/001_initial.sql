@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS companies (
     sector      VARCHAR(100),
     sub_sector  VARCHAR(100),
     segment     VARCHAR(100),
+    is_active   INTEGER NOT NULL DEFAULT 1,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

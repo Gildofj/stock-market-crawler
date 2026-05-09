@@ -1,4 +1,5 @@
 from loguru import logger
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models.models import Company, Fundamental, StockPrice
@@ -10,37 +11,75 @@ class DataService:
         self.db = db
 
     def get_or_create_company(self, company_data: CompanySchema) -> Company:
-        company = self.db.query(Company).filter(Company.symbol == company_data.symbol).first()
-        if not company:
-            company = Company(**company_data.model_dump())
-            self.db.add(company)
+        try:
+            company = self.db.query(Company).filter(Company.symbol == company_data.symbol).first()
+            if not company:
+                company = Company(**company_data.model_dump())
+                self.db.add(company)
+            else:
+                # Update existing company with potential new info and status
+                for key, value in company_data.model_dump(exclude={"symbol"}).items():
+                    if value is not None:
+                        setattr(company, key, value)
+            
             self.db.commit()
             self.db.refresh(company)
-        return company
-
-    def get_company_by_symbol(self, symbol: str) -> Company:
-        return self.db.query(Company).filter(Company.symbol == symbol).first()
-
-    def save_prices(self, company_id: int, prices: list[StockPriceSchema]):
-        for price_data in prices:
-            # Check if price already exists for this time and company
-            existing = (
-                self.db.query(StockPrice)
-                .filter(StockPrice.time == price_data.time, StockPrice.company_id == company_id)
-                .first()
-            )
-
-            if not existing:
-                price = StockPrice(company_id=company_id, **price_data.model_dump())
-                self.db.add(price)
-
-        try:
-            self.db.commit()
+            return company
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error saving prices: {e}")
+            logger.error(f"Error in get_or_create_company for {company_data.symbol}: {e}")
+            # Try to return existing if commit failed due to race condition
+            return self.db.query(Company).filter(Company.symbol == company_data.symbol).first()
+
+    def get_company_by_symbol(self, symbol: str) -> Company:
+        try:
+            return self.db.query(Company).filter(Company.symbol == symbol).first()
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error fetching company {symbol}: {e}")
+            return None
+
+    def save_prices(self, company_id: int, prices: list[StockPriceSchema]):
+        """
+        Saves prices using bulk insert logic for maximum performance.
+        """
+        if not prices:
+            return
+
+        from sqlalchemy.dialects.postgresql import insert
+
+        values = []
+        for p in prices:
+            val = p.model_dump()
+            val['company_id'] = company_id
+            values.append(val)
+
+        # Bulk insert with conflict handling (Idempotency)
+        stmt = insert(StockPrice).values(values)
+        stmt = stmt.on_conflict_do_nothing(index_elements=['time', 'company_id'])
+
+        try:
+            self.db.execute(stmt)
+            self.db.commit()
+            logger.info(f"Bulk saved {len(prices)} prices for company_id {company_id}")
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error in bulk save_prices for {company_id}: {e}")
 
     def save_fundamentals(self, company_id: int, fundamentals_data: FundamentalSchema):
+        """
+        Saves fundamentals ensuring idempotency by checking for recent data.
+        """
+        # Avoid redundant saves if we already collected fundamentals today
+        today = func.current_date()
+        existing = self.db.query(Fundamental).filter(
+            Fundamental.company_id == company_id,
+            func.date(Fundamental.collected_at) == today
+        ).first()
+
+        if existing:
+            return
+
         fundamental = Fundamental(company_id=company_id, **fundamentals_data.model_dump())
         self.db.add(fundamental)
         try:

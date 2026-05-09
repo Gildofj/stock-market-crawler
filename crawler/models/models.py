@@ -23,6 +23,7 @@ class Company(Base):
     sector = Column(String(100))
     sub_sector = Column(String(100))
     segment = Column(String(100))
+    is_active = Column(Integer, default=1) # 1 for Active, 0 for Inactive
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

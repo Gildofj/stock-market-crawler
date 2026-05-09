@@ -1,5 +1,11 @@
 import os
+import sys
 from celery import Celery
+from loguru import logger
+
+# Configure Loguru for JSON serialization to feed Grafana Loki perfectly
+logger.remove()
+logger.add(sys.stdout, serialize=True)
 
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 
@@ -23,11 +29,6 @@ app.conf.update(
         'crawler.tasks.crawl_ticker_task': {'rate_limit': '2/s'}
     }
 )
-
-# Initialize database tables
-from crawler.models.models import Base
-from crawler.services.database import engine
-Base.metadata.create_all(bind=engine)
 
 if __name__ == "__main__":
     app.start()

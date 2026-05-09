@@ -19,6 +19,7 @@ class CompanySchema(BaseModel):
     sector: str | None = None
     sub_sector: str | None = None
     segment: str | None = None
+    is_active: int = 1
 
 
 class FundamentalSchema(BaseModel):

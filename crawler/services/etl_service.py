@@ -44,17 +44,35 @@ class ETLService:
 
         # 3. Save to DB
         for _index, row in df.dropna().iterrows():
-            feature = MLFeature(
+            # Check if feature already exists for this time/company to avoid conflicts
+            existing = self.db.query(MLFeature).filter(
+                MLFeature.time == row["time"],
+                MLFeature.company_id == company_id
+            ).first()
 
-                time=row["time"],
-                company_id=company_id,
-                sma_20=row["sma_20"],
-                sma_50=row["sma_50"],
-                rsi_14=row["rsi_14"],
-                volatility_20=row["volatility_20"],
-                target_next_day_change=row["target_next_day_change"],
-            )
-            self.db.merge(feature)
+            if not existing:
+                feature = MLFeature(
+                    time=row["time"],
+                    company_id=company_id,
+                    sma_20=row["sma_20"],
+                    sma_50=row["sma_50"],
+                    rsi_14=row["rsi_14"],
+                    volatility_20=row["volatility_20"],
+                    target_next_day_change=row["target_next_day_change"],
+                )
+                self.db.add(feature)
+            else:
+                # Update existing
+                existing.sma_20 = row["sma_20"]
+                existing.sma_50 = row["sma_50"]
+                existing.rsi_14 = row["rsi_14"]
+                existing.volatility_20 = row["volatility_20"]
+                existing.target_next_day_change = row["target_next_day_change"]
 
-        self.db.commit()
-        logger.info(f"Features saved for company_id: {company_id}")
+        try:
+            self.db.commit()
+            logger.info(f"Features saved for company_id: {company_id}")
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to save features for company {company_id}: {e}")
+

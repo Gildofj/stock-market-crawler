@@ -1,10 +1,21 @@
 from loguru import logger
-from crawler.tasks import crawl_ticker_task
+from crawler.tasks import crawl_ticker_task, crawl_macro_data_task
 from crawler.services.ticker_service import TickerService
+from crawler.models.models import Base
+from crawler.services.database import engine
 
 def main():
     logger.info("Starting stock-market-crawler (Full Market Discovery)...")
     
+    # 0. Initialize DB Schema (Once)
+    logger.info("Initializing database schema...")
+    Base.metadata.create_all(bind=engine)
+    
+    # 1. Fetch Macro Data (Once per run)
+    logger.info("Triggering macro data collection...")
+    crawl_macro_data_task.delay()
+    
+    # 2. Fetch all Tickers
     ticker_service = TickerService()
     tickers = ticker_service.get_all_tickers()
     
