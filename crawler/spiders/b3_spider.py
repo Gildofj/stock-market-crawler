@@ -76,7 +76,10 @@ class B3Spider(BaseSpider):
             roe=info.get("returnOnEquity"),
             dy=info.get("dividendYield", 0) * 100 if info.get("dividendYield") else 0,
             net_margin=info.get("profitMargins"),
-            liquid_debt_ebitda=info.get("debtToEbitda")
+            liquid_debt_ebitda=info.get("debtToEbitda"),
+            debt_to_equity=info.get("debtToEquity"),
+            market_cap=info.get("marketCap"),
+            eps=info.get("trailingEps")
         )
         self.data_service.save_fundamentals(company.id, fundamental_schema)
         logger.info(f"Saved enriched fundamentals for {symbol} (P/VP: {fundamental_schema.p_vp})")

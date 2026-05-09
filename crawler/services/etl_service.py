@@ -1,3 +1,4 @@
+import uuid
 import pandas as pd
 from loguru import logger
 from sqlalchemy.orm import Session
@@ -9,7 +10,7 @@ class ETLService:
     def __init__(self, db: Session):
         self.db = db
 
-    def generate_features(self, company_id: int):
+    def generate_features(self, company_id: uuid.UUID):
         logger.info(f"Generating ML features for company_id: {company_id}")
 
         # 1. Load data into Pandas

@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy import (
     BIGINT,
     Column,
@@ -7,6 +8,7 @@ from sqlalchemy import (
     Numeric,
     PrimaryKeyConstraint,
     String,
+    Uuid,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -17,13 +19,15 @@ from ..services.database import Base
 class Company(Base):
     __tablename__ = "companies"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     symbol = Column(String(10), unique=True, nullable=False, index=True)
     name = Column(String(255))
     sector = Column(String(100))
     sub_sector = Column(String(100))
     segment = Column(String(100))
     is_active = Column(Integer, default=1) # 1 for Active, 0 for Inactive
+    logo_url = Column(String(500))
+    website = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -35,7 +39,7 @@ class StockPrice(Base):
     __tablename__ = "stock_prices"
 
     time = Column(DateTime(timezone=True), nullable=False)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
     open = Column(Numeric(12, 4))
     high = Column(Numeric(12, 4))
     low = Column(Numeric(12, 4))
@@ -51,8 +55,8 @@ class StockPrice(Base):
 class Fundamental(Base):
     __tablename__ = "fundamentals"
 
-    id = Column(Integer, primary_key=True, index=True)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id = Column(Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
 
     # Valuation
     p_l = Column(Numeric(10, 2))
@@ -74,6 +78,11 @@ class Fundamental(Base):
     cagr_revenue_5y = Column(Numeric(8, 2))
     cagr_profit_5y = Column(Numeric(8, 2))
 
+    # New Fields for AI Analysis
+    debt_to_equity = Column(Numeric(10, 2))
+    market_cap = Column(Numeric(20, 2))
+    eps = Column(Numeric(10, 2))
+
     # Calculated
     valuation_graham = Column(Numeric(12, 4))
     valuation_bazin = Column(Numeric(12, 4))
@@ -88,7 +97,7 @@ class MLFeature(Base):
     __tablename__ = "ml_features"
 
     time = Column(DateTime(timezone=True), nullable=False)
-    company_id = Column(Integer, ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
 
     # Technical Indicators
     sma_20 = Column(Numeric(12, 4))

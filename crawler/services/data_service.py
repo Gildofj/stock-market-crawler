@@ -1,3 +1,4 @@
+import uuid
 from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -39,7 +40,23 @@ class DataService:
             logger.error(f"Error fetching company {symbol}: {e}")
             return None
 
-    def save_prices(self, company_id: int, prices: list[StockPriceSchema]):
+    def update_company_info(self, symbol: str, updates: dict):
+        """
+        Updates specific company metadata (e.g., logo_url, website).
+        """
+        try:
+            company = self.db.query(Company).filter(Company.symbol == symbol).first()
+            if company:
+                for key, value in updates.items():
+                    if hasattr(company, key) and value is not None:
+                        setattr(company, key, value)
+                self.db.commit()
+                logger.info(f"Updated metadata for {symbol}: {list(updates.keys())}")
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error updating company info for {symbol}: {e}")
+
+    def save_prices(self, company_id: uuid.UUID, prices: list[StockPriceSchema]):
         """
         Saves prices using bulk insert logic for maximum performance.
         """
@@ -66,7 +83,7 @@ class DataService:
             self.db.rollback()
             logger.error(f"Error in bulk save_prices for {company_id}: {e}")
 
-    def save_fundamentals(self, company_id: int, fundamentals_data: FundamentalSchema):
+    def save_fundamentals(self, company_id: uuid.UUID, fundamentals_data: FundamentalSchema):
         """
         Saves fundamentals ensuring idempotency by checking for recent data.
         """

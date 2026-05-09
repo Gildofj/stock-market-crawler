@@ -4,10 +4,15 @@ from loguru import logger
 
 from ..models.schemas import CompanySchema, FundamentalSchema
 from .base_spider import BaseSpider
+from ..services.logo_service import LogoService
 
 
 class FundamentusSpider(BaseSpider):
     BASE_URL = "https://www.fundamentus.com.br/detalhes.php?papel="
+
+    def __init__(self, data_service):
+        super().__init__(data_service)
+        self.logo_service = LogoService(data_service)
 
     def crawl_ticker(self, symbol: str):
         url = f"{self.BASE_URL}{symbol}"
@@ -16,6 +21,9 @@ class FundamentusSpider(BaseSpider):
         }
 
         try:
+            # Ensure logo is present (with fallback)
+            self.logo_service.update_logo_if_missing(symbol)
+
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
 
@@ -46,8 +54,21 @@ class FundamentusSpider(BaseSpider):
             p_vp = self._parse_val(soup, "P/VP")
             dy = self._parse_val(soup, "Div. Yield")
             roe = self._parse_val(soup, "ROE")
+            
+            # New fields
+            market_cap = self._parse_val(soup, "Valor de mercado")
+            debt_to_equity = self._parse_val(soup, "Dív. Líq / Patrim. Líq")
+            eps = self._parse_val(soup, "LPA")
 
-            fundamental_schema = FundamentalSchema(p_l=p_l, p_vp=p_vp, dy=dy, roe=roe)
+            fundamental_schema = FundamentalSchema(
+                p_l=p_l, 
+                p_vp=p_vp, 
+                dy=dy, 
+                roe=roe,
+                market_cap=market_cap,
+                debt_to_equity=debt_to_equity,
+                eps=eps
+            )
 
             self.data_service.save_fundamentals(company.id, fundamental_schema)
             logger.info(f"Fundamentus: Saved fundamentals for {symbol}")

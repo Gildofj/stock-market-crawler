@@ -19,15 +19,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # 0. Enable UUID extension
+    op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+
     # 1. Companies Table
     op.execute("""
         CREATE TABLE IF NOT EXISTS companies (
-            id          SERIAL PRIMARY KEY,
+            id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             symbol      VARCHAR(10) NOT NULL UNIQUE,
             name        VARCHAR(255),
             sector      VARCHAR(100),
             sub_sector  VARCHAR(100),
             segment     VARCHAR(100),
+            logo_url    VARCHAR(500),
+            website     VARCHAR(255),
             is_active   INTEGER NOT NULL DEFAULT 1,
             created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -39,7 +44,7 @@ def upgrade() -> None:
     op.execute("""
         CREATE TABLE IF NOT EXISTS stock_prices (
             time        TIMESTAMPTZ NOT NULL,
-            company_id  INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            company_id  UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
             open        NUMERIC(12, 4),
             high        NUMERIC(12, 4),
             low         NUMERIC(12, 4),
@@ -54,8 +59,8 @@ def upgrade() -> None:
     # 3. Fundamentals Table
     op.execute("""
         CREATE TABLE IF NOT EXISTS fundamentals (
-            id                   SERIAL PRIMARY KEY,
-            company_id           INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            company_id           UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
             p_l                  NUMERIC(10, 2),
             p_vp                 NUMERIC(10, 2),
             ev_ebitda            NUMERIC(10, 2),
@@ -66,6 +71,9 @@ def upgrade() -> None:
             liquid_debt_ebitda   NUMERIC(10, 2),
             cagr_revenue_5y      NUMERIC(8, 2),
             cagr_profit_5y       NUMERIC(8, 2),
+            debt_to_equity       NUMERIC(10, 2),
+            market_cap           NUMERIC(20, 2),
+            eps                  NUMERIC(10, 2),
             valuation_graham     NUMERIC(12, 4),
             valuation_bazin      NUMERIC(12, 4),
             quality_score        SMALLINT,
@@ -74,9 +82,27 @@ def upgrade() -> None:
     """)
     op.execute("CREATE INDEX IF NOT EXISTS idx_fundamentals_company_date ON fundamentals(company_id, collected_at DESC)")
 
-    # 4. Latest Fundamentals View
+    # 4. ML Features Table
     op.execute("""
-        CREATE OR REPLACE VIEW latest_fundamentals AS
+        CREATE TABLE IF NOT EXISTS ml_features (
+            time                    TIMESTAMPTZ NOT NULL,
+            company_id              UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+            sma_20                  NUMERIC(12, 4),
+            sma_50                  NUMERIC(12, 4),
+            rsi_14                  NUMERIC(12, 4),
+            volatility_20           NUMERIC(12, 4),
+            p_l_ratio               NUMERIC(12, 4),
+            target_next_day_change  NUMERIC(12, 4),
+            PRIMARY KEY (time, company_id)
+        )
+    """)
+    op.execute("CREATE INDEX IF NOT EXISTS idx_ml_features_company ON ml_features(company_id, time DESC)")
+
+    # 5. Latest Fundamentals View
+    op.execute("""
+        CREATE OR REPLACE VIEW latest_fundamentals 
+        WITH (security_invoker = true)
+        AS
             SELECT DISTINCT ON (company_id)
                 f.*,
                 c.symbol,
@@ -90,6 +116,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP VIEW IF EXISTS latest_fundamentals")
+    op.execute("DROP TABLE IF EXISTS ml_features")
     op.execute("DROP TABLE IF EXISTS fundamentals")
     op.execute("DROP TABLE IF EXISTS stock_prices")
     op.execute("DROP TABLE IF EXISTS companies")

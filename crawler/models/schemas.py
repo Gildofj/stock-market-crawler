@@ -19,6 +19,8 @@ class CompanySchema(BaseModel):
     sector: str | None = None
     sub_sector: str | None = None
     segment: str | None = None
+    logo_url: str | None = None
+    website: str | None = None
     is_active: int = 1
 
 
@@ -33,3 +35,6 @@ class FundamentalSchema(BaseModel):
     liquid_debt_ebitda: float | None = None
     cagr_revenue_5y: float | None = None
     cagr_profit_5y: float | None = None
+    debt_to_equity: float | None = None
+    market_cap: float | None = None
+    eps: float | None = None

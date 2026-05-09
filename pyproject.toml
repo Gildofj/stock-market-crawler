@@ -23,6 +23,11 @@ dependencies = [
     "redis>=5.2.1",
     "ruff>=0.9.0",
     "flower>=2.0.1",
+    "fastapi>=0.136.1",
+    "uvicorn[standard]>=0.46.0",
+    "fastapi-cache2[redis]>=0.1.8",
+    "fastapi-limiter>=0.2.0",
+    "httpx>=0.28.1",
 ]
 
 [tool.ruff]

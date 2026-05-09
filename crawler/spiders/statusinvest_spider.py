@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from loguru import logger
 from .base_spider import BaseSpider
 from ..models.schemas import FundamentalSchema
+from ..services.logo_service import LogoService
 
 class StatusInvestSpider(BaseSpider):
     """
@@ -10,6 +11,10 @@ class StatusInvestSpider(BaseSpider):
     Used for cross-referencing fundamentals and fetching dividend history.
     """
     BASE_URL = "https://statusinvest.com.br/acoes/"
+
+    def __init__(self, data_service):
+        super().__init__(data_service)
+        self.logo_service = LogoService(data_service)
 
     def crawl_ticker(self, symbol: str):
         url = f"{self.BASE_URL}{symbol.lower()}"
@@ -19,6 +24,9 @@ class StatusInvestSpider(BaseSpider):
         }
         
         try:
+            # Ensure logo is present (with fallback)
+            self.logo_service.update_logo_if_missing(symbol)
+
             response = requests.get(url, headers=headers, timeout=15)
             if response.status_code != 200:
                 logger.warning(f"StatusInvest: Symbol {symbol} not found or blocked (Status: {response.status_code})")
@@ -32,15 +40,23 @@ class StatusInvestSpider(BaseSpider):
             p_l = self._parse_indicator(soup, "P/L")
             p_vp = self._parse_indicator(soup, "P/VP")
             roe = self._parse_indicator(soup, "ROE")
+            
+            # New fields
+            debt_to_equity = self._parse_indicator(soup, "DÍV. LÍQUIDA / PATRIMÔNIO")
+            eps = self._parse_indicator(soup, "LPA")
+            market_cap = self._parse_indicator(soup, "VALOR DE MERCADO")
 
-            if dy or p_l or p_vp:
+            if dy or p_l or p_vp or market_cap:
                 company = self.data_service.get_company_by_symbol(symbol)
                 if company:
                     fundamental_schema = FundamentalSchema(
                         p_l=p_l,
                         p_vp=p_vp,
                         dy=dy,
-                        roe=roe
+                        roe=roe,
+                        debt_to_equity=debt_to_equity,
+                        eps=eps,
+                        market_cap=market_cap
                     )
                     self.data_service.save_fundamentals(company.id, fundamental_schema)
                     logger.info(f"StatusInvest: Enriched fundamentals for {symbol}")
