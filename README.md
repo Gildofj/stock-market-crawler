@@ -1,120 +1,97 @@
-# 📈 Distributed Stock Market Crawler & ETL Pipeline
+# 📈 Stock Market Crawler
 
-> **⚠️ AVISO LEGAL**: Este projeto foi desenvolvido estritamente para fins **educacionais e de estudo de arquitetura**. O uso de crawlers para extração de dados deve respeitar os Termos de Uso (ToS) e o arquivo `robots.txt` dos sites alvo (B3, StatusInvest, Fundamentus, etc.). O autor não se responsabiliza pelo uso indevido desta ferramenta.
+[![CI/CD](https://github.com/gildofj/stock-market-crawler/actions/workflows/fly-deploy.yml/badge.svg)](https://github.com/gildofj/stock-market-crawler/actions/workflows/fly-deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
-Este repositório demonstra a implementação de um pipeline de engenharia de dados robusto, distribuído e observável para coleta e processamento de indicadores fundamentalistas do mercado financeiro brasileiro.
+A high-performance, agnostic stock market crawler and API for the Brazilian financial market (B3). Built with **FastAPI**, **Celery**, and **Clean Architecture**.
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## ✨ Features
 
-O projeto utiliza uma arquitetura baseada em microserviços e processamento assíncrono para garantir escalabilidade e resiliência:
+- **🚀 High Performance**: FastAPI with Uvicorn and Redis-based caching.
+- **🕒 Distributed Crawling**: Scalable worker system using Celery for efficient data scraping.
+- **🛡️ Resilience**: Automatic retries, rate limiting, and request management to handle external API limits.
+- **📊 Rich Data**:
+    - Company metadata and listings.
+    - Financial fundamentals (P/E, DY, ROIC, etc.).
+    - Historical and current stock quotes.
+- **📝 Automatic Documentation**: OpenAPI (Swagger) and ReDoc support.
 
-```mermaid
-graph TD
-    User([Trigger/Main]) -->|Enfileira Tarefas| Broker[(Redis)]
-    Broker -->|Distribui| Worker1[Celery Worker 1]
-    Broker -->|Distribui| Worker2[Celery Worker 2]
-    
-    subgraph "Processamento (Worker)"
-        Worker1 --> Spider[Spiders: Scrapy/Custom]
-        Spider --> ETL[ETL Service]
-        ETL --> DB[(TimescaleDB / Postgres)]
-    end
-    
-    subgraph "Observabilidade"
-        DB --> Grafana[Grafana Dashboards]
-        Workers[Workers Logs] --> Promtail[Promtail]
-        Promtail --> Loki[Grafana Loki]
-        Loki --> Grafana
-        Broker --> Flower[Flower: Celery Monitor]
-    end
+---
+
+## 🛠️ Getting Started
+
+### Prerequisites
+
+- [Python 3.12+](https://www.python.org/downloads/)
+- [Docker](https://www.docker.com/) & Docker Compose
+- [uv](https://github.com/astral-sh/uv) (Highly recommended for dependency management)
+
+### Local Setup
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/gildofj/stock-market-crawler.git
+    cd stock-market-crawler
+    ```
+
+2.  **Environment Variables**:
+    ```bash
+    cp .env.example .env
+    # Edit .env with your local credentials
+    ```
+
+3.  **Install dependencies**:
+    ```bash
+    uv sync
+    ```
+
+4.  **Run with Docker Compose**:
+    ```bash
+    docker-compose up -d
+    ```
+
+---
+
+## 📖 Documentation
+
+Detailed technical documentation can be found in the `docs/` folder:
+
+- [🏗️ Architecture Overview](./docs/ARCHITECTURE.md) - Deep dive into patterns and data flow.
+- [🚀 Deployment Guide](./docs/DEPLOYMENT.md) - Instructions for Fly.io and DevOps.
+
+### API Endpoints (Interactive)
+
+Once running, access the documentation at:
+- **Swagger UI**: `http://localhost:8080/docs`
+- **ReDoc**: `http://localhost:8080/redoc`
+
+---
+
+## 🏗️ Project Structure
+
+```text
+├── api/              # FastAPI Application (Web Layer)
+├── crawler/          # Core Domain & Workers (Scraping Layer)
+├── alembic/          # Database Migrations
+├── docs/             # Technical Documentation
+├── tests/            # Unit & Integration Tests
+├── Dockerfile        # Container Configuration
+└── fly.toml          # Fly.io Deployment Config
 ```
 
-### Principais Componentes:
-- **Python & Celery**: Orquestração de tarefas distribuídas e assíncronas.
-- **Scrapy Spiders**: Extração otimizada de dados de múltiplas fontes.
-- **TimescaleDB (PostgreSQL)**: Armazenamento de dados relacionais e séries temporais.
-- **Redis**: Message Broker para comunicação entre o trigger e os workers.
-- **Grafana Stack (Loki/Promtail)**: Observabilidade centralizada para logs e métricas.
-- **Flower**: Monitoramento em tempo real do estado dos workers e filas.
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 🚀 Como Executar
+## 📄 License
 
-O projeto é totalmente conteinerizado com Docker, facilitando o setup do ambiente completo de engenharia.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### Pré-requisitos
-- Docker & Docker Compose
-- Python 3.12+ (opcional para desenvolvimento local)
-
-### Instalação e Execução
-1. Clone o repositório.
-2. Configure o ambiente (opcional, já existem valores padrão):
-   ```bash
-   cp .env.example .env
-   ```
-3. Suba o cluster:
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Trigger da Coleta**:
-   Para iniciar uma rodada de coleta, você pode executar o script principal dentro do container do worker:
-   ```bash
-   docker exec -it stock_market_crawler_worker python main.py
-   ```
-
----
-
-## ☁️ Cloud Deployment (Zero Cost & HA)
-
-Esta aplicação está preparada para deploy em arquitetura serverless de baixo/zero custo:
-
-### Componentes Cloud:
-- **Banco de Dados**: [Supabase](https://supabase.com/) (PostgreSQL).
-- **Broker (Redis)**: [Upstash](https://upstash.com/) (Serverless Redis).
-- **Compute (Worker)**: [Fly.io](https://fly.io/) (Celery Worker).
-- **Orquestração**: GitHub Actions (Gatilho diário via `daily-sync.yml`).
-
-### Como Implantar:
-1. **Supabase**: Crie um projeto e obtenha a `DATABASE_URL`.
-2. **Upstash**: Crie uma instância Redis e obtenha a `CELERY_BROKER_URL`.
-3. **GitHub Secrets**: Adicione as URLs acima como secrets no seu repositório GitHub.
-4. **Fly.io**: 
-   - Instale o `flyctl`.
-   - Execute `fly launch` (use o `fly.toml` existente).
-   - Configure os segredos no Fly: `fly secrets set DATABASE_URL=... CELERY_BROKER_URL=...`.
-5. **Migrações**: Execute as migrações iniciais no Supabase:
-   ```bash
-   export DATABASE_URL="sua_url_do_supabase"
-   uv run alembic upgrade head
-   ```
-
----
-
-## 📊 Monitoramento e Observabilidade
-
-Após subir o ambiente, você pode acessar as seguintes interfaces:
-
-- **Grafana Dashboards**: [http://localhost:3001](http://localhost:3001) (Admin/admin)
-  - Visualização dos dados coletados e logs centralizados via Loki.
-- **Flower (Celery Monitor)**: [http://localhost:5555](http://localhost:5555)
-  - Monitoramento de tarefas em execução, falhas e performance dos workers.
-- **Database (Postgres)**: `localhost:5433`
-
----
-
-## 🛠️ Engenharia de Dados Aplicada
-Este projeto demonstra conhecimentos em:
-- **Web Scraping Avançado**: Rotação de headers, tratamento de rate limits e parsing complexo.
-- **Processamento Assíncrono**: Uso de filas para gerenciar grandes volumes de requisições sem sobrecarregar as fontes.
-- **ETL (Extract, Transform, Load)**: Limpeza, normalização e validação de dados financeiros antes da persistência.
-- **Infraestrutura como Código (IaC)**: Dockerização completa de múltiplos serviços interdependentes.
-- **Observabilidade**: Implementação de logs estruturados e monitoramento de performance.
-
----
-
-## 📄 Licença
-Distribuído sob a licença MIT. Veja `LICENSE` para mais informações.
+Developed by **[Gildo FJ](https://gildofj.dev)**.

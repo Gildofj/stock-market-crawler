@@ -1,5 +1,5 @@
-import os
 import sys
+
 from celery import Celery
 from loguru import logger
 

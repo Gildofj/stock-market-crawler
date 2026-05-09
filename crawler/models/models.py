@@ -1,4 +1,5 @@
 import uuid
+
 from sqlalchemy import (
     BIGINT,
     Column,
@@ -39,7 +40,9 @@ class StockPrice(Base):
     __tablename__ = "stock_prices"
 
     time = Column(DateTime(timezone=True), nullable=False)
-    company_id = Column(Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(
+        Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
     open = Column(Numeric(12, 4))
     high = Column(Numeric(12, 4))
     low = Column(Numeric(12, 4))
@@ -56,7 +59,9 @@ class Fundamental(Base):
     __tablename__ = "fundamentals"
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id = Column(Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(
+        Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
 
     # Valuation
     p_l = Column(Numeric(10, 2))
@@ -97,7 +102,9 @@ class MLFeature(Base):
     __tablename__ = "ml_features"
 
     time = Column(DateTime(timezone=True), nullable=False)
-    company_id = Column(Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False)
+    company_id = Column(
+        Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+    )
 
     # Technical Indicators
     sma_20 = Column(Numeric(12, 4))

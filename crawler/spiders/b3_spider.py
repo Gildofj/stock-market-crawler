@@ -19,25 +19,29 @@ class B3Spider(BaseSpider):
 
         # Fast fail if no data (e.g. 404 Not Found or delisted)
         history = ticker.history(period="1y")
-        
+
         # Inactivity Check Logic
         is_active = 1
         if history.empty:
-            logger.warning(f"ACTION REQUIRED: {yf_symbol} is INACTIVE or DELISTED. Skipping collection.")
+            logger.warning(
+                f"ACTION REQUIRED: {yf_symbol} is INACTIVE or DELISTED. Skipping collection."
+            )
             return
 
         # Check for liquidity (last 5 trading days volume)
-        recent_volume = history['Volume'].tail(5).sum()
+        recent_volume = history["Volume"].tail(5).sum()
         if recent_volume == 0:
-            logger.warning(f"ACTION REQUIRED: {yf_symbol} has NO TRADING VOLUME. Marking as INACTIVE.")
+            logger.warning(
+                f"ACTION REQUIRED: {yf_symbol} has NO TRADING VOLUME. Marking as INACTIVE."
+            )
             is_active = 0
 
         # 1. Get/Create Company with enriched data
         info = ticker.info
-        
+
         # Priority: longName -> shortName -> symbol
         display_name = info.get("longName") or info.get("shortName") or symbol.replace(".SA", "")
-        
+
         company_schema = CompanySchema(
             symbol=symbol.replace(".SA", ""),
             name=display_name,

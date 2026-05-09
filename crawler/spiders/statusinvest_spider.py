@@ -1,9 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
 from loguru import logger
-from .base_spider import BaseSpider
+
 from ..models.schemas import FundamentalSchema
 from ..services.logo_service import LogoService
+from .base_spider import BaseSpider
+
 
 class StatusInvestSpider(BaseSpider):
     """
@@ -19,20 +21,27 @@ class StatusInvestSpider(BaseSpider):
     def crawl_ticker(self, symbol: str):
         url = f"{self.BASE_URL}{symbol.lower()}"
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         }
-        
+
         try:
             # Ensure logo is present (with fallback)
             self.logo_service.update_logo_if_missing(symbol)
 
             response = requests.get(url, headers=headers, timeout=15)
             if response.status_code != 200:
-                logger.warning(f"StatusInvest: Symbol {symbol} not found or blocked (Status: {response.status_code})")
+                logger.warning(
+                    f"StatusInvest: Symbol {symbol} not found or blocked "
+                    f"(Status: {response.status_code})"
+                )
                 return
 
-            soup = BeautifulSoup(response.text, 'lxml')
+            soup = BeautifulSoup(response.text, "lxml")
 
             # StatusInvest stores indicators in divs with class 'value'
             # This is a simplified extraction of common indicators
@@ -40,7 +49,7 @@ class StatusInvestSpider(BaseSpider):
             p_l = self._parse_indicator(soup, "P/L")
             p_vp = self._parse_indicator(soup, "P/VP")
             roe = self._parse_indicator(soup, "ROE")
-            
+
             # New fields
             debt_to_equity = self._parse_indicator(soup, "DÍV. LÍQUIDA / PATRIMÔNIO")
             eps = self._parse_indicator(soup, "LPA")
@@ -74,5 +83,5 @@ class StatusInvestSpider(BaseSpider):
                     val = value_div.text.replace('.', '').replace(',', '.').replace('%', '').strip()
                     return float(val) if val and val != '-' else None
             return None
-        except:
+        except Exception:
             return None

@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 from loguru import logger
 
 from ..models.schemas import CompanySchema, FundamentalSchema
-from .base_spider import BaseSpider
 from ..services.logo_service import LogoService
+from .base_spider import BaseSpider
 
 
 class FundamentusSpider(BaseSpider):
@@ -54,16 +54,16 @@ class FundamentusSpider(BaseSpider):
             p_vp = self._parse_val(soup, "P/VP")
             dy = self._parse_val(soup, "Div. Yield")
             roe = self._parse_val(soup, "ROE")
-            
+
             # New fields
             market_cap = self._parse_val(soup, "Valor de mercado")
             debt_to_equity = self._parse_val(soup, "Dív. Líq / Patrim. Líq")
             eps = self._parse_val(soup, "LPA")
 
             fundamental_schema = FundamentalSchema(
-                p_l=p_l, 
-                p_vp=p_vp, 
-                dy=dy, 
+                p_l=p_l,
+                p_vp=p_vp,
+                dy=dy,
                 roe=roe,
                 market_cap=market_cap,
                 debt_to_equity=debt_to_equity,

@@ -1,9 +1,10 @@
 import os
-from typing import Generator
+from collections.abc import Generator
+
 import redis.asyncio as redis
-from sqlalchemy.orm import Session
+
 from crawler.services.database import SessionLocal
-from crawler.services.config import settings
+
 
 def get_db() -> Generator:
     """

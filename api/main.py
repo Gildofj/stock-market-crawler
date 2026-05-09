@@ -1,11 +1,12 @@
 import os
-from fastapi import FastAPI, Depends
+
+import redis.asyncio as redis
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from fastapi_limiter import FastAPILimiter
-import redis.asyncio as redis
 from loguru import logger
 
 from .routers import companies, fundamentals, prices
@@ -13,11 +14,45 @@ from .security import CloudflareMiddleware
 
 app = FastAPI(
     title="Stock Market Crawler API",
-    description="API de alta performance para servir dados do mercado financeiro brasileiro.",
+    description="""
+    High-performance API for serving Brazilian financial market data.
+
+    ## Features
+    * **Companies**: List and details of companies listed on B3.
+    * **Fundamentals**: Updated financial fundamentals and indicators.
+    * **Prices**: Historical and real-time stock quotes.
+
+    ---
+    Developed by Gildo FJ.
+    """,
     version="1.0.0",
-    docs_url="/api/docs" if os.getenv("ENV") != "production" else None,
-    redoc_url=None
+    docs_url="/docs",
+    redoc_url="/redoc",
+    contact={
+        "name": "Gildo FJ",
+        "url": "https://gildofj.dev",
+    },
+    license_info={
+        "name": "MIT",
+    },
 )
+
+# OpenAPI Tags Configuration
+tags_metadata = [
+    {
+        "name": "Companies",
+        "description": "Operations with listed companies and assets.",
+    },
+    {
+        "name": "Fundamentals",
+        "description": "Fundamentalist and financial data.",
+    },
+    {
+        "name": "Prices",
+        "description": "Stock quotes and market data.",
+    },
+]
+app.openapi_tags = tags_metadata
 
 # 1. Configuração de Segurança - CORS
 if os.getenv("ENV") == "production":
@@ -51,13 +86,13 @@ async def startup():
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     try:
         r = redis.from_url(redis_url, encoding="utf8", decode_responses=True)
-        
+
         # Inicializa Cache
         FastAPICache.init(RedisBackend(r), prefix="stock-api-cache")
-        
+
         # Inicializa Rate Limiter
         await FastAPILimiter.init(r)
-        
+
         logger.info("API initialized with Redis Cache and Rate Limiting.")
     except Exception as e:
         logger.error(f"Failed to initialize Redis: {e}")

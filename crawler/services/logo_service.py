@@ -1,8 +1,11 @@
 import re
+
 import requests
 from bs4 import BeautifulSoup
 from loguru import logger
+
 from ..services.data_service import DataService
+
 
 class LogoService:
     """
@@ -11,9 +14,15 @@ class LogoService:
     def __init__(self, data_service: DataService):
         self.data_service = data_service
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                )
+            }
+        )
 
     def update_logo_if_missing(self, symbol: str):
         """
@@ -53,7 +62,9 @@ class LogoService:
                 match = re.search(r'url\((.*?)\)', avatar_div['style'])
                 if match:
                     logo_path = match.group(1).replace("'", "").replace('"', "")
-                    return f"https://statusinvest.com.br{logo_path}" if logo_path.startswith('/') else logo_path
+                    if logo_path.startswith("/"):
+                        return f"https://statusinvest.com.br{logo_path}"
+                    return logo_path
         return None
 
     def _fetch_from_fundamentus(self, symbol: str) -> str | None:

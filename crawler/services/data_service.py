@@ -1,4 +1,5 @@
 import uuid
+
 from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ class DataService:
                 for key, value in company_data.model_dump(exclude={"symbol"}).items():
                     if value is not None:
                         setattr(company, key, value)
-            
+
             self.db.commit()
             self.db.refresh(company)
             return company

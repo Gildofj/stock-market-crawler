@@ -1,21 +1,19 @@
 """initial_schema
 
 Revision ID: 23923b3cb278
-Revises: 
+Revises:
 Create Date: 2026-05-09 11:23:04.019899
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = '23923b3cb278'
-down_revision: Union[str, Sequence[str], None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -54,7 +52,10 @@ def upgrade() -> None:
             PRIMARY KEY (time, company_id)
         )
     """)
-    op.execute("CREATE INDEX IF NOT EXISTS idx_stock_prices_company ON stock_prices(company_id, time DESC)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_stock_prices_company "
+        "ON stock_prices(company_id, time DESC)"
+    )
 
     # 3. Fundamentals Table
     op.execute("""
@@ -80,7 +81,10 @@ def upgrade() -> None:
             collected_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
-    op.execute("CREATE INDEX IF NOT EXISTS idx_fundamentals_company_date ON fundamentals(company_id, collected_at DESC)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_fundamentals_company_date "
+        "ON fundamentals(company_id, collected_at DESC)"
+    )
 
     # 4. ML Features Table
     op.execute("""
@@ -96,11 +100,14 @@ def upgrade() -> None:
             PRIMARY KEY (time, company_id)
         )
     """)
-    op.execute("CREATE INDEX IF NOT EXISTS idx_ml_features_company ON ml_features(company_id, time DESC)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_ml_features_company "
+        "ON ml_features(company_id, time DESC)"
+    )
 
     # 5. Latest Fundamentals View
     op.execute("""
-        CREATE OR REPLACE VIEW latest_fundamentals 
+        CREATE OR REPLACE VIEW latest_fundamentals
         WITH (security_invoker = true)
         AS
             SELECT DISTINCT ON (company_id)

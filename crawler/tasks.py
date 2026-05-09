@@ -1,4 +1,5 @@
 from loguru import logger
+
 from crawler.celery_app import app
 from crawler.services.data_service import DataService
 from crawler.services.database import SessionLocal
@@ -6,8 +7,8 @@ from crawler.services.etl_service import ETLService
 from crawler.services.request_manager import RequestManager
 from crawler.spiders.b3_spider import B3Spider
 from crawler.spiders.fundamentus_spider import FundamentusSpider
-from crawler.spiders.statusinvest_spider import StatusInvestSpider
 from crawler.spiders.macro_spider import MacroSpider
+from crawler.spiders.statusinvest_spider import StatusInvestSpider
 
 request_manager = RequestManager()  # Can add proxy list here
 
@@ -16,7 +17,7 @@ request_manager = RequestManager()  # Can add proxy list here
 def crawl_ticker_task(self, symbol: str):
     # Bind the symbol to the logger for tracing in Loki
     task_logger = logger.bind(ticker=symbol, task_id=self.request.id)
-    
+
     task_logger.info(f"Starting multi-source crawl for {symbol}")
     db = SessionLocal()
     try:
@@ -30,7 +31,7 @@ def crawl_ticker_task(self, symbol: str):
         # 2. Advanced Fundamentals (Scraping Fundamentus)
         fundamentus_spider = FundamentusSpider(data_service)
         fundamentus_spider.crawl_ticker(symbol)
-        
+
         # 3. Quality Check & Refinement (Scraping StatusInvest)
         # This provides a second opinion on P/L and P/VP
         status_spider = StatusInvestSpider(data_service)

@@ -1,12 +1,11 @@
 import random
-
-import requests
-import random
 import time
+
 import requests
 from loguru import logger
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
 
 class RequestManager:
     USER_AGENTS = [
