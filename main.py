@@ -34,9 +34,9 @@ def patch_database_url_for_ipv4():
         
         # Overwrite env var so settings.database_url picks it up
         os.environ["DATABASE_URL"] = new_url
-        print(f"DEBUG: FORCING IPv4 for {hostname} -> {ipv4}")
+        logger.info(f"DB PATCH: Forced IPv4 for Supabase -> {ipv4}")
     except Exception as e:
-        print(f"DEBUG: Failed to patch DATABASE_URL for IPv4: {e}")
+        logger.error(f"DB PATCH FAILED: {e}")
 
 # Apply patch before any other imports that might initialize the DB engine
 patch_database_url_for_ipv4()

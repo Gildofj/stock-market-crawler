@@ -1,18 +1,42 @@
+import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from .config import settings
 
-engine = create_engine(
-    settings.database_url,
-    pool_size=20,          # Increase base connections
-    max_overflow=40,       # Allow more spikes under load
-    pool_timeout=30,       # Wait 30s before failing
-    pool_recycle=1800,     # Reset connections every 30m
-    pool_pre_ping=True     # Check if connection is alive before using
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Global variables for lazy initialization
+_engine = None
+_SessionLocal = None
 Base = declarative_base()
+
+
+def get_engine():
+    """Lazy initialize the SQLAlchemy engine."""
+    global _engine
+    if _engine is None:
+        # Re-read settings or get URL directly to ensure patch from main.py is applied
+        db_url = settings.database_url
+        _engine = create_engine(
+            db_url,
+            pool_size=20,
+            max_overflow=40,
+            pool_timeout=30,
+            pool_recycle=1800,
+            pool_pre_ping=True
+        )
+    return _engine
+
+
+def SessionLocal():
+    """Lazy initialize and return a new SessionLocal instance."""
+    global _SessionLocal
+    if _SessionLocal is None:
+        _SessionLocal = sessionmaker(
+            autocommit=False, 
+            autoflush=False, 
+            bind=get_engine()
+        )
+    return _SessionLocal()
 
 
 def get_db():
