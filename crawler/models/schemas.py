@@ -1,43 +1,64 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StockPriceSchema(BaseModel):
     """Schema for historical stock price data points."""
-    time: datetime = Field(..., description="Timestamp of the price data point")
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    time: datetime = Field(..., description="Timestamp of the price point")
     open: float | None = Field(None, description="Opening price")
-    high: float | None = Field(None, description="Highest price during the period")
-    low: float | None = Field(None, description="Lowest price during the period")
+    high: float | None = Field(None, description="Highest price of the session")
+    low: float | None = Field(None, description="Lowest price of the session")
     close: float = Field(..., description="Closing price")
     adj_close: float | None = Field(None, description="Adjusted closing price")
     volume: int | None = Field(None, description="Trading volume")
 
+    def __init__(self, **data):
+        super().__init__(**data)
+
 
 class CompanySchema(BaseModel):
-    """Schema for company metadata."""
+    """Schema for company profile and metadata."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     symbol: str = Field(..., description="Stock ticker symbol")
-    name: str | None = Field(None, description="Full name of the company")
+    name: str | None = Field(None, description="Company full name")
     sector: str | None = Field(None, description="Economic sector")
-    sub_sector: str | None = Field(None, description="Industrial sub-sector")
-    segment: str | None = Field(None, description="Business segment")
+    sub_sector: str | None = Field(None, description="Economic sub-sector")
+    segment: str | None = Field(None, description="Market segment")
     logo_url: str | None = Field(None, description="URL for company logo")
     website: str | None = Field(None, description="Company website URL")
-    is_active: int = Field(1, description="Binary flag for active status (1: active, 0: inactive)")
+    is_active: int = Field(1, description="Status (1: active, 0: inactive)")
+
+    def __init__(self, **data):
+        super().__init__(**data)
 
 
 class FundamentalSchema(BaseModel):
-    """Schema for company fundamental indicators."""
+    """Schema for fundamental indicators and valuation metrics."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     p_l: float | None = Field(None, description="Price to Earnings ratio")
     p_vp: float | None = Field(None, description="Price to Book Value ratio")
-    ev_ebitda: float | None = Field(None, description="Enterprise Value to EBITDA ratio")
-    roe: float | None = Field(None, description="Return on Equity percentage")
-    roic: float | None = Field(None, description="Return on Invested Capital percentage")
-    net_margin: float | None = Field(None, description="Net Margin percentage")
-    dy: float | None = Field(None, description="Dividend Yield percentage")
-    liquid_debt_ebitda: float | None = Field(None, description="Net Debt to EBITDA ratio")
-    cagr_revenue_5y: float | None = Field(None, description="5-Year Revenue CAGR percentage")
-    cagr_profit_5y: float | None = Field(None, description="5-Year Profit CAGR percentage")
+    ev_ebitda: float | None = Field(None, description="Enterprise Value / EBITDA")
+    roe: float | None = Field(None, description="Return on Equity (%)")
+    roic: float | None = Field(None, description="Return on Invested Capital (%)")
+    net_margin: float | None = Field(None, description="Net Profit Margin (%)")
+    dy: float | None = Field(None, description="Dividend Yield (%)")
+    liquid_debt_ebitda: float | None = Field(None, description="Net Debt / EBITDA ratio")
+    cagr_revenue_5y: float | None = Field(None, description="Revenue CAGR (5Y) (%)")
+    cagr_profit_5y: float | None = Field(None, description="Profit CAGR (5Y) (%)")
     debt_to_equity: float | None = Field(None, description="Debt to Equity ratio")
     market_cap: float | None = Field(None, description="Total Market Capitalization")
     eps: float | None = Field(None, description="Earnings Per Share")
+    valuation_graham: float | None = Field(None, description="Graham Fair Value Price")
+    valuation_bazin: float | None = Field(None, description="Bazin Fair Value Price")
+    quality_score: int | None = Field(None, description="Composite Quality Score")
+
+    def __init__(self, **data):
+        super().__init__(**data)

@@ -1,11 +1,11 @@
-import pytest
-from crawler.spiders.fundamentus_spider import FundamentusSpider
 from crawler.models.contract import CrawlResult
+from crawler.spiders.fundamentus_spider import FundamentusSpider
+
 
 def test_fundamentus_parsing(mocker):
     # Mock RequestManager
     mock_rm = mocker.Mock()
-    
+
     # Mock HTML response matching the spider's exact logic
     mock_html = """
     <table>
@@ -29,6 +29,30 @@ def test_fundamentus_parsing(mocker):
             <td class="label"><span class="txt">ROE</span></td>
             <td class="data">15,0%</td>
         </tr>
+        <tr>
+            <td class="label"><span class="txt">ROIC</span></td>
+            <td class="data">12,5%</td>
+        </tr>
+        <tr>
+            <td class="label"><span class="txt">Dív. Líq / EBITDA</span></td>
+            <td class="data">1,50</td>
+        </tr>
+        <tr>
+            <td class="label"><span class="txt">Cres. Rec. (5a)</span></td>
+            <td class="data">8,5%</td>
+        </tr>
+        <tr>
+            <td class="label"><span class="txt">EV / EBITDA</span></td>
+            <td class="data">7,20</td>
+        </tr>
+        <tr>
+            <td class="label"><span class="txt">Margem Líquida</span></td>
+            <td class="data">20,0%</td>
+        </tr>
+        <tr>
+            <td class="label"><span class="txt">Cres. Lucro (5a)</span></td>
+            <td class="data">10,0%</td>
+        </tr>
     </table>
     """
     mock_resp = mocker.Mock()
@@ -47,3 +71,9 @@ def test_fundamentus_parsing(mocker):
     assert result.p_vp == 1.20
     assert result.dy == 5.5
     assert result.roe == 15.0
+    assert result.roic == 12.5
+    assert result.liquid_debt_ebitda == 1.50
+    assert result.cagr_revenue_5y == 8.5
+    assert result.ev_ebitda == 7.20
+    assert result.net_margin == 20.0
+    assert result.cagr_profit_5y == 10.0

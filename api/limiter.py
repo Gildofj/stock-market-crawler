@@ -27,5 +27,6 @@ except Exception:
     # Fallback para memória se o Redis falhar (evita crash da API)
     limiter = Limiter(rates)
 
+
 def get_limiter():
     return limiter

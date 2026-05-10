@@ -21,7 +21,7 @@ def get_engine():
             max_overflow=40,
             pool_timeout=30,
             pool_recycle=1800,
-            pool_pre_ping=True
+            pool_pre_ping=True,
         )
     return _engine
 
@@ -30,11 +30,7 @@ def session_local():
     """Lazy initialize and return a new session_local instance."""
     global _SessionLocal
     if _SessionLocal is None:
-        _SessionLocal = sessionmaker(
-            autocommit=False,
-            autoflush=False,
-            bind=get_engine()
-        )
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
     return _SessionLocal()
 
 

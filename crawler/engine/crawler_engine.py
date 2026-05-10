@@ -1,3 +1,4 @@
+import asyncio
 
 from loguru import logger
 from sqlalchemy.orm import Session
@@ -39,6 +40,32 @@ class CrawlerEngine:
         self.fundamentus_spider = FundamentusSpider(self.request_manager)
         self.status_spider = StatusInvestSpider(self.request_manager)
 
+    async def run_for_ticker_async(self, symbol: str) -> CrawlResult:
+        """
+        Executes the full enrichment chain for a single stock symbol asynchronously.
+        """
+        logger.info(f"Engine: Starting async enrichment chain for {symbol}")
+
+        # 1. Primary Source: B3 (yfinance wrapped in thread)
+        result = await self.b3_spider.crawl_ticker_async(symbol)
+
+        # 2. First Fallback: Fundamentus
+        if not result.is_complete():
+            logger.debug(f"Engine: Result incomplete for {symbol}. Fallback to Fundamentus.")
+            await self.fundamentus_spider.enrich_async(result)
+
+        # 3. Second Fallback: StatusInvest
+        if not result.is_complete():
+            logger.debug(f"Engine: Result still incomplete for {symbol}. Fallback to StatusInvest.")
+            await self.status_spider.enrich_async(result)
+
+        self._calculate_advanced_metrics(result)
+
+        # Persistence is usually synchronous (SQLAlchemy)
+        await asyncio.to_thread(self._save_to_db, result)
+
+        return result
+
     def run_for_ticker(self, symbol: str) -> CrawlResult:
         """
         Executes the full enrichment chain for a single stock symbol.
@@ -55,11 +82,9 @@ class CrawlerEngine:
         logger.info(f"Engine: Starting enrichment chain for {symbol}")
 
         # 1. Primary Source: B3 (yfinance)
-        # B3 usually provides reliable prices and basic company info.
         result = self.b3_spider.crawl_ticker(symbol)
 
         # 2. First Fallback: Fundamentus
-        # Triggered if essential fundamental metrics (P/L, ROE, etc.) are missing.
         if not result.is_complete():
             logger.warning(
                 f"Engine: Result incomplete for {symbol} after B3 crawl. "
@@ -68,7 +93,6 @@ class CrawlerEngine:
             self.fundamentus_spider.enrich(result)
 
         # 3. Second Fallback: StatusInvest
-        # Final attempt to fill remaining gaps.
         if not result.is_complete():
             logger.warning(
                 f"Engine: Result still incomplete for {symbol} after Fundamentus. "
@@ -82,36 +106,95 @@ class CrawlerEngine:
         else:
             logger.success(f"Engine: Successfully completed enrichment for {symbol}")
 
-        # 4. Persistence
-        # Map the unified CrawlResult to domain schemas and save to DB.
+        # 4. Advanced Metrics Calculation
+        self._calculate_advanced_metrics(result)
+
+        # 5. Persistence
         self._save_to_db(result)
 
         return result
 
+    async def shutdown(self):
+        """Closes resources."""
+        await self.request_manager.close()
+
+    def _calculate_advanced_metrics(self, result: CrawlResult) -> None:
+        """
+        Calculates Fair Value valuations (Graham, Bazin) and a composite Quality Score.
+        """
+        # Get current price from the latest entry in prices
+        current_price = result.prices[-1].close if result.prices else None
+
+        # 1. Graham Valuation: sqrt(22.5 * LPA * VPA)
+        # VPA = Price / P/VP
+        if result.eps and result.p_vp and result.p_vp > 0 and current_price:
+            vpa = current_price / result.p_vp
+            # Graham formula only works for positive EPS and VPA
+            if result.eps > 0 and vpa > 0:
+                import math
+
+                result.valuation_graham = math.sqrt(22.5 * result.eps * vpa)
+
+        # 2. Bazin Valuation: (Dividend / 0.06)
+        # Dividend = (DY% / 100) * Price
+        if result.dy and result.dy > 0 and current_price:
+            annual_dividend = (result.dy / 100) * current_price
+            result.valuation_bazin = annual_dividend / 0.06
+
+        # 3. Quality Score (0-100)
+        score = 0
+        metrics_count = 0
+
+        metric_rules = [
+            (result.roe, 15, 10),
+            (result.roic, 12, 8),
+            (result.net_margin, 10, 5),
+            (result.cagr_revenue_5y, 5, 0),
+        ]
+
+        for val, high, mid in metric_rules:
+            if val is not None:
+                if val > high:
+                    score += 20
+                elif val > mid:
+                    score += 10
+                metrics_count += 1
+
+        # Debt/EBITDA is inverse
+        if result.liquid_debt_ebitda is not None:
+            if result.liquid_debt_ebitda < 2.0:
+                score += 20
+            elif result.liquid_debt_ebitda < 3.5:
+                score += 10
+            metrics_count += 1
+
+        if metrics_count > 0:
+            result.quality_score = score
+
     def _save_to_db(self, result: CrawlResult) -> None:
         """
         Maps CrawlResult back to domain schemas and persists data using DataService.
-
-        Args:
-            result: The enriched data container.
         """
-        # Map Company metadata
         company_schema = CompanySchema(
             symbol=result.symbol,
-            name=result.name,
+            name=result.name or result.symbol,
             sector=result.sector,
             sub_sector=result.sub_sector,
             segment=result.segment,
             logo_url=result.logo_url,
-            is_active=result.is_active
+            website=result.website,
+            is_active=result.is_active,
         )
         company = self.data_service.get_or_create_company(company_schema)
 
-        # Map and save historical prices
-        if result.prices:
-            self.data_service.save_prices(company.id, result.prices)
+        # Cast Column[UUID] to uuid.UUID for type checker
+        import uuid
 
-        # Map and save fundamental indicators
+        company_id = uuid.UUID(str(company.id))
+
+        if result.prices:
+            self.data_service.save_prices(company_id, result.prices)
+
         fundamental_schema = FundamentalSchema(
             p_l=result.p_l,
             p_vp=result.p_vp,
@@ -125,8 +208,10 @@ class CrawlerEngine:
             cagr_profit_5y=result.cagr_profit_5y,
             debt_to_equity=result.debt_to_equity,
             market_cap=result.market_cap,
-            eps=result.eps
+            eps=result.eps,
+            valuation_graham=result.valuation_graham,
+            valuation_bazin=result.valuation_bazin,
+            quality_score=result.quality_score,
         )
-        self.data_service.save_fundamentals(company.id, fundamental_schema)
-
+        self.data_service.save_fundamentals(company_id, fundamental_schema)
         logger.debug(f"Engine: Persistence completed for {result.symbol}")

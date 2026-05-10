@@ -1,26 +1,9 @@
-import os
-from collections.abc import Generator
+from typing import Annotated
 
-import redis.asyncio as redis
+from fastapi import Depends
+from sqlalchemy.orm import Session
 
-from crawler.services.database import session_local
+from crawler.services.database import get_db as get_crawler_db
 
-
-def get_db() -> Generator:
-    """
-    Injeção de dependência para sessões do banco de dados SQLAlchemy.
-    Garante que a conexão seja fechada após a requisição.
-    """
-    db = session_local()
-    try:
-        yield db
-    finally:
-        db.close()
-
-async def get_redis():
-    """
-    Conexão assíncrona com o Redis para cache e rate limiting.
-    """
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    pool = redis.ConnectionPool.from_url(redis_url, encoding="utf8", decode_responses=True)
-    return redis.Redis(connection_pool=pool)
+# Use Annotated for cleaner dependency injection and better type hinting
+DBDep = Annotated[Session, Depends(get_crawler_db)]

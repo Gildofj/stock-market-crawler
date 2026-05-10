@@ -13,6 +13,7 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
     """
     Middleware que garante que as requisições venham apenas de IPs oficiais da Cloudflare.
     """
+
     def __init__(self, app):
         super().__init__(app)
         self.cloudflare_ips = []

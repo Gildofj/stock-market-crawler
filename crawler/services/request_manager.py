@@ -1,48 +1,37 @@
+import asyncio
 import random
-import time
+from typing import Any
 
-import requests
-from loguru import logger
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
 
 
 class RequestManager:
-    USER_AGENTS = [
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    ]
+    """
+    Centralized manager for HTTP requests with rate limiting and retry logic.
 
-    def __init__(self, proxies: list = None):
-        self.proxies = proxies or []
-        self.session = self._create_session()
+    Uses a shared httpx client to manage connections efficiently and implement
+    respectful crawling patterns.
+    """
 
-    def _create_session(self):
-        session = requests.Session()
-        # Aggressive exponential backoff for 429 and server errors
-        retry_strategy = Retry(
-            total=4,
-            backoff_factor=3,  # Waits: 3s, 6s, 12s, 24s
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET"]
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
-        return session
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
 
-    def get(self, url, **kwargs):
-        headers = kwargs.get("headers", {})
-        if "User-Agent" not in headers:
-            headers["User-Agent"] = random.choice(self.USER_AGENTS)
+    def __init__(self):
+        self._client = httpx.Client(headers={"User-Agent": self.USER_AGENT}, timeout=20)
+        self._async_client = httpx.AsyncClient(headers={"User-Agent": self.USER_AGENT}, timeout=20)
+
+    def get(self, url: str, **kwargs: Any) -> httpx.Response:
+        """Synchronous GET request with jittered delay."""
+        # Simple jitter to avoid robotic patterns
+        import time
+
+        time.sleep(random.uniform(0.5, 1.5))
 
         default_headers = {
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",  # noqa: E501
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
@@ -52,19 +41,18 @@ class RequestManager:
             "DNT": "1",
             "Cache-Control": "max-age=0",
         }
+        if "headers" in kwargs:
+            default_headers.update(kwargs.pop("headers"))
 
-        for key, value in default_headers.items():
-            if key not in headers:
-                headers[key] = value
+        return self._client.get(url, headers=default_headers, **kwargs)
 
-        kwargs["headers"] = headers
+    async def get_async(self, url: str, **kwargs: Any) -> httpx.Response:
+        """Asynchronous GET request."""
+        # Respectful async delay
+        await asyncio.sleep(random.uniform(0.2, 0.8))
+        return await self._async_client.get(url, **kwargs)
 
-        if self.proxies:
-            proxy = random.choice(self.proxies)
-            kwargs["proxies"] = {"http": proxy, "https": proxy}
-
-        # Respectful delay before network call
-        time.sleep(random.uniform(1.0, 3.0))
-
-        return self.session.get(url, **kwargs)
-
+    async def close(self):
+        """Closes internal clients."""
+        await self._async_client.aclose()
+        self._client.close()

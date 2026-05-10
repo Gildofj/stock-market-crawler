@@ -40,3 +40,8 @@ ignore = []
 
 [tool.ruff.lint.isort]
 known-first-party = ["crawler"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.409",
+]

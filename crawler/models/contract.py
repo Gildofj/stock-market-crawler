@@ -1,5 +1,4 @@
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .schemas import StockPriceSchema
 
@@ -12,12 +11,16 @@ class CrawlResult(BaseModel):
     and the CrawlerEngine. It facilitates the enrichment process by allowing
     multiple sources to contribute to the final dataset for a given symbol.
     """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     symbol: str = Field(..., description="Unique ticker symbol (e.g., AAPL, PETR4.SA)")
     name: str | None = Field(None, description="Full legal name of the company")
     sector: str | None = Field(None, description="Broad economic sector")
     sub_sector: str | None = Field(None, description="Industry sub-sector")
     segment: str | None = Field(None, description="Specific business segment")
     logo_url: str | None = Field(None, description="URL to the company's brand logo")
+    website: str | None = Field(None, description="Company website URL")
     is_active: int = Field(1, description="Status of the stock (1 for active, 0 for inactive)")
 
     # Fundamental Indicators
@@ -35,11 +38,18 @@ class CrawlResult(BaseModel):
     market_cap: float | None = Field(None, description="Total market capitalization")
     eps: float | None = Field(None, description="Earnings Per Share")
 
+    # Valuation & Scores
+    valuation_graham: float | None = Field(None, description="Graham Fair Value Price")
+    valuation_bazin: float | None = Field(None, description="Bazin Fair Value Price")
+    quality_score: int | None = Field(None, description="Composite quality score (0-100)")
+
     # Historical Prices
     prices: list[StockPriceSchema] = Field(
-        default_factory=list,
-        description="List of historical price data points"
+        default_factory=list, description="List of historical price data points"
     )
+
+    def __init__(self, **data):
+        super().__init__(**data)
 
     def is_complete(self) -> bool:
         """
@@ -53,7 +63,10 @@ class CrawlResult(BaseModel):
             self.p_vp,
             self.dy,
             self.roe,
-            self.market_cap
+            self.market_cap,
+            self.roic,
+            self.liquid_debt_ebitda,
+            self.cagr_revenue_5y,
         ]
         return all(field is not None for field in required_fields)
 

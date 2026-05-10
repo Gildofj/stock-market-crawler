@@ -5,12 +5,13 @@ Revises:
 Create Date: 2026-05-09 11:23:04.019899
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '23923b3cb278'
+revision: str = "23923b3cb278"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -53,8 +54,7 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_stock_prices_company "
-        "ON stock_prices(company_id, time DESC)"
+        "CREATE INDEX IF NOT EXISTS idx_stock_prices_company ON stock_prices(company_id, time DESC)"
     )
 
     # 3. Fundamentals Table
@@ -101,8 +101,7 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_ml_features_company "
-        "ON ml_features(company_id, time DESC)"
+        "CREATE INDEX IF NOT EXISTS idx_ml_features_company ON ml_features(company_id, time DESC)"
     )
 
     # 5. Latest Fundamentals View

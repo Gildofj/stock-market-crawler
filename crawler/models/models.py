@@ -1,8 +1,8 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
     BIGINT,
-    Column,
     DateTime,
     ForeignKey,
     Integer,
@@ -11,7 +11,7 @@ from sqlalchemy import (
     String,
     Uuid,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from ..services.database import Base
@@ -20,103 +20,107 @@ from ..services.database import Base
 class Company(Base):
     __tablename__ = "companies"
 
-    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    symbol = Column(String(10), unique=True, nullable=False, index=True)
-    name = Column(String(255))
-    sector = Column(String(100))
-    sub_sector = Column(String(100))
-    segment = Column(String(100))
-    is_active = Column(Integer, default=1) # 1 for Active, 0 for Inactive
-    logo_url = Column(String(500))
-    website = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    symbol: Mapped[str] = mapped_column(String(10), unique=True, nullable=False, index=True)
+    name: Mapped[str | None] = mapped_column(String(255))
+    sector: Mapped[str | None] = mapped_column(String(100))
+    sub_sector: Mapped[str | None] = mapped_column(String(100))
+    segment: Mapped[str | None] = mapped_column(String(100))
+    is_active: Mapped[int] = mapped_column(Integer, default=1)  # 1 for Active, 0 for Inactive
+    logo_url: Mapped[str | None] = mapped_column(String(500))
+    website: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
-    prices = relationship("StockPrice", back_populates="company")
-    fundamentals = relationship("Fundamental", back_populates="company")
+    prices: Mapped[list["StockPrice"]] = relationship("StockPrice", back_populates="company")
+    fundamentals: Mapped[list["Fundamental"]] = relationship("Fundamental", back_populates="company")
 
 
 class StockPrice(Base):
     __tablename__ = "stock_prices"
 
-    time = Column(DateTime(timezone=True), nullable=False)
-    company_id = Column(
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
-    open = Column(Numeric(12, 4))
-    high = Column(Numeric(12, 4))
-    low = Column(Numeric(12, 4))
-    close = Column(Numeric(12, 4), nullable=False)
-    adj_close = Column(Numeric(12, 4))
-    volume = Column(BIGINT)
+    open: Mapped[float | None] = mapped_column(Numeric(12, 4))
+    high: Mapped[float | None] = mapped_column(Numeric(12, 4))
+    low: Mapped[float | None] = mapped_column(Numeric(12, 4))
+    close: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
+    adj_close: Mapped[float | None] = mapped_column(Numeric(12, 4))
+    volume: Mapped[int | None] = mapped_column(BIGINT)
 
     __table_args__ = (PrimaryKeyConstraint("time", "company_id"),)
 
-    company = relationship("Company", back_populates="prices")
+    company: Mapped["Company"] = relationship("Company", back_populates="prices")
 
 
 class Fundamental(Base):
     __tablename__ = "fundamentals"
 
-    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    company_id = Column(
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
 
     # Valuation
-    p_l = Column(Numeric(10, 2))
-    p_vp = Column(Numeric(10, 2))
-    ev_ebitda = Column(Numeric(10, 2))
+    p_l: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    p_vp: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    ev_ebitda: Mapped[float | None] = mapped_column(Numeric(10, 2))
 
     # Profitability
-    roe = Column(Numeric(8, 2))
-    roic = Column(Numeric(8, 2))
-    net_margin = Column(Numeric(8, 2))
+    roe: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    roic: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    net_margin: Mapped[float | None] = mapped_column(Numeric(8, 2))
 
     # Dividends
-    dy = Column(Numeric(8, 2))
+    dy: Mapped[float | None] = mapped_column(Numeric(8, 2))
 
     # Debt
-    liquid_debt_ebitda = Column(Numeric(10, 2))
+    liquid_debt_ebitda: Mapped[float | None] = mapped_column(Numeric(10, 2))
 
     # Growth
-    cagr_revenue_5y = Column(Numeric(8, 2))
-    cagr_profit_5y = Column(Numeric(8, 2))
+    cagr_revenue_5y: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    cagr_profit_5y: Mapped[float | None] = mapped_column(Numeric(8, 2))
 
     # New Fields for AI Analysis
-    debt_to_equity = Column(Numeric(10, 2))
-    market_cap = Column(Numeric(20, 2))
-    eps = Column(Numeric(10, 2))
+    debt_to_equity: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    market_cap: Mapped[float | None] = mapped_column(Numeric(20, 2))
+    eps: Mapped[float | None] = mapped_column(Numeric(10, 2))
 
     # Calculated
-    valuation_graham = Column(Numeric(12, 4))
-    valuation_bazin = Column(Numeric(12, 4))
+    valuation_graham: Mapped[float | None] = mapped_column(Numeric(12, 4))
+    valuation_bazin: Mapped[float | None] = mapped_column(Numeric(12, 4))
 
-    quality_score = Column(Integer)
-    collected_at = Column(DateTime(timezone=True), server_default=func.now())
+    quality_score: Mapped[int | None] = mapped_column(Integer)
+    collected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
-    company = relationship("Company", back_populates="fundamentals")
+    company: Mapped["Company"] = relationship("Company", back_populates="fundamentals")
 
 
 class MLFeature(Base):
     __tablename__ = "ml_features"
 
-    time = Column(DateTime(timezone=True), nullable=False)
-    company_id = Column(
+    time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    company_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
 
     # Technical Indicators
-    sma_20 = Column(Numeric(12, 4))
-    sma_50 = Column(Numeric(12, 4))
-    rsi_14 = Column(Numeric(12, 4))
-    volatility_20 = Column(Numeric(12, 4))
+    sma_20: Mapped[float] = mapped_column(Numeric(12, 4))
+    sma_50: Mapped[float] = mapped_column(Numeric(12, 4))
+    rsi_14: Mapped[float] = mapped_column(Numeric(12, 4))
+    volatility_20: Mapped[float] = mapped_column(Numeric(12, 4))
 
     # Fundamental Ratios at the time
-    p_l_ratio = Column(Numeric(12, 4))
+    p_l_ratio: Mapped[float | None] = mapped_column(Numeric(12, 4))
 
-    target_next_day_change = Column(Numeric(12, 4))  # For Training
+    target_next_day_change: Mapped[float] = mapped_column(Numeric(12, 4))  # For Training
 
     __table_args__ = (PrimaryKeyConstraint("time", "company_id"),)
 
-    company = relationship("Company")
+    company: Mapped["Company"] = relationship("Company")

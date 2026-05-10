@@ -13,8 +13,10 @@ class CompanyBase(BaseModel):
     logo_url: str | None = None
     website: str | None = None
 
+
 class CompanyRead(CompanyBase):
     model_config = ConfigDict(from_attributes=True)
+
 
 class StockPriceRead(BaseModel):
     time: datetime
@@ -25,6 +27,7 @@ class StockPriceRead(BaseModel):
     volume: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class FundamentalRead(BaseModel):
     # Valuation
@@ -60,6 +63,7 @@ class FundamentalRead(BaseModel):
     collected_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class TickerDetail(BaseModel):
     company: CompanyRead

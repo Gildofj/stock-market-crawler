@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to initialize Redis: {e}")
     yield
 
+
 app = FastAPI(
     title="Stock Market Crawler API",
     description="""
@@ -99,9 +100,11 @@ app.include_router(companies.router, prefix="/api/v1")
 app.include_router(fundamentals.router, prefix="/api/v1")
 app.include_router(prices.router, prefix="/api/v1")
 
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
 
 @app.get("/")
 async def root():
