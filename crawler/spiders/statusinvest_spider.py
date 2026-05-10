@@ -1,87 +1,59 @@
-import requests
-from bs4 import BeautifulSoup
 from loguru import logger
 
-from ..models.schemas import FundamentalSchema
-from ..services.logo_service import LogoService
+from ..models.contract import CrawlResult
+from ..services.request_manager import RequestManager
 from .base_spider import BaseSpider
 
 
 class StatusInvestSpider(BaseSpider):
-    """
-    Highly reliable scraper for StatusInvest.
-    Used for cross-referencing fundamentals and fetching dividend history.
-    """
-    BASE_URL = "https://statusinvest.com.br/acoes/"
+    API_URL = "https://statusinvest.com.br/category/advancedsearchresult?search=%7B%22Sector%22%3A%22%22%2C%22SubSector%22%3A%22%22%2C%22Segment%22%3A%22%22%2C%22Ranking%22%3A%5B%5D%2C%22IndicatorQuery%22%3A%5B%5D%2C%22MyStocks%22%3Afalse%7D&CategoryType=1"
 
-    def __init__(self, data_service):
-        super().__init__(data_service)
-        self.logo_service = LogoService(data_service)
+    def __init__(self, request_manager: RequestManager = None):
+        self.request_manager = request_manager or RequestManager()
+        self._cache = {}
 
-    def crawl_ticker(self, symbol: str):
-        url = f"{self.BASE_URL}{symbol.lower()}"
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-        }
+    def _fetch_all_data(self):
+        """Fetches all companies from the StatusInvest API and caches them."""
+        if not self._cache:
+            try:
+                response = self.request_manager.get(self.API_URL, timeout=30)
+                response.raise_for_status()
+                data = response.json()
+                self._cache = {item['ticker']: item for item in data}
+                logger.info(f"StatusInvest API: Cached {len(self._cache)} companies")
+            except Exception as e:
+                logger.error(f"StatusInvest API error: {e}")
+        return self._cache
+
+    def crawl_ticker(self, symbol: str) -> CrawlResult:
+        result = CrawlResult(symbol=symbol)
+        all_data = self._fetch_all_data()
+        
+        item = all_data.get(symbol.upper())
+        if not item:
+            logger.warning(f"StatusInvest: {symbol} not found in API response")
+            return result
 
         try:
-            # Ensure logo is present (with fallback)
-            self.logo_service.update_logo_if_missing(symbol)
-
-            response = requests.get(url, headers=headers, timeout=15)
-            if response.status_code != 200:
-                logger.warning(
-                    f"StatusInvest: Symbol {symbol} not found or blocked "
-                    f"(Status: {response.status_code})"
-                )
-                return
-
-            soup = BeautifulSoup(response.text, "lxml")
-
-            # StatusInvest stores indicators in divs with class 'value'
-            # This is a simplified extraction of common indicators
-            dy = self._parse_indicator(soup, "Dividend Yield")
-            p_l = self._parse_indicator(soup, "P/L")
-            p_vp = self._parse_indicator(soup, "P/VP")
-            roe = self._parse_indicator(soup, "ROE")
-
-            # New fields
-            debt_to_equity = self._parse_indicator(soup, "DÍV. LÍQUIDA / PATRIMÔNIO")
-            eps = self._parse_indicator(soup, "LPA")
-            market_cap = self._parse_indicator(soup, "VALOR DE MERCADO")
-
-            if dy or p_l or p_vp or market_cap:
-                company = self.data_service.get_company_by_symbol(symbol)
-                if company:
-                    fundamental_schema = FundamentalSchema(
-                        p_l=p_l,
-                        p_vp=p_vp,
-                        dy=dy,
-                        roe=roe,
-                        debt_to_equity=debt_to_equity,
-                        eps=eps,
-                        market_cap=market_cap
-                    )
-                    self.data_service.save_fundamentals(company.id, fundamental_schema)
-                    logger.info(f"StatusInvest: Enriched fundamentals for {symbol}")
-
+            # Mapping API fields to CrawlResult
+            # Note: StatusInvest API uses different names
+            result.name = item.get('companyName')
+            result.p_l = item.get('p_L')
+            result.p_vp = item.get('p_VP')
+            result.dy = item.get('dy')
+            result.roe = item.get('roe')
+            result.roic = item.get('roic')
+            result.ev_ebitda = item.get('ev_Ebitda')
+            result.net_margin = item.get('margemLiquida')
+            result.liquid_debt_ebitda = item.get('dividaliquidaEbitda')
+            result.debt_to_equity = item.get('dividaLiquidaPatrimonioLiquido')
+            result.market_cap = item.get('valorMercado')
+            result.eps = item.get('lpa')
+            
+            # StatusInvest usually provides sector info in a separate call or we can infer it
+            # For now we use what's available in the search result
+            
         except Exception as e:
-            logger.error(f"StatusInvest error for {symbol}: {e}")
+            logger.error(f"StatusInvest mapping error for {symbol}: {e}")
 
-    def _parse_indicator(self, soup, label):
-        try:
-            # StatusInvest structure is complex, we look for the title and get the value next to it
-            element = soup.find('h3', string=lambda t: t and label in t)
-            if element:
-                value_div = element.parent.find('strong', class_='value')
-                if value_div:
-                    val = value_div.text.replace('.', '').replace(',', '.').replace('%', '').strip()
-                    return float(val) if val and val != '-' else None
-            return None
-        except Exception:
-            return None
+        return result

@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
-
-from ..services.data_service import DataService
-
+from ..models.contract import CrawlResult
 
 class BaseSpider(ABC):
-    def __init__(self, data_service: DataService):
-        self.data_service = data_service
-
     @abstractmethod
-    def crawl_ticker(self, symbol: str):
+    def crawl_ticker(self, symbol: str) -> CrawlResult:
         pass
+
+    def enrich(self, result: CrawlResult):
+        """Enriches an existing CrawlResult by fetching missing data."""
+        new_data = self.crawl_ticker(result.symbol)
+        result.enrich(new_data)

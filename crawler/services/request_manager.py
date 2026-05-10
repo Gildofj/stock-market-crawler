@@ -24,10 +24,12 @@ class RequestManager:
 
     def _create_session(self):
         session = requests.Session()
+        # Aggressive exponential backoff for 429 and server errors
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=2,
-            status_forcelist=[403, 429, 500, 502, 503, 504],
+            total=4,
+            backoff_factor=3,  # Waits: 3s, 6s, 12s, 24s
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET"]
         )
         adapter = HTTPAdapter(max_retries=retry_strategy)
         session.mount("http://", adapter)
@@ -40,22 +42,15 @@ class RequestManager:
             headers["User-Agent"] = random.choice(self.USER_AGENTS)
 
         default_headers = {
-            "Accept": (
-                "text/html,application/xhtml+xml,application/xml;q=0.9,"
-                "image/avif,image/webp,image/apng,*/*;q=0.8"
-            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept-Encoding": "gzip, deflate",
+            "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
             "Sec-Fetch-Dest": "document",
             "Sec-Fetch-Mode": "navigate",
             "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
+            "DNT": "1",
             "Cache-Control": "max-age=0",
-            "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
         }
 
         for key, value in default_headers.items():
@@ -67,10 +62,9 @@ class RequestManager:
         if self.proxies:
             proxy = random.choice(self.proxies)
             kwargs["proxies"] = {"http": proxy, "https": proxy}
-            logger.debug(f"Using proxy: {proxy}")
 
-        # Intelligent delay to avoid overwhelming servers
-        time.sleep(random.uniform(0.5, 1.5))
+        # Respectful delay before network call
+        time.sleep(random.uniform(1.0, 3.0))
 
         return self.session.get(url, **kwargs)
 

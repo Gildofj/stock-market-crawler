@@ -1,8 +1,8 @@
+import re
 from bs4 import BeautifulSoup
 from loguru import logger
 
-from ..models.schemas import CompanySchema, FundamentalSchema
-from ..services.logo_service import LogoService
+from ..models.contract import CrawlResult
 from ..services.request_manager import RequestManager
 from .base_spider import BaseSpider
 
@@ -10,84 +10,54 @@ from .base_spider import BaseSpider
 class FundamentusSpider(BaseSpider):
     BASE_URL = "https://www.fundamentus.com.br/detalhes.php?papel="
 
-    def __init__(self, data_service):
-        super().__init__(data_service)
-        self.logo_service = LogoService(data_service)
-        self.request_manager = RequestManager()
+    def __init__(self, request_manager: RequestManager = None):
+        self.request_manager = request_manager or RequestManager()
 
-    def crawl_ticker(self, symbol: str):
+    def crawl_ticker(self, symbol: str) -> CrawlResult:
         url = f"{self.BASE_URL}{symbol}"
+        result = CrawlResult(symbol=symbol)
 
         try:
-            # Ensure logo is present (with fallback)
-            self.logo_service.update_logo_if_missing(symbol)
-
             response = self.request_manager.get(url, timeout=15)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, "lxml")
 
-            # Basic Company Info (if not exists)
-            # Fundamentus tables are a bit messy, we extract specific <span> or <td>
-            # This is a simplified example of scraping Fundamentus
+            # 1. Enrich Company Metadata
             empresa_td = soup.find("td", string="Empresa")
-            company_name = None
-            if empresa_td:
-                next_td = empresa_td.find_next_sibling("td")
-                if next_td:
-                    company_name = next_td.text.strip()
-
-            # Sector and Subsector from Fundamentus
+            company_name = next_td.text.strip() if empresa_td and (next_td := empresa_td.find_next_sibling("td")) else None
+            
             setor_td = soup.find("td", string="Setor")
-            setor = None
-            if setor_td:
-                next_td = setor_td.find_next_sibling("td")
-                if next_td:
-                    setor = next_td.text.strip()
-
+            setor = next_td.text.strip() if setor_td and (next_td := setor_td.find_next_sibling("td")) else None
+            
             subsetor_td = soup.find("td", string="Subsetor")
-            subsetor = None
-            if subsetor_td:
-                next_td = subsetor_td.find_next_sibling("td")
-                if next_td:
-                    subsetor = next_td.text.strip()
+            subsetor = next_td.text.strip() if subsetor_td and (next_td := subsetor_td.find_next_sibling("td")) else None
 
-            company_schema = CompanySchema(
-                symbol=symbol,
-                name=company_name or symbol,
-                sector=setor,
-                sub_sector=subsetor,
-                segment=None,
-            )
-            company = self.data_service.get_or_create_company(company_schema)
+            # Extract Logo
+            logo_url = None
+            img = soup.find("img", alt=re.compile(r"logo", re.I))
+            if img and "src" in img.attrs:
+                src = img["src"]
+                logo_url = f"https://www.fundamentus.com.br/{src}" if src.startswith("/") else src
 
-            # Extract Fundamentals
-            # Note: Fundamentus uses different labels, mapping is required
-            p_l = self._parse_val(soup, "P/L")
-            p_vp = self._parse_val(soup, "P/VP")
-            dy = self._parse_val(soup, "Div. Yield")
-            roe = self._parse_val(soup, "ROE")
+            result.name = company_name
+            result.sector = setor
+            result.sub_sector = subsetor
+            result.logo_url = logo_url
 
-            # New fields
-            market_cap = self._parse_val(soup, "Valor de mercado")
-            debt_to_equity = self._parse_val(soup, "Dív. Líq / Patrim. Líq")
-            eps = self._parse_val(soup, "LPA")
-
-            fundamental_schema = FundamentalSchema(
-                p_l=p_l,
-                p_vp=p_vp,
-                dy=dy,
-                roe=roe,
-                market_cap=market_cap,
-                debt_to_equity=debt_to_equity,
-                eps=eps
-            )
-
-            self.data_service.save_fundamentals(company.id, fundamental_schema)
-            logger.info(f"Fundamentus: Saved fundamentals for {symbol}")
+            # 2. Extract Fundamentals
+            result.p_l = self._parse_val(soup, "P/L")
+            result.p_vp = self._parse_val(soup, "P/VP")
+            result.dy = self._parse_val(soup, "Div. Yield")
+            result.roe = self._parse_val(soup, "ROE")
+            result.market_cap = self._parse_val(soup, "Valor de mercado")
+            result.debt_to_equity = self._parse_val(soup, "Dív. Líq / Patrim. Líq")
+            result.eps = self._parse_val(soup, "LPA")
 
         except Exception as e:
             logger.error(f"Fundamentus error for {symbol}: {e}")
+
+        return result
 
     def _parse_val(self, soup, label):
         try:
