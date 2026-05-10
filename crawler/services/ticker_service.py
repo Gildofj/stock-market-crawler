@@ -8,6 +8,7 @@ from .request_manager import RequestManager
 
 class TickerService:
     # URL configurations
+    BRAPI_URL = "https://brapi.dev/api/available"
     FUNDAMENTUS_LIST_URL = "https://www.fundamentus.com.br/detalhes.php"
     FUNDAMENTUS_RESULT_URL = "https://www.fundamentus.com.br/resultado.php"
     STATUS_INVEST_URL = "https://statusinvest.com.br/category/advancedsearchresult?CategoryType=1&search={}"
@@ -32,7 +33,7 @@ class TickerService:
     def get_all_tickers(self) -> list[str]:
         """
         Scrapes all available tickers from multiple sources with in-memory caching.
-        Sources: Fundamentus (2 URLs), StatusInvest, and Blue Chips Fallback.
+        Sources: Brapi (API), Fundamentus (2 URLs), StatusInvest, and Blue Chips Fallback.
         """
         # Cache for 1 hour
         if self._cached_tickers and (time.time() - self._last_fetch < 3600):
@@ -42,14 +43,23 @@ class TickerService:
         logger.info("Discovering active tickers from B3...")
 
         tickers = []
-        
-        # 1. Try Fundamentus Primary
-        try:
-            tickers = self._fetch_from_fundamentus(self.FUNDAMENTUS_LIST_URL)
-        except Exception as e:
-            logger.warning(f"Fundamentus Primary failed: {e}")
 
-        # 2. Try StatusInvest (JSON API - usually more robust)
+        # 1. Try Brapi (API - most reliable for GitHub Actions)
+        try:
+            logger.info("Trying Brapi source...")
+            tickers = self._fetch_from_brapi()
+        except Exception as e:
+            logger.warning(f"Brapi source failed: {e}")
+        
+        # 2. Try Fundamentus Primary
+        if not tickers:
+            try:
+                logger.info("Trying Fundamentus source...")
+                tickers = self._fetch_from_fundamentus(self.FUNDAMENTUS_LIST_URL)
+            except Exception as e:
+                logger.warning(f"Fundamentus Primary failed: {e}")
+
+        # 3. Try StatusInvest (JSON API - usually more robust than scraping)
         if not tickers:
             try:
                 logger.info("Trying StatusInvest source...")
@@ -57,7 +67,7 @@ class TickerService:
             except Exception as e:
                 logger.warning(f"StatusInvest failed: {e}")
 
-        # 3. Try Fundamentus Secondary
+        # 4. Try Fundamentus Secondary
         if not tickers:
             try:
                 logger.info("Trying Fundamentus secondary source...")
@@ -78,6 +88,12 @@ class TickerService:
 
         logger.info(f"Successfully discovered {len(unique_tickers)} tickers.")
         return unique_tickers
+
+    def _fetch_from_brapi(self) -> list[str]:
+        response = self.request_manager.get(self.BRAPI_URL, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("stocks", [])
 
     def _fetch_from_fundamentus(self, url: str) -> list[str]:
         response = self.request_manager.get(url, timeout=20)

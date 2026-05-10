@@ -23,11 +23,14 @@ def test_fundamentus_parsing(mocker):
     </html>
     """
 
-    # We need to mock requests.get to return this HTML
+    # We need to mock RequestManager.get to return this HTML
     mock_resp = mocker.Mock()
     mock_resp.text = mock_html
     mock_resp.status_code = 200
-    mocker.patch("requests.get", return_value=mock_resp)
+    mocker.patch("crawler.services.request_manager.RequestManager.get", return_value=mock_resp)
+    
+    # Also mock logo service to avoid extra requests
+    mocker.patch("crawler.services.logo_service.LogoService.update_logo_if_missing")
 
     # Note: The spider uses a slightly more complex soup.find('span', string='P/L')
     # Let's adjust the test to match the spider's logic or vice-versa if needed.

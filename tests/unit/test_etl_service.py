@@ -23,15 +23,19 @@ def test_generate_features_calculation(mocker):
         mock_prices.append(mock_p)
 
     mocker.patch("crawler.services.etl_service.Session", return_value=mock_db)
-    mock_db.query.return_value.filter.return_value.order_value.all.return_value = mock_prices
-    # Simplified mock for SQLAlchemy query chain
-    mock_db.query().filter().order_by().all.return_value = mock_prices
+    
+    # Mock for initial prices fetch
+    mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = mock_prices
+    
+    # Mock for 'existing' check (should return None to trigger add())
+    mock_db.query.return_value.filter.return_value.first.return_value = None
 
     etl = ETLService(mock_db)
     etl.generate_features(company_id=1)
 
-    # Check if merge was called (saving features)
-    assert mock_db.merge.called
+    # Check if add was called (saving features)
+    assert mock_db.add.called
+    assert mock_db.commit.called
     assert mock_db.commit.called
 
     # Validate calculation logic with a direct DataFrame test
