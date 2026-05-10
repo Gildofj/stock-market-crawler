@@ -28,8 +28,11 @@ class DataService:
                         current_val = getattr(company, key)
                         if key == "name":
                             # If current name is just the symbol, always update it to a real name
-                            if current_val == company.symbol or not current_val:
-                                setattr(company, key, value)
+                            is_symbol = current_val.upper() == company.symbol.upper()
+                            if not current_val or is_symbol:
+                                if value.upper() != company.symbol.upper():
+                                    logger.info(f"Enriching name for {company.symbol}: {current_val} -> {value}")
+                                    setattr(company, key, value)
                         else:
                             if value: # Generic update for other fields
                                 setattr(company, key, value)
