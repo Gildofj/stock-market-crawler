@@ -12,8 +12,12 @@ class MacroSpider:
     Essential for ML features like Interest Rates (SELIC) and Inflation (IPCA).
     """
     # BCB SGS API URLs
-    SELIC_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" # SELIC daily
-    IPCA_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json" # IPCA monthly
+    SELIC_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json"
+    IPCA_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json"
+    USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    )
 
     def __init__(self, data_service: DataService):
         self.data_service = data_service
@@ -21,16 +25,14 @@ class MacroSpider:
     def crawl_macro_indicators(self):
         logger.info("Fetching macroeconomic indicators from BCB...")
 
-        # In a real scenario, we would save this to a 'macro_indicators' table
-        # For now, let's ensure we can at least fetch the most recent values
         try:
             # Get SELIC (last 30 days)
             end_date = datetime.now().strftime("%d/%m/%Y")
             start_date = (datetime.now() - timedelta(days=30)).strftime("%d/%m/%Y")
 
             selic_uri = f"{self.SELIC_URL}&dataInicial={start_date}&dataFinal={end_date}"
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
-            
+            headers = {"User-Agent": self.USER_AGENT}
+
             response = requests.get(selic_uri, headers=headers, timeout=20)
             response.raise_for_status()
             selic_data = response.json()
@@ -42,7 +44,7 @@ class MacroSpider:
             # Get IPCA (last 2 months)
             ipca_response = requests.get(self.IPCA_URL, headers=headers, timeout=20)
             ipca_response.raise_for_status()
-            
+
             if "application/json" in ipca_response.headers.get("Content-Type", ""):
                 ipca_data = ipca_response.json()
                 if ipca_data:

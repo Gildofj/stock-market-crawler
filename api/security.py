@@ -52,7 +52,7 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_ip = request.client.host
-        
+
         # Check if Strict mode is enabled
         is_strict = os.getenv("CLOUDFLARE_STRICT", "true").lower() == "true"
 

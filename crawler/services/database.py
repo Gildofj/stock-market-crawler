@@ -1,4 +1,3 @@
-import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -27,20 +26,20 @@ def get_engine():
     return _engine
 
 
-def SessionLocal():
-    """Lazy initialize and return a new SessionLocal instance."""
+def session_local():
+    """Lazy initialize and return a new session_local instance."""
     global _SessionLocal
     if _SessionLocal is None:
         _SessionLocal = sessionmaker(
-            autocommit=False, 
-            autoflush=False, 
+            autocommit=False,
+            autoflush=False,
             bind=get_engine()
         )
     return _SessionLocal()
 
 
 def get_db():
-    db = SessionLocal()
+    db = session_local()
     try:
         yield db
     finally:

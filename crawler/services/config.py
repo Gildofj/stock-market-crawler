@@ -1,4 +1,5 @@
 import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,7 +17,7 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         # Re-fetch from env to catch any runtime patches (like IPv4 hostaddr)
         current_url = os.getenv("DATABASE_URL") or self.DATABASE_URL
-        
+
         if current_url:
             # If using Supabase/Cloud, ensure we handle sslmode if not provided
             if "supabase" in current_url and "sslmode" not in current_url:

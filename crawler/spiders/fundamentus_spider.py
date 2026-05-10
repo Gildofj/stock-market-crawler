@@ -3,10 +3,9 @@ from loguru import logger
 
 from ..models.schemas import CompanySchema, FundamentalSchema
 from ..services.logo_service import LogoService
+from ..services.request_manager import RequestManager
 from .base_spider import BaseSpider
 
-
-from ..services.request_manager import RequestManager
 
 class FundamentusSpider(BaseSpider):
     BASE_URL = "https://www.fundamentus.com.br/detalhes.php?papel="

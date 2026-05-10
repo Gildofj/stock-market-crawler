@@ -12,10 +12,10 @@ class TickerService:
     FUNDAMENTUS_LIST_URL = "https://www.fundamentus.com.br/detalhes.php"
     FUNDAMENTUS_RESULT_URL = "https://www.fundamentus.com.br/resultado.php"
     STATUS_INVEST_URL = "https://statusinvest.com.br/category/advancedsearchresult?CategoryType=1&search={}"
-    
+
     # Expanded Blue Chips fallback (Top 50+ by relevance/volume)
     BLUE_CHIPS = [
-        "PETR3", "PETR4", "VALE3", "ITUB4", "BBDC4", "BBAS3", "ABEV3", "JBSS3", 
+        "PETR3", "PETR4", "VALE3", "ITUB4", "BBDC4", "BBAS3", "ABEV3", "JBSS3",
         "SANB11", "MGLU3", "WEGE3", "RENT3", "SUZB3", "B3SA3", "LREN3", "HAPV3",
         "GGBR4", "ITSA4", "RDOR3", "RAIL3", "EQTL3", "VBBR3", "CSAN3", "RADL3",
         "CPLE6", "VIVT3", "EMBR3", "CMIG4", "BBSE3", "SBSP3", "ELET3", "ELET6",
@@ -23,7 +23,7 @@ class TickerService:
         "GOAU4", "CPFE3", "CCRO3", "BRAP4", "CYRE3", "MRFG3", "CIEL3", "MULT3",
         "CRFB3", "FLRY3", "BRFS3", "HYPE3", "ALPA4", "MRVE3", "YDUQ3", "BEEF3"
     ]
-    
+
     _cached_tickers = []
     _last_fetch = 0
 
@@ -50,7 +50,7 @@ class TickerService:
             tickers = self._fetch_from_brapi()
         except Exception as e:
             logger.warning(f"Brapi source failed: {e}")
-        
+
         # 2. Try Fundamentus Primary
         if not tickers:
             try:
@@ -76,7 +76,10 @@ class TickerService:
                 logger.warning(f"Fundamentus Secondary failed: {e}")
 
         if not tickers:
-            logger.error("All dynamic sources failed (possible GitHub Action block). Using expanded Blue Chips list.")
+            logger.error(
+                "All dynamic sources failed (possible GitHub Action block). "
+                "Using expanded Blue Chips list."
+            )
             unique_tickers = sorted(set(self.BLUE_CHIPS))
         else:
             clean_tickers = [t for t in tickers if t.isalnum() and 4 <= len(t) <= 6]
@@ -110,7 +113,7 @@ class TickerService:
         }
         response = self.request_manager.get(self.STATUS_INVEST_URL, headers=headers, timeout=20)
         response.raise_for_status()
-        
+
         data = response.json()
         if isinstance(data, list):
             return [item.get("ticker") for item in data if item.get("ticker")]

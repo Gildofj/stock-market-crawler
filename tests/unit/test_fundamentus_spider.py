@@ -28,7 +28,7 @@ def test_fundamentus_parsing(mocker):
     mock_resp.text = mock_html
     mock_resp.status_code = 200
     mocker.patch("crawler.services.request_manager.RequestManager.get", return_value=mock_resp)
-    
+
     # Also mock logo service to avoid extra requests
     mocker.patch("crawler.services.logo_service.LogoService.update_logo_if_missing")
 

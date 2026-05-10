@@ -12,6 +12,7 @@ from loguru import logger
 from .routers import companies, fundamentals, prices
 from .security import CloudflareMiddleware
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Inicialização de Cache
