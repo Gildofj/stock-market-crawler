@@ -15,6 +15,9 @@ request_manager = RequestManager()  # Can add proxy list here
 
 @app.task(bind=True, max_retries=3, default_retry_delay=60)
 def crawl_ticker_task(self, symbol: str):
+    # Log imediato para depuração no Fly.io
+    logger.warning(f"WORKER_RECEIVE: Task received for {symbol}")
+    
     # Bind the symbol to the logger for tracing in Loki
     task_logger = logger.bind(ticker=symbol, task_id=self.request.id)
 
