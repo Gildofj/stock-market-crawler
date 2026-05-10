@@ -1,6 +1,14 @@
 import os
 import socket
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+import time
+from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+
+from loguru import logger
+
+from crawler.services.ticker_service import TickerService
+from crawler.tasks import crawl_macro_data_task, crawl_ticker_task
+
 
 def patch_database_url_for_ipv4():
     """
@@ -10,44 +18,45 @@ def patch_database_url_for_ipv4():
     db_url = os.getenv("DATABASE_URL")
     if not db_url or "supabase" not in db_url:
         return
-    
+
     try:
         parsed = urlparse(db_url)
         hostname = parsed.hostname
         if not hostname:
             return
-            
+
         # Resolve hostname to IPv4 manually
-        # This uses the system's IPv4 resolution which is more reliable in GHA
-        addr_info = socket.getaddrinfo(hostname, parsed.port or 5432, socket.AF_INET, socket.SOCK_STREAM)
-        if not addr_info:
+        try:
+            addr_info = socket.getaddrinfo(
+                hostname, parsed.port or 5432, socket.AF_INET, socket.SOCK_STREAM
+            )
+            if not addr_info:
+                return
+            ipv4 = addr_info[0][4][0]
+        except socket.gaierror as e:
+            logger.warning(
+                f"DB PATCH: Could not resolve hostname {hostname} (Error: {e}). Skipping patch."
+            )
             return
-            
-        ipv4 = addr_info[0][4][0]
-        
+
         # Inject hostaddr into query parameters
         query = dict(parse_qsl(parsed.query))
-        query['hostaddr'] = ipv4
-        
+        query["hostaddr"] = ipv4
+
         new_query = urlencode(query)
         new_url = urlunparse(parsed._replace(query=new_query))
-        
+
         # Overwrite env var so settings.database_url picks it up
         os.environ["DATABASE_URL"] = new_url
         logger.info(f"DB PATCH: Forced IPv4 for Supabase -> {ipv4}")
     except Exception as e:
-        logger.error(f"DB PATCH FAILED: {e}")
+        logger.error(f"DB PATCH CRITICAL ERROR: {e}")
 
-# Apply patch before any other imports that might initialize the DB engine
-patch_database_url_for_ipv4()
-
-import time
-from concurrent.futures import ThreadPoolExecutor
-from loguru import logger
-from crawler.services.ticker_service import TickerService
-from crawler.tasks import crawl_macro_data_task, crawl_ticker_task
 
 def main():
+    # 0. Apply environment patches
+    patch_database_url_for_ipv4()
+
     logger.info("Starting stock-market-crawler (GitHub Actions Mode)...")
 
     # 1. Fetch Macro Data (Once per run)
@@ -65,15 +74,13 @@ def main():
         return
 
     # Use ThreadPoolExecutor to process tickers in parallel.
-    # max_workers=5 is a safe limit for Supabase Free Tier (which has a connection limit).
-    # This also prevents the GitHub Action from being throttled by external APIs.
+    # max_workers=5 is a safe limit for Supabase Free Tier
     MAX_WORKERS = 5
     logger.info(f"Processing {len(tickers)} companies using {MAX_WORKERS} parallel workers...")
 
     start_time = time.time()
-    
+
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # map handles the distribution of tickers to the pool
         executor.map(crawl_ticker_task, tickers)
 
     duration = time.time() - start_time
