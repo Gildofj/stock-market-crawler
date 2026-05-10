@@ -1,8 +1,10 @@
 import ipaddress
+import os
 import time
 
 import httpx
-from fastapi import HTTPException, Request
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -44,33 +46,31 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
         return self.cloudflare_ips
 
     async def dispatch(self, request: Request, call_next):
-        # Allow documentation routes to bypass Cloudflare check
-        if request.url.path in ["/docs", "/redoc", "/openapi.json", "/favicon.ico"]:
+        # Allow documentation and health routes to bypass Cloudflare check
+        bypass_paths = ["/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico"]
+        if request.url.path in bypass_paths:
             return await call_next(request)
 
         client_ip = request.client.host
-        # O Fly.io passa o IP real em X-Forwarded-For ou o Cloudflare em CF-Connecting-IP
-        # Mas o socket direto (request.client.host) deve ser um IP da Fly que recebeu o tráfego.
-        # Na Fly.io com Cloudflare, o tráfego chega: User -> Cloudflare -> Fly Proxy -> App.
-        # O request.client.host será o IP do Fly Proxy.
-        # Para ser "Strict Cloudflare", idealmente o Fly Proxy deveria estar configurado
-        # ou validamos o cabeçalho CF-Connecting-IP e conferimos se o IP que enviou (Proxy)
-        # é confiável.
+        
+        # Check if Strict mode is enabled
+        is_strict = os.getenv("CLOUDFLARE_STRICT", "true").lower() == "true"
 
         # Simplificação: Validar se o cabeçalho 'cf-connecting-ip' está presente.
         # Se não estiver, a requisição não passou pela Cloudflare.
         if not request.headers.get("cf-connecting-ip"):
-            logger.warning(
-                f"Blocked request from {client_ip}: Missing 'cf-connecting-ip' header."
-            )
-            raise HTTPException(
-                status_code=403,
-                detail="Direct access forbidden. Use the official domain.",
-            )
-
-        # Validação de IP (Opcional mas recomendado):
-        # Aqui compararíamos o IP do Proxy que entregou o pacote.
-        # No plano free, a Fly usa IPs compartilhados.
+            if is_strict:
+                logger.warning(
+                    f"Blocked request from {client_ip}: Missing 'cf-connecting-ip' header."
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Direct access forbidden. Use the official domain."},
+                )
+            else:
+                logger.debug(
+                    f"Allowing request from {client_ip} without CF headers (STRICT=false)."
+                )
 
         response = await call_next(request)
         return response
