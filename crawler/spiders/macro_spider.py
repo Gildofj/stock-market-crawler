@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from loguru import logger
 
@@ -22,11 +22,19 @@ class MacroSpider:
     def crawl_macro_indicators(self):
         logger.info("Fetching macroeconomic indicators from BCB...")
 
+        # BCB daily series (like SELIC) require a date window (max 10 years)
+        # We'll fetch the last 30 days to ensure we get the latest data.
+        end_date = datetime.now().strftime("%d/%m/%Y")
+        start_date = (datetime.now() - timedelta(days=30)).strftime("%d/%m/%Y")
+        
+        selic_url = f"{self.SELIC_URL}&dataInicial={start_date}&dataFinal={end_date}"
+        ipca_url = f"{self.IPCA_URL}&dataInicial={start_date}&dataFinal={end_date}"
+
         headers = {"Accept": "application/json"}
 
         try:
             # 1. Fetch SELIC
-            selic_response = self.request_manager.get(self.SELIC_URL, headers=headers, timeout=20)
+            selic_response = self.request_manager.get(selic_url, headers=headers, timeout=20)
             selic_response.raise_for_status()
             selic_data = selic_response.json()
 
@@ -35,7 +43,7 @@ class MacroSpider:
                 logger.info(f"Latest SELIC Rate: {latest_selic}%")
 
             # 2. Fetch IPCA
-            ipca_response = self.request_manager.get(self.IPCA_URL, headers=headers, timeout=20)
+            ipca_response = self.request_manager.get(ipca_url, headers=headers, timeout=20)
             ipca_response.raise_for_status()
 
             if "application/json" in ipca_response.headers.get("Content-Type", ""):
