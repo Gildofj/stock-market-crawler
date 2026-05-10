@@ -21,7 +21,6 @@ async def get_redis():
     """
     Conexão assíncrona com o Redis para cache e rate limiting.
     """
-    # Usa a mesma URL do Celery se não houver uma específica
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     pool = redis.ConnectionPool.from_url(redis_url, encoding="utf8", decode_responses=True)
     return redis.Redis(connection_pool=pool)

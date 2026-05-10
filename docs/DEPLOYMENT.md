@@ -4,13 +4,12 @@ This project is optimized for modern cloud environments, specifically targeting 
 
 ## ☁️ Production Environment (Fly.io)
 
-The application is deployed as a multi-process App on Fly.io, managing both the API and the Celery Worker.
+The application is deployed as a single-process App on Fly.io, managing the FastAPI API.
 
 ### 📄 fly.toml Configuration
 
-The `fly.toml` defines two process groups:
+The `fly.toml` defines one process group:
 - **web**: Runs the FastAPI application using Uvicorn.
-- **worker**: Runs the Celery worker for background scraping.
 
 ### 🔑 Secret Management
 
@@ -19,17 +18,12 @@ Required secrets on Fly.io:
 - `REDIS_URL`: Redis connection string (Internal or Upstash).
 - `ENV`: Set to `production`.
 
-Set them using:
-```bash
-fly secrets set DATABASE_URL="..." REDIS_URL="..."
-```
-
 ## 🔄 CI/CD Pipeline
 
 The project uses GitHub Actions (see `.github/workflows/`):
 
-1.  **Daily Sync**: A scheduled workflow that triggers the crawler to update market data.
-2.  **Fly Deploy**: Automatically deploys the application on pushes to the `main` branch.
+1.  **Daily Sync**: A scheduled workflow that runs the crawler parallel script natively on GitHub compute resources.
+2.  **Fly Deploy**: Automatically deploys the FastAPI application on pushes to the `main` branch.
 
 ## 🐳 Dockerization
 

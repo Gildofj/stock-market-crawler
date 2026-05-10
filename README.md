@@ -4,15 +4,15 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
-A high-performance, agnostic stock market crawler and API for the Brazilian financial market (B3). Built with **FastAPI**, **Celery**, and **Clean Architecture**.
+A high-performance, agnostic stock market crawler and API for the Brazilian financial market (B3). Built with **FastAPI**, **GitHub Actions**, and **Clean Architecture**.
 
 ---
 
 ## ✨ Features
 
 - **🚀 High Performance**: FastAPI with Uvicorn and Redis-based caching.
-- **🕒 Distributed Crawling**: Scalable worker system using Celery for efficient data scraping.
-- **🛡️ Resilience**: Automatic retries, rate limiting, and request management to handle external API limits.
+- **🕒 Parallel Crawling**: Multi-threaded engine running on GitHub Actions for cost-effective scraping.
+- **🛡️ Resilience**: Automatic retries (via logic), rate limiting, and request management.
 - **📊 Rich Data**:
     - Company metadata and listings.
     - Financial fundamentals (P/E, DY, ROIC, etc.).
@@ -74,7 +74,7 @@ Once running, access the documentation at:
 
 ```text
 ├── api/              # FastAPI Application (Web Layer)
-├── crawler/          # Core Domain & Workers (Scraping Layer)
+├── crawler/          # Core Domain & Crawler (Scraping Layer)
 ├── alembic/          # Database Migrations
 ├── docs/             # Technical Documentation
 ├── tests/            # Unit & Integration Tests

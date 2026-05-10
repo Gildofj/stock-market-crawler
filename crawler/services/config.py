@@ -21,9 +21,6 @@ class Settings(BaseSettings):
             return self.DATABASE_URL
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-    # Celery Configuration
-    CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-
     # Crawler Settings
     LOG_LEVEL: str = "INFO"
 

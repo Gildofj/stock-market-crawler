@@ -1,3 +1,6 @@
+import time
+from concurrent.futures import ThreadPoolExecutor
+
 from loguru import logger
 
 from crawler.services.ticker_service import TickerService
@@ -5,15 +8,13 @@ from crawler.tasks import crawl_macro_data_task, crawl_ticker_task
 
 
 def main():
-    logger.info("Starting stock-market-crawler (Full Market Discovery)...")
-
-    # 0. Initialize DB Schema (Migrations are preferred for production)
-    logger.info("Initializing database schema...")
-    # Base.metadata.create_all(bind=engine) # Alternative: uv run alembic upgrade head
+    logger.info("Starting stock-market-crawler (GitHub Actions Mode)...")
 
     # 1. Fetch Macro Data (Once per run)
-    logger.info("Triggering macro data collection...")
-    crawl_macro_data_task.delay()
+    try:
+        crawl_macro_data_task()
+    except Exception as e:
+        logger.error(f"Failed to fetch macro data: {e}")
 
     # 2. Fetch all Tickers
     ticker_service = TickerService()
@@ -23,13 +24,20 @@ def main():
         logger.error("No tickers found. Aborting.")
         return
 
-    logger.info(f"Distributing tasks for {len(tickers)} companies across the cluster...")
+    # Use ThreadPoolExecutor to process tickers in parallel.
+    # max_workers=5 is a safe limit for Supabase Free Tier (which has a connection limit).
+    # This also prevents the GitHub Action from being throttled by external APIs.
+    MAX_WORKERS = 5
+    logger.info(f"Processing {len(tickers)} companies using {MAX_WORKERS} parallel workers...")
 
-    for ticker in tickers:
-        # We process in background via Celery
-        crawl_ticker_task.delay(ticker)
+    start_time = time.time()
+    
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # map handles the distribution of tickers to the pool
+        executor.map(crawl_ticker_task, tickers)
 
-    logger.info("All tasks dispatched. Workers are processing the data.")
+    duration = time.time() - start_time
+    logger.info(f"Crawling completed in {duration:.2f} seconds.")
 
 
 if __name__ == "__main__":
