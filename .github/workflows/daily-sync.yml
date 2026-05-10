@@ -36,6 +36,16 @@ jobs:
         uses: superfly/flyctl-actions/setup-flyctl@master
 
       - name: Wake up Fly.io Worker
-        run: flyctl scale count worker=1 --yes
+        run: |
+          # Lista IDs de máquinas no grupo 'worker' e inicia cada uma.
+          # Se não houver máquinas, escala para 1.
+          MACHINE_IDS=$(flyctl machines list --json | jq -r '.[] | select(.config.process_group == "worker") | .id')
+          if [ -n "$MACHINE_IDS" ]; then
+            for id in $MACHINE_IDS; do
+              flyctl machine start $id
+            done
+          else
+            flyctl scale count worker=1 --yes
+          fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
