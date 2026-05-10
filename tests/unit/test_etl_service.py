@@ -10,10 +10,11 @@ def test_generate_features_calculation(mocker):
     # Mock DB session
     mock_db = mocker.Mock()
 
+    from datetime import timedelta
     # Create dummy price data
     mock_prices = [
         StockPriceSchema(
-            time=datetime(2023, 1, i + 1),
+            time=datetime(2023, 1, 1) + timedelta(days=i),
             open=100.0 + i,
             high=105.0 + i,
             low=95.0 + i,
