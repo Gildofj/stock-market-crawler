@@ -22,27 +22,29 @@ class MacroSpider:
     def crawl_macro_indicators(self):
         logger.info("Fetching macroeconomic indicators from BCB...")
 
+        headers = {"Accept": "application/json"}
+
         try:
             # 1. Fetch SELIC
-            selic_response = self.request_manager.get(self.SELIC_URL, timeout=20)
+            selic_response = self.request_manager.get(self.SELIC_URL, headers=headers, timeout=20)
             selic_response.raise_for_status()
             selic_data = selic_response.json()
 
             if selic_data:
-                latest_selic = selic_data[-1]['valor']
+                latest_selic = selic_data[-1]["valor"]
                 logger.info(f"Latest SELIC Rate: {latest_selic}%")
 
             # 2. Fetch IPCA
-            ipca_response = self.request_manager.get(self.IPCA_URL, timeout=20)
+            ipca_response = self.request_manager.get(self.IPCA_URL, headers=headers, timeout=20)
             ipca_response.raise_for_status()
 
             if "application/json" in ipca_response.headers.get("Content-Type", ""):
                 ipca_data = ipca_response.json()
                 if ipca_data:
-                    latest_ipca = ipca_data[-1]['valor']
+                    latest_ipca = ipca_data[-1]["valor"]
                     logger.info(f"Latest IPCA (Inflation): {latest_ipca}%")
             else:
-                logger.warning(f"IPCA API returned non-JSON content.")
+                logger.warning("IPCA API returned non-JSON content.")
 
         except Exception as e:
             logger.error(f"Failed to fetch macro data: {e}")

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from loguru import logger
 
 from crawler.engine.crawler_engine import CrawlerEngine
+from crawler.services.database import session_local
 from crawler.services.ticker_service import TickerService
 from crawler.tasks import crawl_macro_data_task
 
@@ -14,15 +15,20 @@ from crawler.tasks import crawl_macro_data_task
 api_semaphore = threading.BoundedSemaphore(value=5)
 
 
-def safe_crawl_ticker(engine: CrawlerEngine, symbol: str):
+def safe_crawl_ticker(symbol: str):
     """
     Executes a crawl task within the safety of the API semaphore.
+    A new database session is created for each thread.
     """
     with api_semaphore:
+        db = session_local()
         try:
+            engine = CrawlerEngine(db)
             engine.run_for_ticker(symbol)
         except Exception as e:
             logger.error(f"Engine failed for {symbol}: {e}")
+        finally:
+            db.close()
 
 
 def main():
@@ -34,8 +40,7 @@ def main():
     except Exception as e:
         logger.error(f"Failed to fetch macro data: {e}")
 
-    # 2. Initialize Engine & Fetch Tickers
-    engine = CrawlerEngine()
+    # 2. Fetch Tickers
     ticker_service = TickerService()
     tickers = ticker_service.get_all_tickers()
 
@@ -54,17 +59,16 @@ def main():
     start_time = time.time()
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Pass the pre-initialized engine to each task
-        futures = [
-            executor.submit(safe_crawl_ticker, engine, ticker) 
-            for ticker in tickers
-        ]
+        # Submit tasks to the executor
+        futures = [executor.submit(safe_crawl_ticker, ticker) for ticker in tickers]
+
         # Wait for all to complete
         for future in futures:
             future.result()
 
     duration = time.time() - start_time
     logger.info(f"Crawling completed in {duration:.2f} seconds.")
+
 
 if __name__ == "__main__":
     main()
