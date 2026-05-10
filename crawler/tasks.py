@@ -1,7 +1,7 @@
 from loguru import logger
 
 from crawler.services.data_service import DataService
-from crawler.services.database import SessionLocal
+from crawler.services.database import session_local
 from crawler.services.etl_service import ETLService
 from crawler.services.request_manager import RequestManager
 from crawler.spiders.b3_spider import B3Spider
@@ -18,7 +18,7 @@ def crawl_ticker_task(symbol: str):
     task_logger = logger.bind(ticker=symbol)
 
     task_logger.info(f"Starting multi-source crawl for {symbol}")
-    db = SessionLocal()
+    db = session_local()
     try:
         data_service = DataService(db)
         etl_service = ETLService(db)
@@ -50,7 +50,7 @@ def crawl_ticker_task(symbol: str):
 def crawl_macro_data_task():
     """Sync task to fetch macro indicators."""
     logger.info("Starting macro data collection...")
-    db = SessionLocal()
+    db = session_local()
     try:
         data_service = DataService(db)
         macro_spider = MacroSpider(data_service)

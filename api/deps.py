@@ -3,7 +3,7 @@ from collections.abc import Generator
 
 import redis.asyncio as redis
 
-from crawler.services.database import SessionLocal
+from crawler.services.database import session_local
 
 
 def get_db() -> Generator:
@@ -11,7 +11,7 @@ def get_db() -> Generator:
     Injeção de dependência para sessões do banco de dados SQLAlchemy.
     Garante que a conexão seja fechada após a requisição.
     """
-    db = SessionLocal()
+    db = session_local()
     try:
         yield db
     finally:
