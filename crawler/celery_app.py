@@ -11,6 +11,10 @@ logger.add(sys.stdout, serialize=True)
 
 CELERY_BROKER_URL = settings.CELERY_BROKER_URL
 
+# Mask password for security
+masked_broker = CELERY_BROKER_URL.split('@')[-1] if '@' in CELERY_BROKER_URL else CELERY_BROKER_URL
+logger.info(f"Connecting to Celery Broker at: ...@{masked_broker}")
+
 # We name it 'stock_crawler' to avoid confusion with the 'crawler' package
 app = Celery(
     "stock_crawler",
