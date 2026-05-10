@@ -32,17 +32,32 @@ class FundamentusSpider(BaseSpider):
             # Fundamentus tables are a bit messy, we extract specific <span> or <td>
             # This is a simplified example of scraping Fundamentus
             empresa_td = soup.find("td", string="Empresa")
-            company_name = symbol
+            company_name = None
             if empresa_td:
                 next_td = empresa_td.find_next_sibling("td")
                 if next_td:
                     company_name = next_td.text.strip()
 
+            # Sector and Subsector from Fundamentus
+            setor_td = soup.find("td", string="Setor")
+            setor = None
+            if setor_td:
+                next_td = setor_td.find_next_sibling("td")
+                if next_td:
+                    setor = next_td.text.strip()
+
+            subsetor_td = soup.find("td", string="Subsetor")
+            subsetor = None
+            if subsetor_td:
+                next_td = subsetor_td.find_next_sibling("td")
+                if next_td:
+                    subsetor = next_td.text.strip()
+
             company_schema = CompanySchema(
                 symbol=symbol,
-                name=company_name,
-                sector=None,  # Extract from soup if needed
-                sub_sector=None,
+                name=company_name or symbol,
+                sector=setor,
+                sub_sector=subsetor,
                 segment=None,
             )
             company = self.data_service.get_or_create_company(company_schema)

@@ -40,7 +40,11 @@ class B3Spider(BaseSpider):
         info = ticker.info
 
         # Priority: longName -> shortName -> symbol
-        display_name = info.get("longName") or info.get("shortName") or symbol.replace(".SA", "")
+        display_name = info.get("longName") or info.get("shortName")
+        if not display_name or display_name.upper() == symbol.upper():
+            # If yfinance fails to provide a real name, we use the symbol as fallback
+            # but we'll hope Fundamentus or StatusInvest enriches it later.
+            display_name = symbol.replace(".SA", "")
 
         company_schema = CompanySchema(
             symbol=symbol.replace(".SA", ""),

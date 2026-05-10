@@ -29,20 +29,27 @@ class MacroSpider:
             start_date = (datetime.now() - timedelta(days=30)).strftime("%d/%m/%Y")
 
             selic_uri = f"{self.SELIC_URL}&dataInicial={start_date}&dataFinal={end_date}"
-            response = requests.get(selic_uri, timeout=10)
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"}
+            
+            response = requests.get(selic_uri, headers=headers, timeout=20)
+            response.raise_for_status()
             selic_data = response.json()
 
             if selic_data:
                 latest_selic = selic_data[-1]['valor']
                 logger.info(f"Latest SELIC Rate: {latest_selic}%")
-                # TODO: Implement save_macro_data in DataService
 
             # Get IPCA (last 2 months)
-            ipca_response = requests.get(self.IPCA_URL, timeout=10)
-            ipca_data = ipca_response.json()
-            if ipca_data:
-                latest_ipca = ipca_data[-1]['valor']
-                logger.info(f"Latest IPCA (Inflation): {latest_ipca}%")
+            ipca_response = requests.get(self.IPCA_URL, headers=headers, timeout=20)
+            ipca_response.raise_for_status()
+            
+            if "application/json" in ipca_response.headers.get("Content-Type", ""):
+                ipca_data = ipca_response.json()
+                if ipca_data:
+                    latest_ipca = ipca_data[-1]['valor']
+                    logger.info(f"Latest IPCA (Inflation): {latest_ipca}%")
+            else:
+                logger.warning(f"IPCA API returned non-JSON content: {ipca_response.text[:100]}...")
 
         except Exception as e:
             logger.error(f"Failed to fetch macro data: {e}")

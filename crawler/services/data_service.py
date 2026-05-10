@@ -19,10 +19,20 @@ class DataService:
                 company = Company(**company_data.model_dump())
                 self.db.add(company)
             else:
-                # Update existing company with potential new info and status
-                for key, value in company_data.model_dump(exclude={"symbol"}).items():
+                # Update logic: Only update if the new value is not None
+                # and if it's better than what we have.
+                # Special case: if current name is the same as the symbol, accept any different name.
+                updates = company_data.model_dump(exclude={"symbol"})
+                for key, value in updates.items():
                     if value is not None:
-                        setattr(company, key, value)
+                        current_val = getattr(company, key)
+                        if key == "name":
+                            # If current name is just the symbol, always update it to a real name
+                            if current_val == company.symbol or not current_val:
+                                setattr(company, key, value)
+                        else:
+                            if value: # Generic update for other fields
+                                setattr(company, key, value)
 
             self.db.commit()
             self.db.refresh(company)

@@ -23,6 +23,8 @@ Required secrets on Fly.io:
 The project uses GitHub Actions (see `.github/workflows/`):
 
 1.  **Daily Sync**: A scheduled workflow that runs the crawler parallel script natively on GitHub compute resources.
+    *   *Note*: The `main.py` includes a `socket` monkeypatch to force IPv4, ensuring compatibility between GitHub Actions workers and Supabase's IPv6 resolution.
+
 2.  **Fly Deploy**: Automatically deploys the FastAPI application on pushes to the `main` branch.
 
 ## 🐳 Dockerization

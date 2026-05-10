@@ -1,3 +1,4 @@
+import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -5,6 +6,17 @@ from loguru import logger
 
 from crawler.services.ticker_service import TickerService
 from crawler.tasks import crawl_macro_data_task, crawl_ticker_task
+
+# Monkeypatch to force IPv4 - GitHub Actions/Supabase IPv6 Fix
+orig_getaddrinfo = socket.getaddrinfo
+
+
+def patched_getaddrinfo(*args, **kwargs):
+    responses = orig_getaddrinfo(*args, **kwargs)
+    return [res for res in responses if res[0] == socket.AF_INET]
+
+
+socket.getaddrinfo = patched_getaddrinfo
 
 
 def main():
