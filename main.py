@@ -14,33 +14,77 @@ from crawler.spiders.fundamentus_spider import FundamentusSpider
 from crawler.spiders.statusinvest_spider import StatusInvestSpider
 from crawler.tasks import crawl_macro_data_task
 
+# Increased concurrency for enrichment tasks within a batch
+enrichment_semaphore = asyncio.Semaphore(15)
+
+
+async def safe_enrich_ticker(symbol: str, engine: CrawlerEngine, company_exists: bool, results_dict: dict):
+    """
+    Safely enriches a single ticker using a semaphore to control concurrency.
+    """
+    async with enrichment_semaphore:
+        try:
+            result = results_dict.get(symbol) or CrawlResult(symbol=symbol)
+            
+            # First Fallback: Fundamentus (only if really needed)
+            if not result.is_complete():
+                await engine.fundamentus_spider.enrich_async(result)
+
+            # Second Fallback: StatusInvest (Conditional metadata enrichment)
+            if not result.is_complete() or not company_exists:
+                await engine.status_spider.crawl_ticker_async(
+                    result.symbol, enrich_metadata=not company_exists
+                )
+
+            engine._calculate_advanced_metrics(result)
+
+            # Persistence (Still wrapped in thread as it's synchronous SQLAlchemy)
+            await asyncio.to_thread(engine._save_to_db, result)
+        except Exception as e:
+            logger.error(f"Failed to enrich/save {symbol}: {e}")
+
+
+async def process_sub_batch_parallel(sub_batch: list[str], engine: CrawlerEngine, data_service):
+    """
+    Processes a sub-batch by fetching prices in bulk and then enriching tickers in parallel.
+    """
+    # 1. Batch Primary Source: B3 (yfinance batch) - One network call
+    results_dict = await engine.b3_spider.crawl_batch_async(sub_batch)
+
+    # 2. Parallel Enrichment and Persistence
+    tasks = []
+    for symbol in sub_batch:
+        # Check if company exists to decide on metadata scraping
+        company_exists = await asyncio.to_thread(data_service.get_company_by_symbol, symbol)
+        tasks.append(safe_enrich_ticker(symbol, engine, bool(company_exists), results_dict))
+    
+    await asyncio.gather(*tasks)
+
 
 async def crawl_tickers_async(tickers: list[str]):
     """
-    Orchestrates the asynchronous crawling of a list of tickers using batching.
+    Orchestrates the asynchronous crawling of a list of tickers using optimized batching.
     """
     request_manager = RequestManager()
     db = session_local()
-
+    
     # Pre-initialize spiders to share them (and their caches) across tasks
     spiders = {
         "b3": B3Spider(),
         "fundamentus": FundamentusSpider(request_manager),
         "status": StatusInvestSpider(request_manager),
     }
-
+    
     try:
         engine = CrawlerEngine(db, request_manager=request_manager, spiders=spiders)
-
-        # Process in sub-batches of 50 for yfinance efficiency and memory safety
-        sub_batch_size = 50
+        
+        # Increased sub-batch size for yfinance efficiency
+        sub_batch_size = 100
         for i in range(0, len(tickers), sub_batch_size):
             sub_batch = tickers[i : i + sub_batch_size]
-            logger.info(
-                f"Main: Processing sub-batch {i // sub_batch_size + 1} ({len(sub_batch)} tickers)"
-            )
-            await engine.run_batch_async(sub_batch)
-
+            logger.info(f"Main: Processing sub-batch {i//sub_batch_size + 1} ({len(sub_batch)} tickers)")
+            await process_sub_batch_parallel(sub_batch, engine, engine.data_service)
+            
     finally:
         await request_manager.close()
         db.close()
@@ -52,9 +96,7 @@ def main():
     parser.add_argument("--total-chunks", type=int, default=1, help="Total number of chunks")
     args = parser.parse_args()
 
-    logger.info(
-        f"Starting stock-market-crawler (Batch Mode) - Chunk {args.chunk}/{args.total_chunks}..."
-    )
+    logger.info(f"Starting stock-market-crawler (Optimized Batch Mode) - Chunk {args.chunk}/{args.total_chunks}...")
 
     # 1. Fetch Macro Data (only on the first chunk to avoid redundancy)
     if args.chunk == 0:
@@ -83,7 +125,7 @@ def main():
 
     logger.info(
         f"Processing {len(tickers_to_process)} companies (out of {len(all_tickers)}) "
-        f"in chunk {args.chunk} using batch mode..."
+        f"in chunk {args.chunk} using optimized parallel batch mode..."
     )
 
     start_time = time.time()
