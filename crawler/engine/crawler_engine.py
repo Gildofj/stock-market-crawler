@@ -51,6 +51,45 @@ class CrawlerEngine:
             self.request_manager
         )
 
+    async def run_batch_async(self, symbols: list[str]) -> list[CrawlResult]:
+        """
+        Executes the enrichment chain for a batch of stock symbols efficiently.
+        """
+        logger.info(f"Engine: Starting batch enrichment for {len(symbols)} tickers")
+
+        # 1. Batch Primary Source: B3 (yfinance batch)
+        # This gets all prices in one/two network calls instead of 100s
+        results_dict = await self.b3_spider.crawl_batch_async(symbols)
+        
+        # 2. Sequential Fallback and Persistence (with shared caches)
+        final_results = []
+        for symbol in symbols:
+            result = results_dict.get(symbol) or CrawlResult(symbol=symbol)
+            
+            # Check if company exists to avoid redundant metadata scraping
+            company_exists = await asyncio.to_thread(
+                self.data_service.get_company_by_symbol, symbol
+            )
+
+            # First Fallback: Fundamentus (only if really needed)
+            if not result.is_complete():
+                await self.fundamentus_spider.enrich_async(result)
+
+            # Second Fallback: StatusInvest (Conditional metadata enrichment)
+            if not result.is_complete() or not company_exists:
+                # enrich_metadata=True only for new companies
+                await self.status_spider.enrich_async(
+                    result, enrich_metadata=not company_exists
+                )
+
+            self._calculate_advanced_metrics(result)
+
+            # Persistence
+            await asyncio.to_thread(self._save_to_db, result)
+            final_results.append(result)
+
+        return final_results
+
     async def run_for_ticker_async(self, symbol: str) -> CrawlResult:
         """
         Executes the full enrichment chain for a single stock symbol asynchronously.

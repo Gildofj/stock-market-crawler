@@ -14,33 +14,13 @@ from crawler.spiders.fundamentus_spider import FundamentusSpider
 from crawler.spiders.statusinvest_spider import StatusInvestSpider
 from crawler.tasks import crawl_macro_data_task
 
-# Concurrency control for async operations
-# Increased to 10 for better async performance while still being mindful of rate limits
-api_semaphore = asyncio.Semaphore(10)
-
-
-async def safe_crawl_ticker(symbol: str, request_manager: RequestManager, spiders: dict):
-    """
-    Executes a crawl task within the safety of the async semaphore.
-    Uses a new database session per ticker for thread/async safety.
-    """
-    async with api_semaphore:
-        db = session_local()
-        try:
-            # Create a new engine with a fresh DB session but shared spiders
-            engine = CrawlerEngine(db, request_manager=request_manager, spiders=spiders)
-            await engine.run_for_ticker_async(symbol)
-        except Exception as e:
-            logger.error(f"Engine failed for {symbol}: {e}")
-        finally:
-            db.close()
-
 
 async def crawl_tickers_async(tickers: list[str]):
     """
-    Orchestrates the asynchronous crawling of a list of tickers.
+    Orchestrates the asynchronous crawling of a list of tickers using batching.
     """
     request_manager = RequestManager()
+    db = session_local()
     
     # Pre-initialize spiders to share them (and their caches) across tasks
     spiders = {
@@ -50,10 +30,18 @@ async def crawl_tickers_async(tickers: list[str]):
     }
     
     try:
-        tasks = [safe_crawl_ticker(ticker, request_manager, spiders) for ticker in tickers]
-        await asyncio.gather(*tasks)
+        engine = CrawlerEngine(db, request_manager=request_manager, spiders=spiders)
+        
+        # Process in sub-batches of 50 for yfinance efficiency and memory safety
+        sub_batch_size = 50
+        for i in range(0, len(tickers), sub_batch_size):
+            sub_batch = tickers[i : i + sub_batch_size]
+            logger.info(f"Main: Processing sub-batch {i//sub_batch_size + 1} ({len(sub_batch)} tickers)")
+            await engine.run_batch_async(sub_batch)
+            
     finally:
         await request_manager.close()
+        db.close()
 
 
 def main():
@@ -62,7 +50,7 @@ def main():
     parser.add_argument("--total-chunks", type=int, default=1, help="Total number of chunks")
     args = parser.parse_args()
 
-    logger.info(f"Starting stock-market-crawler (Async Mode) - Chunk {args.chunk}/{args.total_chunks}...")
+    logger.info(f"Starting stock-market-crawler (Batch Mode) - Chunk {args.chunk}/{args.total_chunks}...")
 
     # 1. Fetch Macro Data (only on the first chunk to avoid redundancy)
     if args.chunk == 0:
@@ -91,7 +79,7 @@ def main():
 
     logger.info(
         f"Processing {len(tickers_to_process)} companies (out of {len(all_tickers)}) "
-        f"in chunk {args.chunk} using asyncio..."
+        f"in chunk {args.chunk} using batch mode..."
     )
 
     start_time = time.time()

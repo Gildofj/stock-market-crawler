@@ -17,6 +17,64 @@ class B3Spider(BaseSpider):
     This spider handles price history and basic company metadata.
     """
 
+    async def crawl_batch_async(self, symbols: list[str]) -> dict[str, CrawlResult]:
+        """Asynchronously crawls a batch of tickers from B3 using yfinance.download."""
+        import os
+        period = os.getenv("YF_HISTORY_PERIOD", "1y")
+        
+        # B3 symbols in yfinance need .SA suffix
+        yf_symbols = [f"{s}.SA" if not s.endswith(".SA") else s for s in symbols]
+        logger.info(f"Batch crawling {len(yf_symbols)} tickers (period: {period})")
+
+        # yfinance download is synchronous
+        import pandas as pd
+        
+        def _download():
+            return yf.download(
+                yf_symbols, 
+                period=period, 
+                group_by="ticker", 
+                threads=True, 
+                progress=False
+            )
+
+        try:
+            df = await asyncio.to_thread(_download)
+            results = {}
+
+            for symbol in symbols:
+                yf_s = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
+                ticker_df = df[yf_s] if len(symbols) > 1 else df
+                
+                result = CrawlResult(symbol=symbol)
+                if ticker_df.empty or ticker_df.dropna(how="all").empty:
+                    results[symbol] = result
+                    continue
+
+                # Prices
+                for index, row in ticker_df.dropna(subset=["Close"]).iterrows():
+                    import datetime
+                    ts = pd.to_datetime(index) # type: ignore
+                    time_val: datetime.datetime = ts.to_pydatetime()
+                    
+                    result.prices.append(
+                        StockPriceSchema(
+                            time=time_val,
+                            open=float(row["Open"]),
+                            high=float(row["High"]),
+                            low=float(row["Low"]),
+                            close=float(row["Close"]),
+                            adj_close=float(row.get("Adj Close", row["Close"])),
+                            volume=int(row["Volume"]),
+                        )
+                    )
+                results[symbol] = result
+            
+            return results
+        except Exception as e:
+            logger.error(f"B3 Batch Spider error: {e}")
+            return {s: CrawlResult(symbol=s) for s in symbols}
+
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         """Synchronously crawls a ticker from B3 (yfinance)."""
         import os

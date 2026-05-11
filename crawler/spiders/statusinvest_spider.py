@@ -55,6 +55,55 @@ class StatusInvestSpider(BaseSpider):
             self._last_api_failure = time.time()
             return {}
 
+    async def crawl_ticker_async(self, symbol: str, enrich_metadata: bool = True) -> CrawlResult:
+        """Asynchronously crawls a ticker from StatusInvest."""
+        # API fetch is usually done once and cached
+        all_data = await asyncio.to_thread(self._fetch_all_data)
+        item = all_data.get(symbol.upper())
+        result = CrawlResult(symbol=symbol)
+
+        if item:
+            self._map_api_item(item, result)
+
+        if enrich_metadata:
+            await self._enrich_from_profile_async(result)
+        return result
+
+    def _map_api_item(self, item: dict[str, Any], result: CrawlResult):
+        """Maps API dictionary item to CrawlResult."""
+        result.name = str(item.get("companyName")) if item.get("companyName") else None
+        result.p_l = float(item.get("p_L")) if item.get("p_L") else None
+        result.p_vp = float(item.get("p_VP")) if item.get("p_VP") else None
+        result.dy = float(item.get("dy")) if item.get("dy") else 0
+        result.roe = float(item.get("roe")) if item.get("roe") else None
+        result.roic = float(item.get("roic")) if item.get("roic") else None
+        result.ev_ebitda = (
+            float(item.get("ev_Ebitda")) if item.get("ev_Ebitda") else None
+        )
+        result.net_margin = (
+            float(item.get("margemLiquida")) if item.get("margemLiquida") else None
+        )
+        result.liquid_debt_ebitda = (
+            float(item.get("dividaliquidaEbitda"))
+            if item.get("dividaliquidaEbitda")
+            else None
+        )
+        result.cagr_revenue_5y = (
+            float(item.get("receitas_cagr5")) if item.get("receitas_cagr5") else None
+        )
+        result.cagr_profit_5y = (
+            float(item.get("lucros_cagr5")) if item.get("lucros_cagr5") else None
+        )
+        result.debt_to_equity = (
+            float(item.get("dividaLiquidaPatrimonioLiquido"))
+            if item.get("dividaLiquidaPatrimonioLiquido")
+            else None
+        )
+        result.market_cap = (
+            float(item.get("valorMercado")) if item.get("valorMercado") else None
+        )
+        result.eps = float(item.get("lpa")) if item.get("lpa") else None
+
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         result = CrawlResult(symbol=symbol)
         all_data = self._fetch_all_data()
@@ -65,39 +114,7 @@ class StatusInvestSpider(BaseSpider):
             return result
 
         try:
-            # Mapping API fields to CrawlResult
-            result.name = str(item.get("companyName")) if item.get("companyName") else None
-            result.p_l = float(item.get("p_L")) if item.get("p_L") else None
-            result.p_vp = float(item.get("p_VP")) if item.get("p_VP") else None
-            result.dy = float(item.get("dy")) if item.get("dy") else 0
-            result.roe = float(item.get("roe")) if item.get("roe") else None
-            result.roic = float(item.get("roic")) if item.get("roic") else None
-            result.ev_ebitda = (
-                float(item.get("ev_Ebitda")) if item.get("ev_Ebitda") else None
-            )
-            result.net_margin = (
-                float(item.get("margemLiquida")) if item.get("margemLiquida") else None
-            )
-            result.liquid_debt_ebitda = (
-                float(item.get("dividaliquidaEbitda"))
-                if item.get("dividaliquidaEbitda")
-                else None
-            )
-            result.cagr_revenue_5y = (
-                float(item.get("receitas_cagr5")) if item.get("receitas_cagr5") else None
-            )
-            result.cagr_profit_5y = (
-                float(item.get("lucros_cagr5")) if item.get("lucros_cagr5") else None
-            )
-            result.debt_to_equity = (
-                float(item.get("dividaLiquidaPatrimonioLiquido"))
-                if item.get("dividaLiquidaPatrimonioLiquido")
-                else None
-            )
-            result.market_cap = (
-                float(item.get("valorMercado")) if item.get("valorMercado") else None
-            )
-            result.eps = float(item.get("lpa")) if item.get("lpa") else None
+            self._map_api_item(item, result)
 
             # Enrich with Logo and Website from profile page
             self._enrich_from_profile(result)
@@ -105,22 +122,6 @@ class StatusInvestSpider(BaseSpider):
         except Exception as e:
             logger.error(f"StatusInvest mapping error for {symbol}: {e}")
 
-        return result
-
-    async def crawl_ticker_async(self, symbol: str) -> CrawlResult:
-        """Asynchronously crawls a ticker from StatusInvest."""
-        # API fetch is usually done once and cached
-        all_data = await asyncio.to_thread(self._fetch_all_data)
-        item = all_data.get(symbol.upper())
-        result = CrawlResult(symbol=symbol)
-
-        if item:
-            # Map standard fields
-            result.dy = float(item.get("dy", 0))
-            result.p_l = float(item.get("p_L", 0))
-            # ... (more fields could be added here similar to crawl_ticker)
-
-        await self._enrich_from_profile_async(result)
         return result
 
     def _enrich_from_profile(self, result: CrawlResult):
