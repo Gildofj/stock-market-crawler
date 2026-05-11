@@ -26,7 +26,7 @@ class FundamentusSpider(BaseSpider):
     async def crawl_ticker_async(self, symbol: str) -> CrawlResult:
         """Asynchronously crawls a ticker from Fundamentus."""
         result = CrawlResult(symbol=symbol)
-        
+
         if time.time() - self._last_failure < self._cooldown:
             return result
 
@@ -60,7 +60,10 @@ class FundamentusSpider(BaseSpider):
                 self._parse_fundamentals(soup, result)
             elif response.status_code in [403, 429]:
                 self._last_failure = time.time()
-                logger.warning(f"Fundamentus blocked (HTTP {response.status_code}). Entering cooldown.")
+                logger.warning(
+                    f"Fundamentus blocked (HTTP {response.status_code}). "
+                    "Entering cooldown."
+                )
 
         except Exception as e:
             logger.error(f"Fundamentus error for {symbol}: {e}")
@@ -139,7 +142,7 @@ class FundamentusSpider(BaseSpider):
                 if isinstance(s, Tag) and s.string and pattern.match(s.string):
                     span = s
                     break
-            
+
             if span is None:
                 return None
 
