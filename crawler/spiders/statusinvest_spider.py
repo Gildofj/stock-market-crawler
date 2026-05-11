@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 from typing import Any
 
 from bs4 import BeautifulSoup, Tag
@@ -29,19 +30,30 @@ class StatusInvestSpider(BaseSpider):
     def __init__(self, request_manager: RequestManager | None = None):
         self.request_manager = request_manager or RequestManager()
         self._cache: dict[str, Any] = {}
+        self._last_api_failure = 0.0
+        self._api_cooldown = 300.0  # 5 minutes cooldown after a failure
 
     def _fetch_all_data(self) -> dict[str, Any]:
         """Fetches all companies from the StatusInvest API and caches them."""
-        if not self._cache:
-            try:
-                response = self.request_manager.get(self.API_URL, timeout=30)
-                response.raise_for_status()
-                data = response.json()
-                self._cache = {item["ticker"]: item for item in data}
-                logger.info(f"StatusInvest API: Cached {len(self._cache)} companies")
-            except Exception as e:
-                logger.error(f"StatusInvest API error: {e}")
-        return self._cache
+        if self._cache:
+            return self._cache
+
+        # Check if we are in cooldown
+        if time.time() - self._last_api_failure < self._api_cooldown:
+            logger.debug("StatusInvest API: In cooldown, skipping fetch")
+            return {}
+
+        try:
+            response = self.request_manager.get(self.API_URL, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            self._cache = {item["ticker"]: item for item in data}
+            logger.info(f"StatusInvest API: Cached {len(self._cache)} companies")
+            return self._cache
+        except Exception as e:
+            logger.error(f"StatusInvest API error: {e}")
+            self._last_api_failure = time.time()
+            return {}
 
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         result = CrawlResult(symbol=symbol)

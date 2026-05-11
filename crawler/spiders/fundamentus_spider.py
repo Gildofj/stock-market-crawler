@@ -1,4 +1,5 @@
 import re
+import time
 
 from bs4 import BeautifulSoup, Tag
 from loguru import logger
@@ -19,18 +20,25 @@ class FundamentusSpider(BaseSpider):
 
     def __init__(self, request_manager: RequestManager | None = None):
         self.request_manager = request_manager or RequestManager()
+        self._last_failure = 0.0
+        self._cooldown = 300.0  # 5 minutes cooldown
 
     async def crawl_ticker_async(self, symbol: str) -> CrawlResult:
         """Asynchronously crawls a ticker from Fundamentus."""
-        url = f"{self.BASE_URL}{symbol}"
         result = CrawlResult(symbol=symbol)
+        
+        if time.time() - self._last_failure < self._cooldown:
+            return result
 
+        url = f"{self.BASE_URL}{symbol}"
         try:
             response = await self.request_manager.get_async(url)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "lxml")
                 self._parse_metadata(soup, result)
                 self._parse_fundamentals(soup, result)
+            elif response.status_code in [403, 429]:
+                self._last_failure = time.time()
         except Exception as e:
             logger.error(f"Fundamentus async error for {symbol}: {e}")
 
@@ -38,20 +46,21 @@ class FundamentusSpider(BaseSpider):
 
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         """Synchronously crawls a ticker from Fundamentus."""
-        url = f"{self.BASE_URL}{symbol}"
         result = CrawlResult(symbol=symbol)
 
+        if time.time() - self._last_failure < self._cooldown:
+            return result
+
+        url = f"{self.BASE_URL}{symbol}"
         try:
             response = self.request_manager.get(url, timeout=15)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, "lxml")
-
-            # 1. Enrich Company Metadata
-            self._parse_metadata(soup, result)
-
-            # 2. Extract Fundamentals
-            self._parse_fundamentals(soup, result)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "lxml")
+                self._parse_metadata(soup, result)
+                self._parse_fundamentals(soup, result)
+            elif response.status_code in [403, 429]:
+                self._last_failure = time.time()
+                logger.warning(f"Fundamentus blocked (HTTP {response.status_code}). Entering cooldown.")
 
         except Exception as e:
             logger.error(f"Fundamentus error for {symbol}: {e}")
