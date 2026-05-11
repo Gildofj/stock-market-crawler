@@ -6,8 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  dispatch:
+  crawl:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chunk: [0, 1, 2, 3]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,7 +30,8 @@ jobs:
         run: uv sync --frozen
 
       - name: Run Crawler (main.py)
-        run: uv run python main.py
+        run: uv run python main.py --chunk ${{ matrix.chunk }} --total-chunks 4
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LOG_LEVEL: INFO
+          YF_HISTORY_PERIOD: "1mo"

@@ -19,16 +19,19 @@ class B3Spider(BaseSpider):
 
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         """Synchronously crawls a ticker from B3 (yfinance)."""
+        import os
+        period = os.getenv("YF_HISTORY_PERIOD", "1y")
+        
         # B3 symbols in yfinance need .SA suffix
         yf_symbol = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
-        logger.info(f"Crawling ticker: {yf_symbol}")
+        logger.info(f"Crawling ticker: {yf_symbol} (period: {period})")
 
         result = CrawlResult(symbol=symbol)
         ticker = yf.Ticker(yf_symbol)
 
         try:
             # Fast fail if no data (e.g. 404 Not Found or delisted)
-            history = ticker.history(period="1y")
+            history = ticker.history(period=period)
 
             if history.empty:
                 logger.warning(

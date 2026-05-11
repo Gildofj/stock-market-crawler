@@ -23,7 +23,7 @@ class CompanySchema(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
 
-    id: uuid.UUID = Field(..., description="Unique internal identifier")
+    id: uuid.UUID | None = Field(None, description="Unique internal identifier")
     symbol: str = Field(..., description="Stock ticker symbol")
     name: str | None = Field(None, description="Company full name")
     sector: str | None = Field(None, description="Economic sector")

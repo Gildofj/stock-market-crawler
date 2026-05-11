@@ -24,21 +24,32 @@ class CrawlerEngine:
     This ensures maximum data coverage and resilience against single-source failures.
     """
 
-    def __init__(self, db: Session, request_manager: RequestManager | None = None):
+    def __init__(
+        self,
+        db: Session,
+        request_manager: RequestManager | None = None,
+        spiders: dict | None = None,
+    ):
         """
         Initializes the CrawlerEngine with necessary dependencies.
 
         Args:
             db: SQLAlchemy session for database operations.
             request_manager: Optional manager for HTTP requests and rate limiting.
+            spiders: Optional dictionary of pre-initialized spiders.
         """
         self.data_service = DataService(db)
         self.request_manager = request_manager or RequestManager()
 
         # Initialize spiders with shared request manager for unified rate limiting
-        self.b3_spider = B3Spider()
-        self.fundamentus_spider = FundamentusSpider(self.request_manager)
-        self.status_spider = StatusInvestSpider(self.request_manager)
+        spiders = spiders or {}
+        self.b3_spider = spiders.get("b3") or B3Spider()
+        self.fundamentus_spider = spiders.get("fundamentus") or FundamentusSpider(
+            self.request_manager
+        )
+        self.status_spider = spiders.get("status") or StatusInvestSpider(
+            self.request_manager
+        )
 
     async def run_for_ticker_async(self, symbol: str) -> CrawlResult:
         """
