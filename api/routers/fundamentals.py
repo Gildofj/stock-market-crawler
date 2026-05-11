@@ -12,7 +12,7 @@ router = APIRouter(prefix="/fundamentals", tags=["Fundamentals"])
 @router.get("/{company_id}", response_model=FundamentalSchema)
 async def get_latest_fundamentals(company_id: uuid.UUID, db: DBDep):
     """
-    Retrieves the most recent fundamental indicators for a company.
+    Retrieves the most recent fundamental indicators for a company by its internal ID.
     """
     fundamentals = (
         db.query(Fundamental)

@@ -2,7 +2,6 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 
 from api.deps import DBDep
 from crawler.models.models import StockPrice
@@ -18,7 +17,7 @@ async def get_stock_prices(
     limit: Annotated[int, Query(gt=0, le=1000)] = 100,
 ):
     """
-    Retrieves historical price data for a specific company.
+    Retrieves historical price data for a specific company by its internal ID.
     """
     prices = (
         db.query(StockPrice)

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -6,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class StockPriceSchema(BaseModel):
     """Schema for historical stock price data points."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
 
     time: datetime = Field(..., description="Timestamp of the price point")
     open: float | None = Field(None, description="Opening price")
@@ -16,15 +17,13 @@ class StockPriceSchema(BaseModel):
     adj_close: float | None = Field(None, description="Adjusted closing price")
     volume: int | None = Field(None, description="Trading volume")
 
-    def __init__(self, **data):
-        super().__init__(**data)
-
 
 class CompanySchema(BaseModel):
     """Schema for company profile and metadata."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
 
+    id: uuid.UUID = Field(..., description="Unique internal identifier")
     symbol: str = Field(..., description="Stock ticker symbol")
     name: str | None = Field(None, description="Company full name")
     sector: str | None = Field(None, description="Economic sector")
@@ -34,14 +33,11 @@ class CompanySchema(BaseModel):
     website: str | None = Field(None, description="Company website URL")
     is_active: int = Field(1, description="Status (1: active, 0: inactive)")
 
-    def __init__(self, **data):
-        super().__init__(**data)
-
 
 class FundamentalSchema(BaseModel):
     """Schema for fundamental indicators and valuation metrics."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
 
     p_l: float | None = Field(None, description="Price to Earnings ratio")
     p_vp: float | None = Field(None, description="Price to Book Value ratio")
@@ -59,6 +55,3 @@ class FundamentalSchema(BaseModel):
     valuation_graham: float | None = Field(None, description="Graham Fair Value Price")
     valuation_bazin: float | None = Field(None, description="Bazin Fair Value Price")
     quality_score: int | None = Field(None, description="Composite Quality Score")
-
-    def __init__(self, **data):
-        super().__init__(**data)
