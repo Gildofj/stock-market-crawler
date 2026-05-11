@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import os
-import re
 from typing import Any
 
 import pandas as pd
@@ -23,7 +22,7 @@ class B3Spider(BaseSpider):
     async def crawl_batch_async(self, symbols: list[str]) -> dict[str, CrawlResult]:
         """Asynchronously crawls a batch of tickers from B3 using yfinance.download."""
         period = os.getenv("YF_HISTORY_PERIOD", "1y")
-        
+
         # B3 symbols in yfinance need .SA suffix
         yf_symbols = [f"{s}.SA" if not s.endswith(".SA") else s for s in symbols]
         logger.info(f"Batch crawling {len(yf_symbols)} tickers (period: {period})")
@@ -31,11 +30,7 @@ class B3Spider(BaseSpider):
         # yfinance download is synchronous
         def _download():
             return yf.download(
-                yf_symbols, 
-                period=period, 
-                group_by="ticker", 
-                threads=True, 
-                progress=False
+                yf_symbols, period=period, group_by="ticker", threads=True, progress=False
             )
 
         try:
@@ -45,7 +40,7 @@ class B3Spider(BaseSpider):
             for symbol in symbols:
                 yf_s = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
                 ticker_df = df[yf_s] if len(symbols) > 1 else df
-                
+
                 result = CrawlResult(symbol=symbol)
                 if ticker_df.empty or ticker_df.dropna(how="all").empty:
                     results[symbol] = result
@@ -53,9 +48,9 @@ class B3Spider(BaseSpider):
 
                 # Prices
                 for index, row in ticker_df.dropna(subset=["Close"]).iterrows():
-                    ts = pd.to_datetime(index) # type: ignore
+                    ts = pd.to_datetime(index)  # type: ignore
                     time_val: datetime.datetime = ts.to_pydatetime()
-                    
+
                     result.prices.append(
                         StockPriceSchema(
                             time=time_val,
@@ -68,7 +63,7 @@ class B3Spider(BaseSpider):
                         )
                     )
                 results[symbol] = result
-            
+
             return results
         except Exception as e:
             logger.error(f"B3 Batch Spider error: {e}")
@@ -77,7 +72,7 @@ class B3Spider(BaseSpider):
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         """Synchronously crawls a ticker from B3 (yfinance)."""
         period = os.getenv("YF_HISTORY_PERIOD", "1y")
-        
+
         # B3 symbols in yfinance need .SA suffix
         yf_symbol = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
         logger.info(f"Crawling ticker: {yf_symbol} (period: {period})")
@@ -97,7 +92,7 @@ class B3Spider(BaseSpider):
 
             # Check for liquidity (last 5 trading days volume)
             vol_series = history["Volume"]
-            recent_volume = float(vol_series.tail(5).sum()) # type: ignore
+            recent_volume = float(vol_series.tail(5).sum())  # type: ignore
             if recent_volume == 0:
                 logger.warning(
                     f"ACTION REQUIRED: {yf_symbol} has NO TRADING VOLUME. Marking as INACTIVE."
@@ -121,18 +116,18 @@ class B3Spider(BaseSpider):
             # 2. Historical Prices
             for index, row in history.iterrows():
                 # Handling pandas timestamp safely
-                ts = pd.to_datetime(index) # type: ignore
+                ts = pd.to_datetime(index)  # type: ignore
                 time_val: datetime.datetime = ts.to_pydatetime()
-                
+
                 result.prices.append(
                     StockPriceSchema(
                         time=time_val,
-                        open=float(row["Open"]), # type: ignore
-                        high=float(row["High"]), # type: ignore
-                        low=float(row["Low"]), # type: ignore
-                        close=float(row["Close"]), # type: ignore
-                        adj_close=float(row.get("Adj Close", row["Close"])), # type: ignore
-                        volume=int(row["Volume"]), # type: ignore
+                        open=float(row["Open"]),  # type: ignore
+                        high=float(row["High"]),  # type: ignore
+                        low=float(row["Low"]),  # type: ignore
+                        close=float(row["Close"]),  # type: ignore
+                        adj_close=float(row.get("Adj Close", row["Close"])),  # type: ignore
+                        volume=int(row["Volume"]),  # type: ignore
                     )
                 )
 
@@ -140,16 +135,16 @@ class B3Spider(BaseSpider):
             result.p_l = self._to_float(info.get("forwardPE") or info.get("trailingPE"))
             result.p_vp = self._to_float(info.get("priceToBook"))
             result.ev_ebitda = self._to_float(info.get("enterpriseToEbitda"))
-            
+
             roe_val = self._to_float(info.get("returnOnEquity"))
             result.roe = roe_val * 100 if roe_val is not None else None
-            
+
             dy_val = self._to_float(info.get("dividendYield"))
             result.dy = dy_val * 100 if dy_val is not None else 0.0
-            
+
             margin_val = self._to_float(info.get("profitMargins"))
             result.net_margin = margin_val * 100 if margin_val is not None else None
-            
+
             result.liquid_debt_ebitda = self._to_float(info.get("debtToEbitda"))
             result.debt_to_equity = self._to_float(info.get("debtToEquity"))
             result.market_cap = self._to_float(info.get("marketCap"))
@@ -171,6 +166,6 @@ class B3Spider(BaseSpider):
             if val is None:
                 return None
             # Handle potential pandas types or other numeric types
-            return float(val) # type: ignore
+            return float(val)  # type: ignore
         except (ValueError, TypeError):
             return None

@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 
-import pytest
-from crawler.models.schemas import CompanySchema, StockPriceSchema
+from crawler.models.schemas import StockPriceSchema
 from crawler.services.etl_service import ETLService
 
 
@@ -11,6 +10,7 @@ def test_generate_features_calculation(mocker):
     mock_db = mocker.Mock()
 
     from datetime import timedelta
+
     # Create dummy price data
     mock_prices = [
         StockPriceSchema(

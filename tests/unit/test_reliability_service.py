@@ -132,13 +132,23 @@ def test_score_to_grade_thresholds(service, score, expected_grade):
 
 
 def test_score_profit_no_data(service, mocker):
-    mocker.patch.object(service.db, "query", return_value=MagicMock(
-        filter=MagicMock(return_value=MagicMock(
-            filter=MagicMock(return_value=MagicMock(
-                order_by=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))
-            ))
-        ))
-    ))
+    mocker.patch.object(
+        service.db,
+        "query",
+        return_value=MagicMock(
+            filter=MagicMock(
+                return_value=MagicMock(
+                    filter=MagicMock(
+                        return_value=MagicMock(
+                            order_by=MagicMock(
+                                return_value=MagicMock(first=MagicMock(return_value=None))
+                            )
+                        )
+                    )
+                )
+            )
+        ),
+    )
     result = service._score_profit_consistency(0, 0, uuid.uuid4())
     assert result == 0
 
@@ -147,7 +157,9 @@ def test_score_profit_all_profitable_positive_cagr(service, mocker):
     cagr_mock = MagicMock()
     cagr_mock.cagr_profit_5y = 12.5
     query_chain = MagicMock()
-    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = cagr_mock
+    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = (
+        cagr_mock
+    )
     service.db.query = MagicMock(return_value=query_chain)
 
     result = service._score_profit_consistency(4, 4, uuid.uuid4())
@@ -158,7 +170,9 @@ def test_score_profit_all_profitable_negative_cagr(service, mocker):
     cagr_mock = MagicMock()
     cagr_mock.cagr_profit_5y = -2.0
     query_chain = MagicMock()
-    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = cagr_mock
+    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = (
+        cagr_mock
+    )
     service.db.query = MagicMock(return_value=query_chain)
 
     result = service._score_profit_consistency(4, 4, uuid.uuid4())
@@ -169,7 +183,9 @@ def test_score_profit_partial_years(service, mocker):
     cagr_mock = MagicMock()
     cagr_mock.cagr_profit_5y = 5.0
     query_chain = MagicMock()
-    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = cagr_mock
+    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = (
+        cagr_mock
+    )
     service.db.query = MagicMock(return_value=query_chain)
 
     result = service._score_profit_consistency(3, 4, uuid.uuid4())

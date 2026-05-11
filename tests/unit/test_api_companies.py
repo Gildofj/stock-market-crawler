@@ -8,14 +8,16 @@ from crawler.services.database import get_db as get_crawler_db
 
 client = TestClient(app)
 
+
 @pytest.fixture
 def override_db(db_session: Session):
     def _override_db():
         yield db_session
-    
+
     app.dependency_overrides[get_crawler_db] = _override_db
     yield
     app.dependency_overrides.clear()
+
 
 def test_search_companies(db_session: Session, override_db):
     # Seed data
@@ -57,6 +59,7 @@ def test_search_companies(db_session: Session, override_db):
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 0
+
 
 def test_search_min_length(override_db):
     # Test min length constraint (q must be at least 1 char, which is handled by Query)

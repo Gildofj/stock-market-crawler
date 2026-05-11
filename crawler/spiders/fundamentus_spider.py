@@ -61,8 +61,7 @@ class FundamentusSpider(BaseSpider):
             elif response.status_code in [403, 429]:
                 self._last_failure = time.time()
                 logger.warning(
-                    f"Fundamentus blocked (HTTP {response.status_code}). "
-                    "Entering cooldown."
+                    f"Fundamentus blocked (HTTP {response.status_code}). Entering cooldown."
                 )
 
         except Exception as e:
@@ -154,9 +153,7 @@ class FundamentusSpider(BaseSpider):
             if not isinstance(td, Tag):
                 return None
 
-            val_str = (
-                td.get_text().replace(".", "").replace(",", ".").replace("%", "").strip()
-            )
+            val_str = td.get_text().replace(".", "").replace(",", ".").replace("%", "").strip()
             return float(val_str) if val_str and val_str != "-" else None
         except (ValueError, AttributeError):
             return None

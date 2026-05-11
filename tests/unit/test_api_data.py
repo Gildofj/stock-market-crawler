@@ -1,23 +1,26 @@
+import uuid
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-from datetime import datetime
-import uuid
 
 from api.main import app
-from crawler.models.models import Company, StockPrice, Fundamental
+from crawler.models.models import Company, Fundamental, StockPrice
 from crawler.services.database import get_db as get_crawler_db
 
 client = TestClient(app)
+
 
 @pytest.fixture
 def override_db(db_session: Session):
     def _override_db():
         yield db_session
-    
+
     app.dependency_overrides[get_crawler_db] = _override_db
     yield
     app.dependency_overrides.clear()
+
 
 def test_search_includes_id(db_session: Session, override_db):
     # Seed data
@@ -32,6 +35,7 @@ def test_search_includes_id(db_session: Session, override_db):
     assert len(data) == 1
     assert "id" in data[0]
     assert uuid.UUID(data[0]["id"]) == c1.id
+
 
 def test_get_prices_by_id(db_session: Session, override_db):
     # Seed data
@@ -50,6 +54,7 @@ def test_get_prices_by_id(db_session: Session, override_db):
     assert len(data) == 1
     assert float(data[0]["close"]) == 30.50
 
+
 def test_get_fundamentals_by_id(db_session: Session, override_db):
     # Seed data
     c1 = Company(symbol="VALE3", name="Vale ON")
@@ -65,6 +70,7 @@ def test_get_fundamentals_by_id(db_session: Session, override_db):
     assert response.status_code == 200
     data = response.json()
     assert float(data["p_l"]) == 5.5
+
 
 def test_not_found_errors_by_id(override_db):
     random_id = uuid.uuid4()

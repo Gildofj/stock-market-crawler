@@ -1,12 +1,9 @@
 import uuid
-from decimal import Decimal
 
-import pandas as pd
 from loguru import logger
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models.models import Company, CompanyReliability, Fundamental, MLFeature, StockPrice
+from ..models.models import Company, CompanyReliability, Fundamental, StockPrice
 from ..models.schemas import CompanySchema, FundamentalSchema, StockPriceSchema
 
 
@@ -21,9 +18,7 @@ class DataService:
         """
         Retrieves a company by symbol or creates it if it doesn't exist.
         """
-        company = (
-            self.db.query(Company).filter(Company.symbol == company_data.symbol).first()
-        )
+        company = self.db.query(Company).filter(Company.symbol == company_data.symbol).first()
 
         if not company:
             company = Company(**company_data.model_dump())

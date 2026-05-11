@@ -5,16 +5,18 @@ Revises: 23923b3cb278
 Create Date: 2026-05-11 13:26:50.372344
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "c9d48ed38fc7"
-down_revision: Union[str, Sequence[str], None] = "23923b3cb278"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = "23923b3cb278"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

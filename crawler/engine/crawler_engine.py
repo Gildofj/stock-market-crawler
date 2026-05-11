@@ -49,9 +49,7 @@ class CrawlerEngine:
         self.fundamentus_spider = spiders.get("fundamentus") or FundamentusSpider(
             self.request_manager
         )
-        self.status_spider = spiders.get("status") or StatusInvestSpider(
-            self.request_manager
-        )
+        self.status_spider = spiders.get("status") or StatusInvestSpider(self.request_manager)
 
     async def run_batch_async(self, symbols: list[str]) -> list[CrawlResult]:
         """
@@ -62,12 +60,12 @@ class CrawlerEngine:
         # 1. Batch Primary Source: B3 (yfinance batch)
         # This gets all prices in one/two network calls instead of 100s
         results_dict = await self.b3_spider.crawl_batch_async(symbols)
-        
+
         # 2. Sequential Fallback and Persistence (with shared caches)
         final_results = []
         for symbol in symbols:
             result = results_dict.get(symbol) or CrawlResult(symbol=symbol)
-            
+
             # Check if company exists to avoid redundant metadata scraping
             company_exists = await asyncio.to_thread(
                 self.data_service.get_company_by_symbol, symbol
@@ -80,8 +78,8 @@ class CrawlerEngine:
             # Second Fallback: StatusInvest (Conditional metadata enrichment)
             if not result.is_complete() or not company_exists:
                 # enrich_metadata=True only for new companies
-                await self.status_spider.enrich_async(
-                    result, enrich_metadata=not company_exists
+                await self.status_spider.crawl_ticker_async(
+                    result.symbol, enrich_metadata=not company_exists
                 )
 
             self._calculate_advanced_metrics(result)

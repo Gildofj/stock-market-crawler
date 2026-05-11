@@ -77,16 +77,10 @@ class StatusInvestSpider(BaseSpider):
         result.dy = float(item.get("dy")) if item.get("dy") else 0
         result.roe = float(item.get("roe")) if item.get("roe") else None
         result.roic = float(item.get("roic")) if item.get("roic") else None
-        result.ev_ebitda = (
-            float(item.get("ev_Ebitda")) if item.get("ev_Ebitda") else None
-        )
-        result.net_margin = (
-            float(item.get("margemLiquida")) if item.get("margemLiquida") else None
-        )
+        result.ev_ebitda = float(item.get("ev_Ebitda")) if item.get("ev_Ebitda") else None
+        result.net_margin = float(item.get("margemLiquida")) if item.get("margemLiquida") else None
         result.liquid_debt_ebitda = (
-            float(item.get("dividaliquidaEbitda"))
-            if item.get("dividaliquidaEbitda")
-            else None
+            float(item.get("dividaliquidaEbitda")) if item.get("dividaliquidaEbitda") else None
         )
         result.cagr_revenue_5y = (
             float(item.get("receitas_cagr5")) if item.get("receitas_cagr5") else None
@@ -99,9 +93,7 @@ class StatusInvestSpider(BaseSpider):
             if item.get("dividaLiquidaPatrimonioLiquido")
             else None
         )
-        result.market_cap = (
-            float(item.get("valorMercado")) if item.get("valorMercado") else None
-        )
+        result.market_cap = float(item.get("valorMercado")) if item.get("valorMercado") else None
         result.eps = float(item.get("lpa")) if item.get("lpa") else None
 
     def crawl_ticker(self, symbol: str) -> CrawlResult:

@@ -182,8 +182,7 @@ class RequestManager:
 
                     # Last resort: Fallback to nodriver
                     logger.warning(
-                        f"Tier 1 (curl_cffi) blocked for {url}. "
-                        "Falling back to Tier 2 (nodriver)."
+                        f"Tier 1 (curl_cffi) blocked for {url}. Falling back to Tier 2 (nodriver)."
                     )
                     return asyncio.run(self._nodriver_get(url))
 
@@ -196,8 +195,7 @@ class RequestManager:
                     continue
 
                 logger.warning(
-                    f"Tier 1 (curl_cffi) failed for {url}: {e}. "
-                    "Falling back to Tier 2 (nodriver)."
+                    f"Tier 1 (curl_cffi) failed for {url}: {e}. Falling back to Tier 2 (nodriver)."
                 )
                 return asyncio.run(self._nodriver_get(url))
 

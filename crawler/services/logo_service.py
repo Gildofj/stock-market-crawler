@@ -22,10 +22,7 @@ class LogoService:
         if company and hasattr(company, "logo_url") and company.logo_url:
             return str(company.logo_url)
 
-        sources = [
-            self._fetch_from_statusinvest,
-            self._fetch_from_fundamentus
-        ]
+        sources = [self._fetch_from_statusinvest, self._fetch_from_fundamentus]
 
         for source_fn in sources:
             try:
@@ -43,31 +40,39 @@ class LogoService:
         url = f"https://statusinvest.com.br/acoes/{symbol.lower()}"
         response = self.request_manager.get(url, timeout=10)
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'lxml')
-            avatar_div = soup.find('div', class_='avatar')
-            if avatar_div and avatar_div.has_attr('style'):
-                style_attr = avatar_div.get('style')
+            soup = BeautifulSoup(response.text, "lxml")
+            avatar_div = soup.find("div", class_="avatar")
+            if avatar_div and avatar_div.has_attr("style"):
+                style_attr = avatar_div.get("style")
                 if isinstance(style_attr, list):
                     style_attr = " ".join(style_attr)
 
-                match = re.search(r'url\((.*?)\)', str(style_attr))
+                match = re.search(r"url\((.*?)\)", str(style_attr))
                 if match:
                     logo_path = match.group(1).replace("'", "").replace('"', "")
-                    return f"https://statusinvest.com.br{logo_path}" if logo_path.startswith("/") else logo_path
+                    return (
+                        f"https://statusinvest.com.br{logo_path}"
+                        if logo_path.startswith("/")
+                        else logo_path
+                    )
         return None
 
     def _fetch_from_fundamentus(self, symbol: str) -> str | None:
         url = f"https://www.fundamentus.com.br/detalhes.php?papel={symbol.upper()}"
         response = self.request_manager.get(url, timeout=10)
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'lxml')
-            img = soup.find('img', alt=re.compile(r'logo', re.I))
-            if img and img.has_attr('src'):
-                src = img.get('src')
+            soup = BeautifulSoup(response.text, "lxml")
+            img = soup.find("img", alt=re.compile(r"logo", re.I))
+            if img and img.has_attr("src"):
+                src = img.get("src")
                 if isinstance(src, list):
                     src = src[0]
 
                 src_str = str(src)
-                return f"https://www.fundamentus.com.br/{src_str}" if src_str.startswith('/') else src_str
+                return (
+                    f"https://www.fundamentus.com.br/{src_str}"
+                    if src_str.startswith("/")
+                    else src_str
+                )
         return None
         return None

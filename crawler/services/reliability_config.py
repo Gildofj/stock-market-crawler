@@ -27,60 +27,64 @@ GRADE_THRESHOLDS: list[tuple[int, str]] = [
 TAG_ALONG_BY_SEGMENT: dict[str, int] = {
     "NM": 100,  # Novo Mercado
     "N2": 100,  # Nível 2
-    "N1": 80,   # Nível 1
-    "MA": 80,   # Mercado Ampliado / Tradicional
-    "MB": 80,   # Mercado de Balcão
+    "N1": 80,  # Nível 1
+    "MA": 80,  # Mercado Ampliado / Tradicional
+    "MB": 80,  # Mercado de Balcão
 }
 TAG_ALONG_DEFAULT: int = 80  # legal minimum when segment is null or unrecognised
 
 # Perennial sector keyword matching — any substring match in sector.lower()
-PERENNIAL_SECTOR_KEYWORDS: frozenset[str] = frozenset([
-    "utilities",
-    "electric",
-    "energia",
-    "eletric",
-    "saneamento",
-    "água",
-    "water",
-    "gás",
-    "gas",
-    "alimentos",
-    "food",
-    "bebidas",
-    "beverage",
-    "consumo não cíclico",
-    "consumer staples",
-    "saúde",
-    "health",
-    "farmacêutico",
-    "pharmaceutical",
-    "telecomunicações",
-    "telecommunication",
-    "telecom",
-    "petróleo",
-    "oil",
-    "petro",
-    "seguros",
-    "insurance",
-])
+PERENNIAL_SECTOR_KEYWORDS: frozenset[str] = frozenset(
+    [
+        "utilities",
+        "electric",
+        "energia",
+        "eletric",
+        "saneamento",
+        "água",
+        "water",
+        "gás",
+        "gas",
+        "alimentos",
+        "food",
+        "bebidas",
+        "beverage",
+        "consumo não cíclico",
+        "consumer staples",
+        "saúde",
+        "health",
+        "farmacêutico",
+        "pharmaceutical",
+        "telecomunicações",
+        "telecommunication",
+        "telecom",
+        "petróleo",
+        "oil",
+        "petro",
+        "seguros",
+        "insurance",
+    ]
+)
 
-CYCLICAL_SECTOR_KEYWORDS: frozenset[str] = frozenset([
-    "varejo",
-    "retail",
-    "consumo cíclico",
-    "consumer discretionary",
-    "construção",
-    "construction",
-    "real estate",
-    "imóveis",
-    "turismo",
-    "tourism",
-    "aviação",
-    "airlines",
-    "automóvel",
-    "automobile",
-    "mineração",
-    "mining",
-    "siderurgia",
-    "steel",
-])
+CYCLICAL_SECTOR_KEYWORDS: frozenset[str] = frozenset(
+    [
+        "varejo",
+        "retail",
+        "consumo cíclico",
+        "consumer discretionary",
+        "construção",
+        "construction",
+        "real estate",
+        "imóveis",
+        "turismo",
+        "tourism",
+        "aviação",
+        "airlines",
+        "automóvel",
+        "automobile",
+        "mineração",
+        "mining",
+        "siderurgia",
+        "steel",
+    ]
+)

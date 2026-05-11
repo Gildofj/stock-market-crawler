@@ -21,24 +21,26 @@ async def crawl_tickers_async(tickers: list[str]):
     """
     request_manager = RequestManager()
     db = session_local()
-    
+
     # Pre-initialize spiders to share them (and their caches) across tasks
     spiders = {
         "b3": B3Spider(),
         "fundamentus": FundamentusSpider(request_manager),
         "status": StatusInvestSpider(request_manager),
     }
-    
+
     try:
         engine = CrawlerEngine(db, request_manager=request_manager, spiders=spiders)
-        
+
         # Process in sub-batches of 50 for yfinance efficiency and memory safety
         sub_batch_size = 50
         for i in range(0, len(tickers), sub_batch_size):
             sub_batch = tickers[i : i + sub_batch_size]
-            logger.info(f"Main: Processing sub-batch {i//sub_batch_size + 1} ({len(sub_batch)} tickers)")
+            logger.info(
+                f"Main: Processing sub-batch {i // sub_batch_size + 1} ({len(sub_batch)} tickers)"
+            )
             await engine.run_batch_async(sub_batch)
-            
+
     finally:
         await request_manager.close()
         db.close()
@@ -50,7 +52,9 @@ def main():
     parser.add_argument("--total-chunks", type=int, default=1, help="Total number of chunks")
     args = parser.parse_args()
 
-    logger.info(f"Starting stock-market-crawler (Batch Mode) - Chunk {args.chunk}/{args.total_chunks}...")
+    logger.info(
+        f"Starting stock-market-crawler (Batch Mode) - Chunk {args.chunk}/{args.total_chunks}..."
+    )
 
     # 1. Fetch Macro Data (only on the first chunk to avoid redundancy)
     if args.chunk == 0:
