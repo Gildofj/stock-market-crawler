@@ -16,4 +16,4 @@ services:
       - key: DATABASE_URL
         sync: false # Set this manually in the Render Dashboard with your Supabase URL
       - key: REDIS_URL
-        value: redis://localhost:6379/0 # Optional: Update to an external Redis if needed
+        sync: false # Set this manually in the Render Dashboard with your external Redis URL
