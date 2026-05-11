@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from api.deps import DBDep
 from crawler.models.models import Company
@@ -28,15 +28,46 @@ async def search_companies(
     limit: int = Query(10, gt=0, le=50, description="Maximum number of results to return"),
 ):
     """
-    Searches for companies by symbol or name with partial matching.
-    Designed for frontend selectors/autocomplete.
+    Searches for companies by symbol or name with partial matching and fuzzy search.
+    Handles typos using PostgreSQL trigram similarity when available.
     """
-    companies = (
-        db.query(Company)
-        .filter(or_(Company.symbol.ilike(f"%{q}%"), Company.name.ilike(f"%{q}%")))
-        .limit(limit)
-        .all()
-    )
+    # Base query
+    query = db.query(Company)
+
+    # Detect dialect to support SQLite in tests
+    is_postgres = db.bind.dialect.name == "postgresql"
+
+    if is_postgres:
+        # PostgreSQL: Use similarity for fuzzy matching (handling typos)
+        # We combine substring matching (ilike) with similarity scores
+        # Results are ordered by the best match (substring match first, then similarity)
+        companies = (
+            query.filter(
+                or_(
+                    Company.symbol.ilike(f"%{q}%"),
+                    Company.name.ilike(f"%{q}%"),
+                    func.similarity(Company.symbol, q) > 0.3,
+                    func.similarity(Company.name, q) > 0.3,
+                )
+            )
+            .order_by(
+                # Priority: exact symbol > substring match > similarity
+                Company.symbol.ilike(q).desc(),
+                Company.symbol.ilike(f"%{q}%").desc(),
+                func.similarity(Company.name, q).desc(),
+            )
+            .limit(limit)
+            .all()
+        )
+    else:
+        # Fallback for SQLite (Tests): Only ilike
+        companies = (
+            query.filter(or_(Company.symbol.ilike(f"%{q}%"), Company.name.ilike(f"%{q}%")))
+            .order_by(Company.symbol.ilike(q).desc(), Company.symbol.asc())
+            .limit(limit)
+            .all()
+        )
+
     return companies
 
 
