@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import or_
 
 from api.deps import DBDep
 from crawler.models.models import Company
@@ -17,6 +18,25 @@ async def get_companies(
     Lists all tracked companies with pagination.
     """
     companies = db.query(Company).offset(skip).limit(limit).all()
+    return companies
+
+
+@router.get("/search", response_model=list[CompanySchema])
+async def search_companies(
+    db: DBDep,
+    q: str = Query(..., min_length=1, description="Search term for symbol or name"),
+    limit: int = Query(10, gt=0, le=50, description="Maximum number of results to return"),
+):
+    """
+    Searches for companies by symbol or name with partial matching.
+    Designed for frontend selectors/autocomplete.
+    """
+    companies = (
+        db.query(Company)
+        .filter(or_(Company.symbol.ilike(f"%{q}%"), Company.name.ilike(f"%{q}%")))
+        .limit(limit)
+        .all()
+    )
     return companies
 
 
