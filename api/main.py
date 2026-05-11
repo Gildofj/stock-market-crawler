@@ -91,7 +91,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # 3. Configuração de Segurança - Cloudflare Strict
-# Garante que ninguém acesse a URL da Fly diretamente
+# Garante que ninguém acesse a URL do Render diretamente
 if os.getenv("ENV") == "production":
     app.add_middleware(CloudflareMiddleware)
 

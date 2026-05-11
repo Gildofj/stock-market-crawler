@@ -1,6 +1,5 @@
 # 📈 Stock Market Crawler
 
-[![CI/CD](https://github.com/gildofj/stock-market-crawler/actions/workflows/fly-deploy.yml/badge.svg)](https://github.com/gildofj/stock-market-crawler/actions/workflows/fly-deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
@@ -60,7 +59,7 @@ A high-performance, agnostic stock market crawler and API for the Brazilian fina
 Detailed technical documentation can be found in the `docs/` folder:
 
 - [🏗️ Architecture Overview](./docs/ARCHITECTURE.md) - Deep dive into patterns and data flow.
-- [🚀 Deployment Guide](./docs/DEPLOYMENT.md) - Instructions for Fly.io and DevOps.
+- [🚀 Deployment Guide](./docs/DEPLOYMENT.md) - Instructions for Render and DevOps.
 
 ### API Endpoints (Interactive)
 
@@ -79,7 +78,7 @@ Once running, access the documentation at:
 ├── docs/             # Technical Documentation
 ├── tests/            # Unit & Integration Tests
 ├── Dockerfile        # Container Configuration
-└── fly.toml          # Fly.io Deployment Config
+└── render.yaml       # Render Deployment Config (Blueprint)
 ```
 
 ---

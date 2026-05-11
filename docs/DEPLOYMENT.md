@@ -1,43 +1,54 @@
-# 🚀 Deployment & DevOps Guide
+# 🚀 Deployment Guide
 
-This project is optimized for modern cloud environments, specifically targeting **Fly.io** with **GitHub Actions** for CI/CD.
+This project is optimized for modern cloud environments, specifically targeting **Render** with **Supabase** for persistence and **GitHub Actions** for automated crawling.
 
-## ☁️ Production Environment (Fly.io)
+## ☁️ Production Environment (Render + Supabase)
 
-The application is deployed as a single-process App on Fly.io, managing the FastAPI API.
+The application is deployed as a Dockerized web service on Render, serving the FastAPI API.
 
-### 📄 fly.toml Configuration
+### 📄 render.yaml Configuration
 
-The `fly.toml` defines one process group:
-- **web**: Runs the FastAPI application using Uvicorn.
+The `render.yaml` (Blueprint) defines the infrastructure:
+- **Service Type**: Web Service (Docker)
+- **Plan**: Free (No credit card required)
+- **Health Check**: `/health`
 
-### 🔑 Secret Management
+### 🔑 Environment Variables
 
-Required secrets on Fly.io:
-- `DATABASE_URL`: PostgreSQL connection string.
-- `REDIS_URL`: Redis connection string (Internal or Upstash).
+Required secrets on Render and GitHub Actions:
+- `DATABASE_URL`: Connection string for your Supabase PostgreSQL.
+- `REDIS_URL`: (Optional) Connection string for your Redis cache.
 - `ENV`: Set to `production`.
 
-## 🔄 CI/CD Pipeline
+## 🛠️ Deployment Steps
 
-The project uses GitHub Actions (see `.github/workflows/`):
+### 1. Database Setup (Supabase)
+1.  Create a project on [Supabase](https://supabase.com/).
+2.  Get your PostgreSQL connection string from *Project Settings > Database*.
 
-1.  **Daily Sync**: A scheduled workflow that runs the crawler parallel script natively on GitHub compute resources.
-    *   *Note*: The `main.py` includes a `socket` monkeypatch to force IPv4, ensuring compatibility between GitHub Actions workers and Supabase's IPv6 resolution.
+### 2. API Deployment (Render)
+1.  Connect your GitHub repository to [Render](https://render.com/).
+2.  Render will automatically detect the `render.yaml` file.
+3.  Go to the **Environment** tab in your Render service and add the `DATABASE_URL`.
+4.  Deploy.
 
-2.  **Fly Deploy**: Automatically deploys the FastAPI application on pushes to the `main` branch.
+### 3. Automated Crawler (GitHub Actions)
+1.  Go to your GitHub repository *Settings > Secrets and variables > Actions*.
+2.  Add a secret named `DATABASE_URL` with your Supabase connection string.
+3.  The workflow in `.github/workflows/daily-sync.yml` will now run daily at 02:00 UTC and populate your database.
 
-## 🐳 Dockerization
+---
 
-The `Dockerfile` uses `uv` for ultra-fast dependency resolution and multi-stage builds to keep the image slim.
+## 🏗️ Local Deployment (Docker Compose)
 
-- **Base Image**: `python:3.12-slim-bookworm`
-- **Dependency Manager**: `uv` (pip compatible but faster)
-- **Compile Bytecode**: Enabled for faster startup.
+For local development or self-hosting:
 
-## 📊 Observability
+```bash
+docker-compose up -d
+```
 
-Logs are emitted in JSON format via `loguru` and are intended to be consumed by:
-- **Promtail**: Scrapes logs from Docker containers.
-- **Loki**: Aggregates logs.
-- **Grafana**: Visualizes system health and crawler performance.
+This will spin up:
+- **API**: Port 8080
+- **Postgres**: Port 5432
+- **Redis**: Port 6379
+- **Loki/Promtail/Grafana**: For observability (Port 3000)

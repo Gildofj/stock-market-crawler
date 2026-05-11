@@ -23,5 +23,6 @@ COPY . .
 # Place executables in the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Default command (can be overridden by docker-compose)
-CMD ["python", "main.py"]
+# Default command (serves the API)
+# Use 0.0.0.0 and PORT env var for Render compatibility
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

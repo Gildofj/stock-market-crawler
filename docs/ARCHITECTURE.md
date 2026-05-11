@@ -33,5 +33,5 @@ The system is organized into three main layers to ensure that business logic rem
 *   **Language**: Python 3.12 (Strict typing)
 *   **Frameworks**: FastAPI
 *   **Infrastructure**: GitHub Actions (Execution), PostgreSQL, Redis
-*   **DevOps**: Docker, Fly.io, GitHub Actions
+*   **DevOps**: Docker, Render, GitHub Actions
 *   **Observability**: Loguru (JSON logs), Grafana, Loki
