@@ -115,7 +115,7 @@ class RequestManager:
             logger.info(f"Stealth: Launching headless browser for {url}")
             browser: uc.Browser | None = None
             try:
-                # Basic args for Docker/Actions
+                # Exhaustive args for Docker/Actions/Root
                 browser = await uc.start(
                     sandbox=False,
                     headless=True,
@@ -123,6 +123,10 @@ class RequestManager:
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
                         "--disable-dev-shm-usage",
+                        "--disable-gpu",
+                        "--no-first-run",
+                        "--no-zygote",
+                        "--single-process",
                     ],
                 )
 
