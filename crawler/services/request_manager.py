@@ -117,11 +117,13 @@ class RequestManager:
             try:
                 # Basic args for Docker/Actions
                 browser = await uc.start(
+                    sandbox=False,
+                    headless=True,
                     browser_args=[
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
                         "--disable-dev-shm-usage",
-                    ]
+                    ],
                 )
 
                 # We know browser is not None here because uc.start awaits until it's ready
