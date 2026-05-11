@@ -1,7 +1,10 @@
 import asyncio
+import datetime
+import os
 import re
 from typing import Any
 
+import pandas as pd
 import yfinance as yf
 from loguru import logger
 
@@ -19,7 +22,6 @@ class B3Spider(BaseSpider):
 
     async def crawl_batch_async(self, symbols: list[str]) -> dict[str, CrawlResult]:
         """Asynchronously crawls a batch of tickers from B3 using yfinance.download."""
-        import os
         period = os.getenv("YF_HISTORY_PERIOD", "1y")
         
         # B3 symbols in yfinance need .SA suffix
@@ -27,8 +29,6 @@ class B3Spider(BaseSpider):
         logger.info(f"Batch crawling {len(yf_symbols)} tickers (period: {period})")
 
         # yfinance download is synchronous
-        import pandas as pd
-        
         def _download():
             return yf.download(
                 yf_symbols, 
@@ -53,7 +53,6 @@ class B3Spider(BaseSpider):
 
                 # Prices
                 for index, row in ticker_df.dropna(subset=["Close"]).iterrows():
-                    import datetime
                     ts = pd.to_datetime(index) # type: ignore
                     time_val: datetime.datetime = ts.to_pydatetime()
                     
@@ -77,7 +76,6 @@ class B3Spider(BaseSpider):
 
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         """Synchronously crawls a ticker from B3 (yfinance)."""
-        import os
         period = os.getenv("YF_HISTORY_PERIOD", "1y")
         
         # B3 symbols in yfinance need .SA suffix
@@ -121,12 +119,8 @@ class B3Spider(BaseSpider):
             result.website = str(info.get("website")) if info.get("website") else None
 
             # 2. Historical Prices
-            import pandas as pd
             for index, row in history.iterrows():
                 # Handling pandas timestamp safely
-                import datetime
-                
-                # Use pd.to_datetime to ensure we have a timestamp
                 ts = pd.to_datetime(index) # type: ignore
                 time_val: datetime.datetime = ts.to_pydatetime()
                 

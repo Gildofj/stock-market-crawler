@@ -1,4 +1,6 @@
 import asyncio
+import math
+import uuid
 
 from loguru import logger
 from sqlalchemy.orm import Session
@@ -181,8 +183,6 @@ class CrawlerEngine:
             vpa = current_price / result.p_vp
             # Graham formula only works for positive EPS and VPA
             if result.eps > 0 and vpa > 0:
-                import math
-
                 result.valuation_graham = math.sqrt(22.5 * result.eps * vpa)
 
         # 2. Bazin Valuation: (Dividend / 0.06)
@@ -238,8 +238,6 @@ class CrawlerEngine:
         company = self.data_service.get_or_create_company(company_schema)
 
         # Cast Column[UUID] to uuid.UUID for type checker
-        import uuid
-
         company_id = uuid.UUID(str(company.id))
 
         if result.prices:
