@@ -9,7 +9,7 @@ from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
-from .routers import companies, fundamentals, prices
+from .routers import companies, fundamentals, prices, reliability
 from .security import CloudflareMiddleware
 
 
@@ -66,6 +66,10 @@ tags_metadata = [
         "name": "Prices",
         "description": "Stock quotes and market data.",
     },
+    {
+        "name": "Reliability",
+        "description": "Company reliability rankings and scores.",
+    },
 ]
 app.openapi_tags = tags_metadata
 
@@ -99,6 +103,7 @@ if os.getenv("ENV") == "production":
 app.include_router(companies.router, prefix="/api/v1")
 app.include_router(fundamentals.router, prefix="/api/v1")
 app.include_router(prices.router, prefix="/api/v1")
+app.include_router(reliability.router, prefix="/api/v1")
 
 
 @app.get("/health")

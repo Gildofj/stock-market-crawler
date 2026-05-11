@@ -4,6 +4,7 @@ from crawler.engine.crawler_engine import CrawlerEngine
 from crawler.services.data_service import DataService
 from crawler.services.database import session_local
 from crawler.services.etl_service import ETLService
+from crawler.services.reliability_service import ReliabilityService
 from crawler.services.request_manager import RequestManager
 from crawler.spiders.macro_spider import MacroSpider
 
@@ -20,6 +21,7 @@ def crawl_ticker_task(symbol: str):
     try:
         engine = CrawlerEngine(db, request_manager)
         etl_service = ETLService(db)
+        reliability_service = ReliabilityService(db)
 
         # 1. Multi-source Orchestrated Crawl
         engine.run_for_ticker(symbol)
@@ -28,6 +30,10 @@ def crawl_ticker_task(symbol: str):
         company = engine.data_service.get_company_by_symbol(symbol)
         if company:
             etl_service.generate_features(company.id)
+
+            # 3. Reliability Scoring (runs after fresh Fundamental row is persisted)
+            reliability_service.compute_and_save(company.id)
+
             task_logger.info(f"Ticker {symbol} completed successfully.")
 
     except Exception as e:

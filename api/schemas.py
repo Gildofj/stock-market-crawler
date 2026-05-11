@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -61,6 +62,25 @@ class FundamentalRead(BaseModel):
 
     quality_score: Decimal | None = None
     collected_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ReliabilityResponse(BaseModel):
+    company_id: uuid.UUID
+    profit_consistency_score: int | None = None
+    debt_control_score: int | None = None
+    tag_along_score: int | None = None
+    perennial_sector_score: int | None = None
+    profitable_years_verified: int | None = None
+    max_years_available: int | None = None
+    debt_snapshots_compliant: int | None = None
+    debt_snapshots_total: int | None = None
+    tag_along_pct: int | None = None
+    is_perennial_sector: bool | None = None
+    reliability_score: int | None = None
+    reliability_grade: str | None = None
+    computed_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -6,7 +6,7 @@ from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models.models import Company, Fundamental, MLFeature, StockPrice
+from ..models.models import Company, CompanyReliability, Fundamental, MLFeature, StockPrice
 from ..models.schemas import CompanySchema, FundamentalSchema, StockPriceSchema
 
 
@@ -108,3 +108,32 @@ class DataService:
             .limit(limit)
             .all()
         )
+
+    def get_reliability(self, company_id: uuid.UUID) -> CompanyReliability | None:
+        return (
+            self.db.query(CompanyReliability)
+            .filter(CompanyReliability.company_id == company_id)
+            .first()
+        )
+
+    def get_reliability_by_symbol(self, symbol: str) -> CompanyReliability | None:
+        return (
+            self.db.query(CompanyReliability)
+            .join(Company, Company.id == CompanyReliability.company_id)
+            .filter(Company.symbol == symbol.upper())
+            .first()
+        )
+
+    def get_reliability_ranking(
+        self,
+        limit: int = 100,
+        grade_filter: str | None = None,
+    ) -> list[CompanyReliability]:
+        query = (
+            self.db.query(CompanyReliability)
+            .filter(CompanyReliability.reliability_score.isnot(None))
+            .order_by(CompanyReliability.reliability_score.desc())
+        )
+        if grade_filter:
+            query = query.filter(CompanyReliability.reliability_grade == grade_filter.upper())
+        return query.limit(limit).all()

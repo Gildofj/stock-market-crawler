@@ -3,11 +3,13 @@ from datetime import datetime
 
 from sqlalchemy import (
     BIGINT,
+    Boolean,
     DateTime,
     ForeignKey,
     Integer,
     Numeric,
     PrimaryKeyConstraint,
+    SmallInteger,
     String,
     Uuid,
 )
@@ -35,7 +37,12 @@ class Company(Base):
     )
 
     prices: Mapped[list["StockPrice"]] = relationship("StockPrice", back_populates="company")
-    fundamentals: Mapped[list["Fundamental"]] = relationship("Fundamental", back_populates="company")
+    fundamentals: Mapped[list["Fundamental"]] = relationship(
+        "Fundamental", back_populates="company"
+    )
+    reliability: Mapped["CompanyReliability | None"] = relationship(
+        "CompanyReliability", back_populates="company", uselist=False
+    )
 
 
 class StockPrice(Base):
@@ -124,3 +131,42 @@ class MLFeature(Base):
     __table_args__ = (PrimaryKeyConstraint("time", "company_id"),)
 
     company: Mapped["Company"] = relationship("Company")
+
+
+class CompanyReliability(Base):
+    __tablename__ = "company_reliability"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+
+    # Sub-scores (0-100 cada)
+    profit_consistency_score: Mapped[int | None] = mapped_column(SmallInteger)
+    debt_control_score: Mapped[int | None] = mapped_column(SmallInteger)
+    tag_along_score: Mapped[int | None] = mapped_column(SmallInteger)
+    perennial_sector_score: Mapped[int | None] = mapped_column(SmallInteger)
+
+    # Evidências brutas para auditoria
+    profitable_years_verified: Mapped[int | None] = mapped_column(SmallInteger)
+    max_years_available: Mapped[int | None] = mapped_column(SmallInteger)
+    debt_snapshots_compliant: Mapped[int | None] = mapped_column(SmallInteger)
+    debt_snapshots_total: Mapped[int | None] = mapped_column(SmallInteger)
+    tag_along_pct: Mapped[int | None] = mapped_column(SmallInteger)
+    is_perennial_sector: Mapped[bool | None] = mapped_column(Boolean)
+
+    # Output final
+    reliability_score: Mapped[int | None] = mapped_column(SmallInteger)
+    reliability_grade: Mapped[str | None] = mapped_column(String(3))
+
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    company: Mapped["Company"] = relationship("Company", back_populates="reliability")

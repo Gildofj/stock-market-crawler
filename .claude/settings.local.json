@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"D:\\\\Projects\\\\stock-market-crawler\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(uv run *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker info *)",
+      "Bash(docker context *)",
+      "Bash(python -c \"import sys; print\\(sys.path\\)\")"
+    ]
+  }
+}
