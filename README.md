@@ -3,22 +3,24 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
 
-A high-performance stock market crawler and REST API for the Brazilian financial market (B3). Built with **FastAPI**, **GitHub Actions**, and **Clean Architecture**.
+A high-performance stock market crawler and REST API for the Brazilian financial market (B3). Built with **FastAPI**, **asyncio**, **GitHub Actions**, and **Clean Architecture**.
 
 ---
 
 ## ✨ Features
 
 - **🚀 High Performance**: FastAPI + Uvicorn with Redis caching for sub-millisecond responses.
-- **🕒 Parallel Crawling**: Multi-threaded engine (15 workers) running on GitHub Actions daily.
+- **⚡ Async Batch Crawling**: `asyncio` engine with sub-batches of 100 tickers, parallel enrichment (`Semaphore(15)`), and yfinance bulk price fetching — runs daily on a 10-chunk GitHub Actions matrix.
 - **🔗 Enrichment Chain**: Multi-source resilience — B3/yfinance → Fundamentus → StatusInvest. Each source fills gaps left by the previous.
-- **🛡️ Resilience**: Automatic retries, rate limiting, and stealth HTTP client (curl-cffi).
+- **🌐 Tiered HTTP Client**: Tier-1 `curl_cffi` with rotating User-Agents and realistic headers; Tier-2 fallback to a headless browser (`nodriver`) for JS-heavy pages.
+- **🏅 Reliability Scoring**: `ReliabilityService` computes a composite company reliability score and grade, queryable via API.
 - **📊 Rich Data**:
   - Company metadata and B3 listings.
-  - Financial fundamentals (P/E, DY, ROIC, EV/EBITDA, etc.).
+  - Financial fundamentals (P/L, DY, ROE, ROIC, EV/EBITDA, EPS, etc.).
+  - Valuation metrics (Graham, Bazin) and Quality Score.
   - Historical and current stock quotes.
   - Macro economic indicators.
-- **📡 Observability**: Structured JSON logs (Loguru) with Grafana + Loki stack.
+- **📡 Observability**: Structured logs (Loguru) shipped to Grafana + Loki + Promtail.
 - **📝 Auto Documentation**: OpenAPI (Swagger) and ReDoc.
 
 ---
@@ -63,6 +65,8 @@ A high-performance stock market crawler and REST API for the Brazilian financial
 6. **Run the crawler**:
    ```bash
    uv run python main.py
+   # Or use a specific shard (used in GHA):
+   uv run python main.py --chunk 0 --total-chunks 10
    ```
 
 7. **Run the API**:
@@ -81,35 +85,50 @@ Once running, access the interactive docs at:
 ## 🏗️ Project Structure
 
 ```text
-├── api/              # FastAPI Application (Presentation Layer)
-│   ├── routers/      # Endpoints: companies, prices, fundamentals
-│   ├── schemas.py    # Pydantic response models
-│   ├── deps.py       # Dependency injection
-│   └── security.py   # CORS, GZip, Cloudflare middleware
-├── crawler/          # Core Domain (Crawler + ETL)
-│   ├── engine/       # CrawlerEngine: enrichment chain orchestration
-│   ├── spiders/      # B3, Fundamentus, StatusInvest, Macro spiders
-│   ├── services/     # ETL, CRUD, HTTP client, config
-│   └── models/       # ORM models, Pydantic schemas, CrawlResult contract
-├── alembic/          # Database migrations
-├── grafana/          # Observability stack (Loki, Promtail, Grafana)
-├── tests/            # Unit & Integration tests
-│   ├── unit/
-│   ├── integration/
+├── api/                       # FastAPI Application (Presentation Layer)
+│   ├── routers/               # companies, fundamentals, prices, reliability
+│   ├── schemas.py             # Pydantic response models
+│   ├── deps.py                # Dependency injection
+│   ├── limiter.py             # fastapi-limiter setup
+│   └── security.py            # CORS, GZip, Cloudflare strict middleware
+├── crawler/                   # Core Domain (Crawler + ETL)
+│   ├── engine/
+│   │   └── crawler_engine.py  # Enrichment chain orchestration + advanced metrics
+│   ├── spiders/               # base_spider, b3_spider, fundamentus_spider,
+│   │                          # statusinvest_spider, macro_spider
+│   ├── services/
+│   │   ├── request_manager.py # Tier-1 curl_cffi + Tier-2 nodriver stealth
+│   │   ├── data_service.py    # CRUD (SQLAlchemy)
+│   │   ├── etl_service.py     # Validation, cleaning, transformation
+│   │   ├── ticker_service.py  # Ticker registry
+│   │   ├── reliability_service.py / reliability_config.py
+│   │   ├── logo_service.py    # Company logo URL resolution
+│   │   ├── database.py        # Engine factory + pool sizing
+│   │   └── config.py          # Pydantic Settings
+│   ├── models/                # ORM models, Pydantic schemas, CrawlResult
+│   ├── db/migrations/         # Legacy SQL migration (kept for reference)
+│   └── tasks.py               # Macro-data crawl tasks (run once per shard)
+├── alembic/                   # Database migrations (autogenerate-compatible)
+├── grafana/                   # Loki + Promtail + Grafana provisioning
+├── tests/
+│   ├── unit/                  # Spider, engine, service tests
+│   ├── integration/           # End-to-end DB flow
 │   └── conftest.py
-├── docs/             # Technical documentation
-├── Dockerfile        # Container image
-├── docker-compose.yml # Local infrastructure
-├── render.yaml       # Render deployment blueprint
-└── Makefile          # Cross-platform build targets
+├── docs/                      # Technical documentation
+├── .github/workflows/         # daily-sync.yml, migrations.yml
+├── main.py                    # Crawler entrypoint (--chunk / --total-chunks)
+├── Dockerfile
+├── docker-compose.yml
+├── render.yaml                # Render Blueprint
+└── Makefile                   # Cross-platform build targets
 ```
 
 ---
 
 ## 📖 Documentation
 
-- [🏗️ Architecture Overview](./docs/ARCHITECTURE.md) — Enrichment chain, data flow, tech stack.
-- [🚀 Deployment Guide](./docs/DEPLOYMENT.md) — Render, Supabase, GitHub Actions, local Docker.
+- [🏗️ Architecture Overview](./docs/ARCHITECTURE.md) — Enrichment chain, async data flow, stealth HTTP tiers, reliability scoring.
+- [🚀 Deployment Guide](./docs/DEPLOYMENT.md) — Render, Supabase (transaction-mode pooler), GitHub Actions matrix, local Docker.
 
 ---
 

@@ -1,6 +1,6 @@
 # 🚀 Deployment Guide
 
-This project is optimized for modern cloud environments, targeting **Render** for the API, **Supabase/Neon** for persistence, and **GitHub Actions** for automated crawling.
+This project is optimized for modern cloud environments, targeting **Render** for the API, **Supabase** (or Neon) for persistence, and **GitHub Actions** for automated crawling.
 
 ## ☁️ Production Environment (Render + Supabase)
 
@@ -16,45 +16,70 @@ Set these on Render and as GitHub Actions secrets:
 
 | Variable | Required | Description |
 |---|---|---|
-| `DATABASE_URL` | ✅ Yes | PostgreSQL connection string (Supabase/Neon) |
-| `REDIS_URL` | ✅ Yes | Redis connection string (rate limiting + caching) |
-| `ENV` | ✅ Yes | Set to `production` |
-| `LOG_LEVEL` | No | Defaults to `INFO` |
+| `DATABASE_URL` | ✅ Yes | PostgreSQL connection string (Supabase transaction pooler — port **6543**). |
+| `REDIS_URL` | ✅ Yes | Redis connection string (rate limiting + caching). |
+| `ENV` | ✅ Yes | Set to `production` to enable strict CORS and the Cloudflare middleware. |
+| `ALLOWED_ORIGINS` | ✅ in prod | Comma-separated list of allowed CORS origins. Required when `ENV=production`. Example: `https://app.example.com,https://admin.example.com`. |
+| `LOG_LEVEL` | No | Defaults to `INFO`. |
+| `DB_POOL_SIZE` | No | SQLAlchemy in-process pool size. Defaults to `2`. Keep small when many parallel workers share the same Supabase project. |
+| `DB_MAX_OVERFLOW` | No | SQLAlchemy overflow connections. Defaults to `3`. |
+| `YF_HISTORY_PERIOD` | No | yfinance history window (used by the daily-sync workflow). Defaults to `1mo`. |
+
+### ⚠️ Supabase Free Tier — Pooler Mode Matters
+
+Supabase free projects expose two poolers:
+
+- **Session mode (port 5432)** — caps the whole project at **15 concurrent clients**. Easy to exhaust with parallel GHA chunks.
+- **Transaction mode (port 6543)** — releases the connection after every transaction; supports hundreds of clients.
+
+**Use port 6543** for both Render and GitHub Actions to avoid `EMAXCONNSESSION`. Copy it from *Supabase → Project Settings → Database → Connection string → Transaction*.
+
+The crawler keeps a deliberately small in-process pool (`DB_POOL_SIZE=2`, `DB_MAX_OVERFLOW=3` by default) so 10 parallel chunks stay well within Supabase's global cap.
 
 ## 🛠️ Deployment Steps
 
 ### 1. Database Setup (Supabase)
 1. Create a project on [Supabase](https://supabase.com/).
-2. Get your PostgreSQL connection string from *Project Settings > Database*.
+2. Copy the **transaction-mode** connection string (port `6543`) from *Project Settings → Database*.
 3. Run migrations against the remote DB:
    ```bash
-   DATABASE_URL="your-supabase-url" uv run alembic upgrade head
+   DATABASE_URL="your-supabase-transaction-url" uv run alembic upgrade head
    ```
 
 ### 2. API Deployment (Render)
 1. Connect your GitHub repository to [Render](https://render.com/).
-2. Render will automatically detect the `render.yaml` file.
+2. Render auto-detects the `render.yaml` file.
 3. Go to the **Environment** tab and add `DATABASE_URL`, `REDIS_URL`, and `ENV=production`.
-4. Deploy. The `/health` endpoint will be monitored by Render.
+4. Deploy. The `/health` endpoint is monitored by Render.
 
 ### 3. Automated Crawler (GitHub Actions)
-1. Go to *Settings > Secrets and variables > Actions* in your GitHub repository.
-2. Add secrets: `DATABASE_URL` and `REDIS_URL`.
-3. The workflow `.github/workflows/daily-sync.yml` runs daily at **02:00 UTC** and populates your database.
+
+The repo ships two workflows under `.github/workflows/`:
+
+- **`daily-sync.yml`** — Scheduled daily run. Uses a `strategy.matrix` with 10 chunks; each chunk processes `len(tickers) / 10` symbols in parallel runners. The exact cron expression lives in the workflow file.
+- **`migrations.yml`** — Manual/CI migration runner.
+
+Setup:
+1. Go to *Settings → Secrets and variables → Actions* in your GitHub repository.
+2. Add the secrets above (`DATABASE_URL`, `REDIS_URL`, …).
+3. The 10 parallel chunks will share the Supabase transaction pooler. If you need to throttle them, set `max-parallel` under `strategy:` in the workflow.
 
 ---
 
 ## 🏗️ Local Development (Docker Compose)
 
 ```bash
-# Start all services (API, PostgreSQL, Redis, Grafana)
+# Start all services (API, PostgreSQL, Redis, Grafana, Loki, Promtail)
 docker-compose up -d
 
 # Apply migrations
 uv run alembic upgrade head
 
-# Run crawler manually
+# Run crawler manually (full ticker set)
 uv run python main.py
+
+# Run a single shard (mimics one GHA chunk)
+uv run python main.py --chunk 0 --total-chunks 10
 
 # Run API in dev mode (with hot reload)
 uv run uvicorn api.main:app --reload
@@ -68,6 +93,7 @@ uv run uvicorn api.main:app --reload
 | PostgreSQL | 5433 | — |
 | Redis | 6379 | — |
 | Grafana | 3001 | http://localhost:3001 |
+| Loki | 3100 | — |
 
 > PostgreSQL uses port **5433** (not 5432) to avoid conflicts with local PostgreSQL instances.
 
@@ -77,8 +103,11 @@ uv run uvicorn api.main:app --reload
 make install     # uv sync
 make up          # docker-compose up -d
 make down        # docker-compose down
-make run-async   # run crawler
-make test        # uv run pytest
+make run-async   # run crawler (main.py)
+make start       # build + up + run-async (full local cycle)
+make test        # uv run pytest tests/ -v
 make lint        # uv run ruff check .
 make format      # uv run ruff format .
+make clean       # remove caches (pytest, ruff, __pycache__)
+make build       # docker-compose build
 ```

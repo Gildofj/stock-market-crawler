@@ -75,11 +75,8 @@ app.openapi_tags = tags_metadata
 
 # 1. Configuração de Segurança - CORS
 if os.getenv("ENV") == "production":
-    origins = [
-        "https://your-frontend.example.com",
-        "http://localhost:3000",
-    ]
-    allow_origins = origins
+    raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+    allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
 else:
     allow_origins = ["*"]
 

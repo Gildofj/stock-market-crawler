@@ -6,85 +6,138 @@ This project is built as an **agnostic backend service** following **Clean Archi
 
 The system is organized into three main layers:
 
-1. **Crawler (Domain Layer)**: Multi-threaded parallel engine that handles data extraction, ETL, and persistence. Runs on GitHub Actions daily.
-2. **API (Presentation Layer)**: FastAPI application serving as the entry point for consumers, with Redis caching.
-3. **Infrastructure**: PostgreSQL for persistence, Redis for caching, Grafana stack for observability.
+1. **Crawler (Domain Layer)**: Async batch engine that handles data extraction, ETL, and persistence. Sharded across a 10-chunk GitHub Actions matrix that runs daily.
+2. **API (Presentation Layer)**: FastAPI application serving as the entry point for consumers, with Redis caching and rate limiting.
+3. **Infrastructure**: PostgreSQL (Supabase in production) for persistence, Redis for caching, Grafana stack for observability.
 
 ### 🧩 Layer Breakdown
 
 ```
 crawler/
-├── engine/           # Orchestration: CrawlerEngine, enrichment chain
-├── spiders/          # Data extraction: BaseSpider + B3, Fundamentus, StatusInvest, Macro
+├── engine/
+│   └── crawler_engine.py     # CrawlerEngine: enrichment chain, advanced metrics
+│                             #   (Graham/Bazin valuation, Quality Score)
+├── spiders/
+│   ├── base_spider.py        # Abstract BaseSpider contract
+│   ├── b3_spider.py          # B3/yfinance (bulk price fetching)
+│   ├── fundamentus_spider.py # Fallback #1 — Fundamentus.com.br
+│   ├── statusinvest_spider.py# Fallback #2 — StatusInvest API + profile pages
+│   └── macro_spider.py       # Macro indicators (SELIC, IPCA, USD, etc.)
 ├── services/
-│   ├── data_service.py    # CRUD operations (SQLAlchemy sessions)
-│   ├── etl_service.py     # Data validation, cleaning, transformation
-│   ├── request_manager.py # HTTP client with rate limiting and retries
-│   ├── ticker_service.py  # Ticker registry management
-│   ├── logo_service.py    # Company logo URL resolution
-│   └── config.py          # Pydantic Settings (DATABASE_URL, REDIS_URL, LOG_LEVEL)
+│   ├── request_manager.py    # Tiered HTTP client: curl_cffi + headless browser
+│   │                         # Concurrency-capped browser semaphore for CI
+│   ├── data_service.py       # CRUD (bulk insert, upsert on conflict)
+│   ├── etl_service.py        # Validation, cleaning, transformation
+│   ├── ticker_service.py     # Ticker registry / discovery
+│   ├── reliability_service.py# Composite reliability score & grade
+│   ├── reliability_config.py # Weights and thresholds for scoring
+│   ├── logo_service.py       # Company logo URL resolution
+│   ├── database.py           # Engine + sessionmaker (lazy, pool-tuned)
+│   └── config.py             # Pydantic Settings (DATABASE_URL,
+│                             #   DB_POOL_SIZE, DB_MAX_OVERFLOW, LOG_LEVEL)
 ├── models/
-│   ├── models.py     # SQLAlchemy ORM: Company, StockPrice, Fundamental
-│   ├── schemas.py    # Pydantic internal schemas
-│   └── contract.py   # CrawlResult: unified data container between spiders
+│   ├── models.py             # SQLAlchemy ORM: Company, StockPrice,
+│   │                         #   Fundamental, CompanyReliability
+│   ├── schemas.py            # Pydantic internal schemas
+│   └── contract.py           # CrawlResult: unified container between spiders
+├── tasks.py                  # Macro-data crawl task (runs once on chunk 0)
+└── db/migrations/            # Legacy SQL bootstrap (Alembic is authoritative)
 
 api/
-├── routers/          # RESTful endpoints: companies, prices, fundamentals
-├── schemas.py        # Pydantic response models (never expose ORM models directly)
-├── deps.py           # Dependency injection: database sessions
-├── limiter.py        # Rate limiting configuration
-└── security.py       # Middleware: CORS, GZip, Cloudflare
+├── routers/                  # companies, fundamentals, prices, reliability
+├── schemas.py                # Pydantic response models (never expose ORM)
+├── deps.py                   # Dependency injection: database sessions
+├── limiter.py                # fastapi-limiter (Redis-backed)
+└── security.py               # CORS, GZip, Cloudflare strict middleware
+
+main.py                       # Entrypoint: argparses --chunk/--total-chunks,
+                              #   runs asyncio.run(crawl_tickers_async(...))
 ```
 
 ## 🔄 Data Flow
 
 ```
-GitHub Actions (02:00 UTC)
+GitHub Actions matrix [0..9] @ 02:00 UTC
         ↓
-    main.py (ThreadPoolExecutor, 15 workers, 5 concurrent API calls)
+   main.py --chunk N --total-chunks 10
         ↓
-  CrawlerEngine.run(ticker)
+   ticker_service.get_all_tickers() → slice for this chunk
         ↓
-  [Enrichment Chain]
-  B3Spider.get_items(ticker)          ← Primary source (yfinance)
-        ↓ (fills missing fields)
-  FundamentusSpider.get_items(ticker) ← Fallback #1
-        ↓ (fills remaining None fields)
-  StatusInvestSpider.get_items(ticker)← Fallback #2
+   crawl_tickers_async(tickers)
         ↓
-  CrawlResult (unified contract)
+   for sub_batch in chunks_of(tickers, 100):
         ↓
-  ETLService.validate_and_clean()
+       B3Spider.crawl_batch_async(sub_batch)   ← one yfinance call for all
+        ↓                                         tickers in the sub-batch
+       data_service.get_existing_symbols(...)  ← single bulk lookup
         ↓
-  DataService.save() → PostgreSQL
+       asyncio.gather(
+         safe_enrich_ticker(symbol)            ← Semaphore(15)
+         for symbol in sub_batch
+       )
+            ↓
+            [Enrichment Chain]
+            FundamentusSpider.enrich_async()   ← Fallback #1 if incomplete
+                ↓
+            StatusInvestSpider.crawl_ticker_async()
+                                               ← Fallback #2 (also fetches
+                                                 company metadata for new ones)
+            ↓
+            CrawlerEngine._calculate_advanced_metrics()
+                                               ← Graham, Bazin, Quality Score
+            ↓
+            CrawlerEngine._save_to_db()        ← via DataService
+                                                 (bulk insert prices,
+                                                  upsert company, save fundamentals)
         ↓
-  API → Redis Cache → Consumer
+   PostgreSQL (Supabase in production)
+        ↓
+   FastAPI + fastapi-cache2 (Redis) → Consumer
 ```
 
 ### CrawlResult Contract
 
 `crawler/models/contract.py` defines `CrawlResult` — the single data container passed between all spiders and services. Spiders never return raw dicts. This ensures the enrichment chain can safely merge partial results from multiple sources.
 
+### Tiered HTTP Client (RequestManager)
+
+`crawler/services/request_manager.py` exposes a two-tier strategy that every spider uses:
+
+- **Tier 1 — `curl_cffi`**: Standard HTTP client with rotating User-Agents, realistic headers, jittered backoff, and exponential retries. Both sync and async sessions are pre-built.
+- **Tier 2 — `nodriver` (headless browser)**: Triggered when Tier 1 returns a non-success status or fails the retry budget. Useful for pages that require JavaScript execution or full DOM rendering. Configured to work inside CI/Docker/root environments.
+- **Concurrency guard**: A semaphore caps simultaneous browser launches to avoid OOM on small runners.
+
+This layered approach improves resilience against transient errors and lets the crawler handle pages that the lightweight client cannot render.
+
+### Reliability Scoring
+
+`reliability_service.py` consumes persisted fundamentals and produces a composite reliability score and grade per company. The `CompanyReliability` table is independent from `Fundamental` so the scoring algorithm can evolve without touching collection. Weights live in `reliability_config.py`.
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
 |---|---|
 | Language | Python 3.12 (strict typing) |
-| API Framework | FastAPI + Uvicorn |
+| Async runtime | `asyncio` |
+| API Framework | FastAPI + Uvicorn (uvicorn[standard]) |
 | ORM | SQLAlchemy 2.0 |
-| Schemas | Pydantic V2 |
+| Schemas | Pydantic V2 + pydantic-settings |
 | Migrations | Alembic |
-| Database | PostgreSQL (production: Supabase/Neon) |
-| Caching | Redis + fastapi-cache2 |
-| HTTP Client | httpx, curl-cffi (stealth mode) |
+| Database | PostgreSQL 17 (production: Supabase via transaction pooler) |
+| Caching | Redis + `fastapi-cache2` |
+| Rate Limiting | `fastapi-limiter` + `pyrate-limiter` |
+| HTTP Client (Tier 1) | `curl-cffi` |
+| HTTP Client (Tier 2) | `nodriver` (headless browser) |
+| Auxiliary HTTP | `httpx`, `requests` |
 | HTML Parsing | BeautifulSoup4 + lxml |
-| Financial Data | yfinance, pandas |
-| Logging | Loguru (JSON output) |
+| Financial Data | `yfinance`, `pandas` |
+| Logging | Loguru |
 | Observability | Grafana + Loki + Promtail |
-| CI/CD | GitHub Actions |
+| CI/CD | GitHub Actions (10-chunk matrix) |
 | Deployment | Render (Docker) |
 | Package Manager | uv |
 | Linting | ruff |
+| Type Checking | pyright |
 
 ## 🌐 Local Ports (docker-compose)
 
