@@ -6,6 +6,7 @@ import time
 from loguru import logger
 
 from crawler.engine.crawler_engine import CrawlerEngine
+from crawler.models.contract import CrawlResult
 from crawler.services.database import session_local
 from crawler.services.request_manager import RequestManager
 from crawler.services.ticker_service import TickerService
@@ -51,13 +52,14 @@ async def process_sub_batch_parallel(sub_batch: list[str], engine: CrawlerEngine
     # 1. Batch Primary Source: B3 (yfinance batch) - One network call
     results_dict = await engine.b3_spider.crawl_batch_async(sub_batch)
 
-    # 2. Parallel Enrichment and Persistence
-    tasks = []
-    for symbol in sub_batch:
-        # Check if company exists to decide on metadata scraping
-        company_exists = await asyncio.to_thread(data_service.get_company_by_symbol, symbol)
-        tasks.append(safe_enrich_ticker(symbol, engine, bool(company_exists), results_dict))
-    
+    # 2. Bulk-check which companies already exist (single DB round-trip per sub-batch)
+    existing_symbols = await asyncio.to_thread(data_service.get_existing_symbols, sub_batch)
+
+    # 3. Parallel Enrichment and Persistence
+    tasks = [
+        safe_enrich_ticker(symbol, engine, symbol in existing_symbols, results_dict)
+        for symbol in sub_batch
+    ]
     await asyncio.gather(*tasks)
 
 

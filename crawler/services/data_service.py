@@ -14,6 +14,19 @@ class DataService:
     def get_company_by_symbol(self, symbol: str) -> Company | None:
         return self.db.query(Company).filter(Company.symbol == symbol).first()
 
+    def get_existing_symbols(self, symbols: list[str]) -> set[str]:
+        """
+        Returns the set of symbols that already exist in the database.
+
+        Single bulk query — avoids one round-trip per ticker in batch workflows.
+        """
+        if not symbols:
+            return set()
+        rows = (
+            self.db.query(Company.symbol).filter(Company.symbol.in_(symbols)).all()
+        )
+        return {row[0] for row in rows}
+
     def get_or_create_company(self, company_data: CompanySchema) -> Company:
         """
         Retrieves a company by symbol or creates it if it doesn't exist.

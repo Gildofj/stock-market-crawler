@@ -15,10 +15,13 @@ def get_engine():
     if _engine is None:
         # Re-read settings or get URL directly to ensure patch from main.py is applied
         db_url = settings.database_url
+        # Conservative pool sizing: Supabase free tier limits clients to 15 (session mode)
+        # or shares the transaction-mode pool (port 6543) across many parallel workers.
+        # Keep the in-process pool small so N parallel GHA chunks stay within the global cap.
         _engine = create_engine(
             db_url,
-            pool_size=20,
-            max_overflow=40,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
             pool_timeout=30,
             pool_recycle=1800,
             pool_pre_ping=True,

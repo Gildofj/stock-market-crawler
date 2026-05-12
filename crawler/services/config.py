@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "stock_market_crawler_data"
 
+    # Connection pool sizing — kept small on purpose so multiple parallel workers
+    # (e.g., GHA matrix chunks) stay within Supabase's global client cap.
+    DB_POOL_SIZE: int = 2
+    DB_MAX_OVERFLOW: int = 3
+
     @property
     def database_url(self) -> str:
         # Re-fetch from env to catch any runtime patches (like IPv4 hostaddr)
