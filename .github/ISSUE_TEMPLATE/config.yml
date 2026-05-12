@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/gildofj/stock-market-crawler/security/advisories/new
+    about: Report a security issue privately. Do not open a public issue.
+  - name: Questions, ideas & general discussion
+    url: https://github.com/gildofj/stock-market-crawler/discussions
+    about: For questions about usage, architecture, or design choices, please open a Discussion.
+  - name: Legal & terms-of-service compliance
+    url: https://github.com/gildofj/stock-market-crawler/blob/main/LICENSE
+    about: This project is for educational/research use. Compliance with target sites' ToS is the operator's responsibility — see LICENSE.

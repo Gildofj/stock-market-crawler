@@ -85,6 +85,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  worker:
+    build: .
+    container_name: stock_market_crawler_worker
+    command: celery -A crawler.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local

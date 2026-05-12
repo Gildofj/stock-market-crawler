@@ -1,0 +1,107 @@
+name: Bug report
+description: Report a reproducible bug in the crawler, API, or pipeline.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        > ⚠️ **Do not report security vulnerabilities here.** Follow the private disclosure process in [SECURITY.md](../blob/main/SECURITY.md).
+
+        Before submitting, please search [existing issues](../issues?q=is%3Aissue) to avoid duplicates.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Which part of the system is involved?
+      options:
+        - API (FastAPI / routers)
+        - Crawler Engine (enrichment chain)
+        - Spider — B3 / yfinance
+        - Spider — Fundamentus
+        - Spider — StatusInvest
+        - Spider — Macro
+        - Database / Alembic migrations
+        - Reliability scoring
+        - Infra (Docker, docker-compose, Render)
+        - CI / GitHub Actions
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: ticker
+    attributes:
+      label: Ticker / symbol (if applicable)
+      description: e.g. `PETR4`, `VALE3`. Leave blank if not ticker-specific.
+      placeholder: PETR4
+
+  - type: input
+    id: chunk
+    attributes:
+      label: Chunk index (if applicable)
+      description: When running the daily GHA matrix, which chunk failed? e.g. `--chunk 3 --total-chunks 10`.
+      placeholder: "3 / 10"
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Be explicit. Include exact commands and the order you ran them.
+      placeholder: |
+        1. Run `uv sync`
+        2. Run `docker-compose up -d`
+        3. Run `uv run python main.py --chunk 0 --total-chunks 10`
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Run with `LOG_LEVEL=DEBUG` if possible. **Strip secrets, tokens, real `DATABASE_URL`s, IPs, and personal data before pasting.**
+      render: shell
+      placeholder: |
+        2026-05-12 10:23:14 | DEBUG | crawler.spiders.b3_spider:crawl_batch_async:42 - ...
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Python version, `uv --version`, and where it ran (local / Docker / Render / GitHub Actions).
+      placeholder: "Windows 11, Python 3.12.5, uv 0.4.18, local Docker"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+        - label: Logs and reproduction steps are stripped of secrets and personal data.
+          required: true
+        - label: This is **not** a security vulnerability (those go to SECURITY.md).
+          required: true

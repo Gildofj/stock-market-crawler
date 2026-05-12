@@ -1,5 +1,6 @@
 from loguru import logger
 
+from crawler.celery_app import app
 from crawler.engine.crawler_engine import CrawlerEngine
 from crawler.services.data_service import DataService
 from crawler.services.database import session_local
@@ -11,7 +12,8 @@ from crawler.spiders.macro_spider import MacroSpider
 request_manager = RequestManager()  # Can add proxy list here
 
 
-def crawl_ticker_task(symbol: str):
+@app.task(name="crawler.tasks.crawl_ticker_task", bind=True, max_retries=3)
+def crawl_ticker_task(self, symbol: str):
     """Sync function to crawl a single ticker from multiple sources via CrawlerEngine."""
     # Bind the symbol to the logger for tracing
     task_logger = logger.bind(ticker=symbol)
@@ -38,10 +40,13 @@ def crawl_ticker_task(symbol: str):
 
     except Exception as e:
         task_logger.error(f"Task for {symbol} failed: {e}")
+        # Retry logic could be added here if needed:
+        # raise self.retry(exc=e, countdown=60)
     finally:
         db.close()
 
 
+@app.task(name="crawler.tasks.crawl_macro_data_task")
 def crawl_macro_data_task():
     """Sync task to fetch macro indicators."""
     logger.info("Starting macro data collection...")

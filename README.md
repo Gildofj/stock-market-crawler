@@ -2,8 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
+[![Code of Conduct](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](./CODE_OF_CONDUCT.md)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
 A high-performance stock market crawler and REST API for the Brazilian financial market (B3). Built with **FastAPI**, **asyncio**, **GitHub Actions**, and **Clean Architecture**.
+
+> :warning: **Educational & research purposes only.** Compliance with the Terms of Service and `robots.txt` of target sites (B3, StatusInvest, Fundamentus, Yahoo Finance) is the operator's responsibility. See the [LEGAL DISCLAIMER in LICENSE](./LICENSE) before deploying.
 
 ---
 
@@ -129,6 +133,17 @@ Once running, access the interactive docs at:
 
 - [🏗️ Architecture Overview](./docs/ARCHITECTURE.md) — Enrichment chain, async data flow, stealth HTTP tiers, reliability scoring.
 - [🚀 Deployment Guide](./docs/DEPLOYMENT.md) — Render, Supabase (transaction-mode pooler), GitHub Actions matrix, local Docker.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read:
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — workflow, commit convention, code standards, PR process.
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — Contributor Covenant 2.1 + Ethical Use section.
+- [SECURITY.md](./SECURITY.md) — how to report vulnerabilities privately.
+- [CHANGELOG.md](./CHANGELOG.md) — release history (Keep a Changelog + SemVer).
 
 ---
 

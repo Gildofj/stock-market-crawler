@@ -1,4 +1,4 @@
-name: Daily Market Crawler
+name: Daily Market Crawler (Enqueuer)
 
 on:
   schedule:
@@ -6,12 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  crawl:
+  enqueue:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        chunk: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,9 +25,10 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Run Crawler (main.py)
-        run: uv run python main.py --chunk ${{ matrix.chunk }} --total-chunks 10
+      - name: Enqueue Tasks (Celery)
+        run: uv run python scripts/enqueue_daily_jobs.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          PYTHONPATH: .
           LOG_LEVEL: INFO
-          YF_HISTORY_PERIOD: "1mo"

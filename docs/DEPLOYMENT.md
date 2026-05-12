@@ -2,7 +2,53 @@
 
 This project is optimized for modern cloud environments, targeting **Render** for the API, **Supabase** (or Neon) for persistence, and **GitHub Actions** for automated crawling.
 
-## ☁️ Production Environment (Render + Supabase)
+## ☁️ Production Environment (GCP Free Tier)
+
+This project supports a 100% Free Tier deployment on Google Cloud Platform, separating the API from the Worker.
+
+### 🏗️ Architecture
+- **API (Cloud Run)**: Serverless FastAPI backend.
+- **Worker (Compute Engine e2-micro)**: 24/7 Celery worker running on a free-tier eligible VM in `us-central1`.
+- **Broker (Upstash Redis)**: External Redis for Celery tasks.
+- **Database (Supabase)**: External PostgreSQL.
+
+### 🛠️ Infrastructure as Code (Terraform)
+
+The `terraform/` directory contains the configuration to provision this setup.
+
+1. **Prerequisites**:
+   - Install [Terraform](https://developer.hashicorp.com/terraform/downloads).
+   - Install [GCloud CLI](https://cloud.google.com/sdk/docs/install).
+   - Create a GCP Project and enable billing (required for Cloud Run, even if within free tier).
+
+2. **Initialize & Apply**:
+   ```bash
+   cd terraform
+   terraform init
+   
+   # Create a terraform.tfvars file or pass variables via command line
+   terraform apply \
+     -var="project_id=YOUR_PROJECT_ID" \
+     -var="image_name=gcr.io/YOUR_PROJECT_ID/stock-market-crawler" \
+     -var="database_url=YOUR_SUPABASE_URL" \
+     -var="redis_url=YOUR_UPSTASH_URL"
+   ```
+
+### 🔑 Required GitHub Secrets
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Supabase Transaction Pooler URL (Port 6543). |
+| `REDIS_URL` | Upstash Redis URL (Broker for Celery). |
+| `GCP_PROJECT_ID` | Your GCP Project ID. |
+| `GCP_SA_KEY` | (Optional) Service Account Key for automated TF/Docker push. |
+
+### 🔄 CI/CD Flow
+The **`daily-sync.yml`** workflow now acts as an **Enqueuer**. It connects to Redis and pushes task messages. The GCP VM Worker, which is always running, picks these up and executes the crawling logic.
+
+---
+
+## ☁️ Legacy: Production Environment (Render + Supabase)
 
 ### 📄 render.yaml Configuration
 

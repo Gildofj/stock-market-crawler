@@ -1,0 +1,11 @@
+# GCP Project Configuration
+project_id   = "your-gcp-project-id"
+image_name   = "gcr.io/your-gcp-project-id/stock-market-crawler:latest"
+
+# External Infrastructure (Secrets)
+database_url = "postgresql://user:pass@db.supabase.co:6543/postgres"
+redis_url    = "redis://:pass@upstash-redis-url:6379/0"
+
+# Optional Customizations
+region          = "us-central1"
+allowed_origins = "*"

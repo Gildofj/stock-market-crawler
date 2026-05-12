@@ -36,6 +36,14 @@ ENV/
 output/*
 !output/.gitkeep
 
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+.terraform.lock.hcl
+
 # Caches
 .pytest_cache/
 .ruff_cache/

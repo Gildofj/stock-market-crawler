@@ -31,6 +31,9 @@ class Settings(BaseSettings):
             return current_url
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
+    # Redis Configuration
+    REDIS_URL: str = "redis://localhost:6379/0"
+
     # Crawler Settings
     LOG_LEVEL: str = "INFO"
 

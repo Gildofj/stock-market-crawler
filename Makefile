@@ -51,7 +51,7 @@ endif
 
 # --- TARGETS ---
 
-.PHONY: help install up down run-async test lint format clean build build-no-cache install-uv-user install-uv-project start
+.PHONY: help install up down test lint format clean build build-no-cache install-uv-user install-uv-project start tf-init tf-plan tf-apply docker-push-gcp
 
 ## Show this help message
 help:
@@ -70,18 +70,18 @@ else
 	@grep -E '^[a-zA-Z0-9_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 endif
 
-## Build, start infrastructure and run the crawler (Complete Cycle)
+## Build, start infrastructure and run tests (Complete Cycle)
 start: build up
 	@echo "Waiting for services to stabilize (5s)..."
 	@$(if $(filter Windows,$(OS_TYPE)),timeout /t 5 /nobreak > nul,sleep 5)
-	@$(MAKE) --no-print-directory run-async
+	@$(MAKE) --no-print-directory test
 
 ## Install dependencies using uv sync
 install:
 	@echo "Syncing dependencies..."
 	@$(SYNC)
 
-## Start Docker infrastructure (Database, Redis, Grafana)
+## Start Docker infrastructure (Database, Redis, Grafana, Worker)
 up:
 	@echo "Starting infrastructure (Cleaning old containers)..."
 	@docker-compose up -d --remove-orphans
@@ -90,10 +90,31 @@ up:
 down:
 	@docker-compose down
 
-## Run the crawler in asynchronous mode
-run-async:
-	@echo "Launching crawler..."
-	@$(RUN) $(PYTHON) main.py
+## [TERRAFORM] Initialize GCP Infrastructure
+tf-init:
+	@echo "Initializing Terraform..."
+	@cd terraform && terraform init
+
+## [TERRAFORM] Plan GCP Infrastructure changes
+tf-plan:
+	@echo "Planning Terraform changes..."
+	@cd terraform && terraform plan
+
+## [TERRAFORM] Apply GCP Infrastructure changes
+tf-apply:
+	@echo "Applying Terraform changes..."
+	@cd terraform && terraform apply
+
+## [DOCKER] Build and Push image to Google Container Registry
+# Note: Requires PROJECT_ID to be set (e.g. make docker-push-gcp PROJECT_ID=my-project)
+docker-push-gcp:
+ifeq ($(PROJECT_ID),)
+	@echo Error: PROJECT_ID is required. Use 'make docker-push-gcp PROJECT_ID=your-id'
+	@exit 1
+endif
+	@echo "Building and Pushing Docker image for GCP (Project: $(PROJECT_ID))..."
+	@docker build -t gcr.io/$(PROJECT_ID)/stock-market-crawler:latest .
+	@docker push gcr.io/$(PROJECT_ID)/stock-market-crawler:latest
 
 ## Run the optimized test suite
 test:

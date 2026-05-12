@@ -1,0 +1,69 @@
+name: Feature request
+description: Suggest an enhancement, new endpoint, new spider, or quality-of-life improvement.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest an improvement.
+
+        Bugs go in a different template — use **Bug report** instead.
+        Security issues go to [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - API (new endpoint / response field)
+        - Crawler Engine (orchestration, batching)
+        - New Spider / data source
+        - Reliability scoring
+        - Observability (logs, metrics, dashboards)
+        - Performance
+        - Developer experience (tooling, Makefile, scripts)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve? Who is affected and how often?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to behave? Sketch the API/CLI/behavior if possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other approaches did you weigh? Why is the proposed one preferable?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, links to related issues, prior art in other projects, etc.
+
+  - type: checkboxes
+    id: ethical-attestation
+    attributes:
+      label: Ethical & legal attestation
+      description: |
+        Reminder of the project's [Ethical Use section](../blob/main/CODE_OF_CONDUCT.md#ethical-use-of-this-project) and [LICENSE legal notice](../blob/main/LICENSE).
+      options:
+        - label: If this proposes a **new data source / spider**, I have confirmed the target site allows programmatic access for educational/research use, or the use case is otherwise permissible under its Terms of Service.
+        - label: This proposal does **not** require bypassing authentication, CAPTCHA, paywalls, or other access controls.
+        - label: I have searched existing issues to avoid duplicates.
+          required: true
