@@ -136,8 +136,16 @@ jobs:
     name: Roll Celery worker VM
     runs-on: ubuntu-latest
     needs: build-and-push
+    # The worker VM is a plain Debian/Ubuntu host running Docker — NOT a
+    # Container-Optimized OS (COS) container-VM. So `gcloud compute instances
+    # update-container` does not apply here; we SSH in, pull, and restart.
+    #
+    # SA roles required (in addition to those in the file header):
+    #   roles/compute.osLogin          (or project-level SSH keys configured)
+    #   roles/iap.tunnelResourceAccessor   (only if the VM has no external IP)
     env:
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
+      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -145,34 +153,60 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Verify GCP Permissions
+      - name: Roll worker container via SSH
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
-          echo "Checking permissions for ${{ vars.WORKER_VM_NAME }}..."
-          if ! gcloud compute instances describe "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" > /dev/null 2>&1; then
-            echo "::error::Permission 'compute.instances.get' denied. Ensure the Service Account has 'roles/compute.admin' or 'roles/compute.instanceAdmin.v1' at the project level."
-            exit 1
-          fi
+          set -euo pipefail
 
-      - name: Update worker container
-        run: |
-          gcloud compute instances update-container "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --container-image="${{ env.IMAGE }}"
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
 
-      - name: Verify worker logs (COS Serial Port)
-        run: |
-          echo "Waiting for container to start..."
-          sleep 20
-          # COS logs to serial port 1 by default for container start-up
-          gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --port=1 | grep -iE "celery|error" || echo "Note: Serial logs not available yet or no celery logs found."
-          compute ssh "${{ vars.WORKER_VM_NAME }}" \
+          # base64-encode secrets so they pass safely through shell args
+          # (no quoting headaches even if values contain $, ', ", spaces, etc.)
+          DB_B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
+          REDIS_B64=$(printf '%s' "$REDIS_URL" | base64 -w0)
+
+          gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --quiet \
-            --command="sudo docker logs --tail 50 celery-worker | grep -E 'ready\\.|ERROR' || (echo 'Worker did not reach ready state'; exit 1)"
+            --command="bash -s -- $ACCESS_TOKEN $REGISTRY $IMAGE $DB_B64 $REDIS_B64" <<'REMOTE'
+          set -euo pipefail
+
+          ACCESS_TOKEN="$1"
+          REGISTRY="$2"
+          IMAGE="$3"
+          DATABASE_URL=$(printf '%s' "$4" | base64 -d)
+          REDIS_URL=$(printf '%s' "$5" | base64 -d)
+
+          # Auth Docker to Artifact Registry with a short-lived access token
+          echo "$ACCESS_TOKEN" | sudo docker login -u oauth2accesstoken --password-stdin "$REGISTRY"
+
+          sudo docker pull "$IMAGE"
+
+          # Stop & remove existing worker (idempotent — first run is a no-op)
+          sudo docker rm -f celery-worker 2>/dev/null || true
+
+          # Write env file with restrictive perms before populating it
+          sudo install -m 600 /dev/null /etc/celery-worker.env
+          printf 'DATABASE_URL=%s\nREDIS_URL=%s\n' "$DATABASE_URL" "$REDIS_URL" \
+            | sudo tee /etc/celery-worker.env >/dev/null
+
+          sudo docker run -d \
+            --name celery-worker \
+            --restart unless-stopped \
+            --env-file /etc/celery-worker.env \
+            "$IMAGE"
+
+          sudo docker image prune -f
+          REMOTE
+
+      - name: Verify worker is healthy
+        run: |
+          sleep 10
+          gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
+            --zone="${{ vars.GCP_ZONE }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --quiet \
+            --command="sudo docker logs --tail 100 celery-worker 2>&1 | grep -E 'ready\\.|celery@' || { echo '::error::Worker did not reach ready state'; sudo docker logs --tail 50 celery-worker; exit 1; }"
