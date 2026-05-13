@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     # Redis Configuration
     REDIS_URL: str = _DEFAULT_REDIS_URL
 
+    @property
+    def redis_url(self) -> str:
+        # Celery's redis backend refuses to start on a rediss:// URL unless
+        # ssl_cert_reqs is present. Upstash and other managed providers ship
+        # valid public CA certs, so CERT_REQUIRED is the right default.
+        url = self.REDIS_URL
+        if url.startswith("rediss://") and "ssl_cert_reqs" not in url:
+            separator = "&" if "?" in url else "?"
+            return f"{url}{separator}ssl_cert_reqs=CERT_REQUIRED"
+        return url
+
     # Crawler Settings
     LOG_LEVEL: str = "INFO"
 
