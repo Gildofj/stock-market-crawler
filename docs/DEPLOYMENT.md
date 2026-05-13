@@ -44,7 +44,9 @@ The `terraform/` directory contains the configuration to provision this setup.
 | `GCP_SA_KEY` | (Optional) Service Account Key for automated TF/Docker push. |
 
 ### 🔄 CI/CD Flow
-The **`daily-sync.yml`** workflow now acts as an **Enqueuer**. It connects to Redis and pushes task messages. The GCP VM Worker, which is always running, picks these up and executes the crawling logic.
+The **`deploy.yml`** workflow builds the Docker image and pushes it to Artifact Registry.
+1. **API**: Updated via `gcloud run deploy`.
+2. **Worker**: Updated via `gcloud compute instances update-container`. This native GCP method replaces brittle SSH-based deployments, ensuring higher reliability and better security by leveraging the Service Account's IAM roles directly.
 
 ---
 

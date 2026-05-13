@@ -10,7 +10,7 @@ resource "google_compute_instance" "worker" {
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-12"
+      image = "cos-cloud/cos-stable"
       size  = 30
       type  = "pd-standard"
     }
@@ -23,26 +23,29 @@ resource "google_compute_instance" "worker" {
     }
   }
 
-  metadata_startup_script = <<-EOT
-    #!/bin/bash
-    sudo apt-get update
-    sudo apt-get install -y docker.io
-    sudo systemctl start docker
-    sudo systemctl enable docker
+  metadata = {
+    gce-container-declaration = yamlencode({
+      spec = {
+        containers = [{
+          name  = "celery-worker"
+          image = var.image_name
+          env = [
+            { name = "DATABASE_URL", value = var.database_url },
+            { name = "REDIS_URL", value = var.redis_url },
+            { name = "PYTHONPATH", value = "/app" }
+          ]
+          # The image will be updated by GitHub Actions during deploy
+          args = ["celery", "-A", "crawler.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+        }]
+        restartPolicy = "Always"
+      }
+    })
+    google-logging-enabled = "true"
+  }
 
-    # Log in to Artifact Registry if needed (requires SA permissions)
-    # gcloud auth configure-docker ${var.region}-docker.pkg.dev
-
-    # Run the worker container
-    sudo docker run -d \
-      --name celery-worker \
-      --restart always \
-      -e DATABASE_URL="${var.database_url}" \
-      -e REDIS_URL="${var.redis_url}" \
-      -e PYTHONPATH=/app \
-      "${var.image_name}" \
-      celery -A crawler.celery_app worker --loglevel=info --concurrency=2
-  EOT
+  labels = {
+    container-vm = "cos-stable"
+  }
 
   service_account {
     email  = google_service_account.worker_sa.email

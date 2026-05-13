@@ -136,6 +136,8 @@ jobs:
     name: Roll Celery worker VM
     runs-on: ubuntu-latest
     needs: build-and-push
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -143,44 +145,33 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Restart container with new image
-        env:
-          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
-          REGISTRY_HOST: ${{ vars.GCP_REGION }}-docker.pkg.dev
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
+      - name: Verify GCP Permissions
         run: |
-          TOKEN=$(gcloud auth print-access-token)
+          echo "Checking permissions for ${{ vars.WORKER_VM_NAME }}..."
+          if ! gcloud compute instances describe "${{ vars.WORKER_VM_NAME }}" \
+            --zone="${{ vars.GCP_ZONE }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" > /dev/null 2>&1; then
+            echo "::error::Permission 'compute.instances.get' denied. Ensure the Service Account has 'roles/compute.admin' or 'roles/compute.instanceAdmin.v1' at the project level."
+            exit 1
+          fi
 
-          REMOTE_CMD=$(cat <<EOF
-          set -euo pipefail
-          echo "${TOKEN}" | sudo docker login -u oauth2accesstoken --password-stdin ${REGISTRY_HOST}
-          sudo docker pull ${IMAGE}
-          sudo docker rm -f celery-worker 2>/dev/null || true
-          sudo docker run -d \\
-            --name celery-worker \\
-            --restart always \\
-            -e DATABASE_URL='${DATABASE_URL}' \\
-            -e REDIS_URL='${REDIS_URL}' \\
-            -e PYTHONPATH=/app \\
-            ${IMAGE} \\
-            celery -A crawler.celery_app worker --loglevel=info --concurrency=2
-          sudo docker image prune -f
-          EOF
-          )
-
-          gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
+      - name: Update worker container
+        run: |
+          gcloud compute instances update-container "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --quiet \
-            --command="${REMOTE_CMD}"
+            --container-image="${{ env.IMAGE }}"
 
-      - name: Verify worker is consuming
-        env:
-          IMAGE: ${{ needs.build-and-push.outputs.image }}
+      - name: Verify worker logs (COS Serial Port)
         run: |
-          sleep 15
-          gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
+          echo "Waiting for container to start..."
+          sleep 20
+          # COS logs to serial port 1 by default for container start-up
+          gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
+            --zone="${{ vars.GCP_ZONE }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --port=1 | grep -iE "celery|error" || echo "Note: Serial logs not available yet or no celery logs found."
+          compute ssh "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --quiet \
