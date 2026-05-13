@@ -197,7 +197,8 @@ jobs:
             --name celery-worker \
             --restart unless-stopped \
             --env-file /etc/celery-worker.env \
-            "$IMAGE"
+            "$IMAGE" \
+            celery -A crawler.celery_app worker --loglevel=info --concurrency=2
 
           sudo docker image prune -f
           REMOTE
