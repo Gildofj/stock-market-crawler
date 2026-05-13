@@ -205,9 +205,18 @@ jobs:
 
       - name: Verify worker is healthy
         run: |
-          sleep 10
           gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --quiet \
-            --command="sudo docker logs --tail 100 celery-worker 2>&1 | grep -E 'ready\\.|celery@' || { echo '::error::Worker did not reach ready state'; sudo docker logs --tail 50 celery-worker; exit 1; }"
+            --command='
+              for i in $(seq 1 18); do
+                if sudo docker logs --tail 200 celery-worker 2>&1 | grep -qE "ready\.|celery@"; then
+                  echo "Worker ready"; exit 0
+                fi
+                sleep 5
+              done
+              echo "::error::Worker did not reach ready state"
+              sudo docker logs --tail 100 celery-worker
+              exit 1
+            '
