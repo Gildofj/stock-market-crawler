@@ -30,12 +30,15 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "1"
           memory = "512Mi"
         }
+        cpu_idle          = true
+        startup_cpu_boost = true
       }
     }
     scaling {
-      max_instance_count = 10
+      max_instance_count = 3
       min_instance_count = 0
     }
+    timeout = "60s"
   }
 
   depends_on = [google_project_service.cloudrun]
