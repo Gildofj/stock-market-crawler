@@ -53,8 +53,9 @@ jobs:
   build-and-push:
     name: Build & push image
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.meta.outputs.image }}
+    env:
+      IMAGE_BASE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler
+      IMAGE_REF: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,14 +69,12 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - id: meta
-        name: Compute image tag
+      - name: Assert image ref is fully populated
         run: |
-          BASE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/${IMAGE_NAME}"
-          SHA="${GITHUB_SHA::7}"
-          echo "image=${BASE}:${SHA}" >> "$GITHUB_OUTPUT"
-          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
-          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          if [[ "$IMAGE_REF" != *-docker.pkg.dev/*/*/stock-market-crawler:* ]]; then
+            echo "::error::IMAGE_REF is malformed: '$IMAGE_REF'. Check secrets/vars: GCP_REGION, GCP_PROJECT_ID, AR_REPO."
+            exit 1
+          fi
 
       - uses: docker/setup-buildx-action@v3
 
@@ -84,14 +83,14 @@ jobs:
         with:
           context: .
           load: true
-          tags: ${{ steps.meta.outputs.base }}:${{ steps.meta.outputs.sha }}
+          tags: ${{ env.IMAGE_REF }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       # - name: Scan image for CRITICAL / HIGH CVEs
       #   uses: aquasecurity/trivy-action@master
       #   with:
-      #     image-ref: ${{ steps.meta.outputs.base }}:${{ steps.meta.outputs.sha }}
+      #     image-ref: ${{ env.IMAGE_REF }}
       #     format: table
       #     exit-code: '1'
       #     severity: CRITICAL,HIGH
@@ -104,14 +103,16 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ steps.meta.outputs.base }}:${{ steps.meta.outputs.sha }}
-            ${{ steps.meta.outputs.base }}:latest
+            ${{ env.IMAGE_REF }}
+            ${{ env.IMAGE_BASE }}:latest
           cache-from: type=gha
 
   deploy-api:
     name: Deploy API to Cloud Run
     runs-on: ubuntu-latest
     needs: build-and-push
+    env:
+      IMAGE_REF: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -121,8 +122,12 @@ jobs:
 
       - name: Deploy Cloud Run revision
         run: |
+          if [[ -z "${IMAGE_REF}" || "${IMAGE_REF}" == *":" ]]; then
+            echo "::error::IMAGE_REF is empty or has no tag: '${IMAGE_REF}'"
+            exit 1
+          fi
           gcloud run deploy "${{ vars.CLOUD_RUN_SERVICE }}" \
-            --image="${{ needs.build-and-push.outputs.image }}" \
+            --image="${IMAGE_REF}" \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --quiet
@@ -140,7 +145,7 @@ jobs:
 
       - name: Restart container with new image
         env:
-          IMAGE: ${{ needs.build-and-push.outputs.image }}
+          IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
           REGISTRY_HOST: ${{ vars.GCP_REGION }}-docker.pkg.dev
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
