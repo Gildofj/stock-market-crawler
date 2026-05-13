@@ -9,6 +9,7 @@ app = Celery(
 )
 
 app.conf.update(
+    task_default_queue="stock_crawler",
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
