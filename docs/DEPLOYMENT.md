@@ -34,19 +34,84 @@ The `terraform/` directory contains the configuration to provision this setup.
      -var="redis_url=YOUR_UPSTASH_URL"
    ```
 
-### 🔑 Required GitHub Secrets
+### 🔑 Required GitHub Secrets & Variables
 
-| Variable | Description |
+**Secrets** (`Settings → Secrets and variables → Actions → Secrets`):
+
+| Name | Description |
 |---|---|
-| `DATABASE_URL` | Supabase Transaction Pooler URL (Port 6543). |
-| `REDIS_URL` | Upstash Redis URL (Broker for Celery). |
-| `GCP_PROJECT_ID` | Your GCP Project ID. |
-| `GCP_SA_KEY` | (Optional) Service Account Key for automated TF/Docker push. |
+| `GCP_PROJECT_ID` | GCP project ID. |
+| `GCP_SA_KEY` | Service Account JSON key. Required IAM roles below. |
+| `DATABASE_URL` | Supabase Transaction Pooler URL (port **6543**). |
+| `REDIS_URL` | Upstash Redis URL (Celery broker). |
+
+**Variables** (`Settings → Secrets and variables → Actions → Variables` — non-sensitive):
+
+| Name | Example |
+|---|---|
+| `GCP_REGION` | `us-central1` |
+| `GCP_ZONE` | `us-central1-a` |
+| `AR_REPO` | `crawler-images` (Artifact Registry repo) |
+| `CLOUD_RUN_SERVICE` | `stock-market-api` |
+| `WORKER_VM_NAME` | `crawler-worker-vm` |
+
+**Required IAM roles on `GCP_SA_KEY`**:
+
+| Role | Why |
+|---|---|
+| `roles/artifactregistry.writer` | Push images. |
+| `roles/run.admin` | Deploy Cloud Run revisions. |
+| `roles/iam.serviceAccountUser` | Act as the runtime SAs of Cloud Run / VM. |
+| `roles/compute.instanceAdmin.v1` | Describe & modify the worker VM. |
+| `roles/compute.osAdminLogin` | SSH as root into the VM (for `sudo apt` / `sudo docker`). |
+| `roles/iap.tunnelResourceAccessor` | **Only if the VM has no external IP** — also append `--tunnel-through-iap` to every `gcloud compute ssh` call. |
+
+The **VM's own service account** additionally needs `roles/artifactregistry.reader` so it can pull images at deploy time.
 
 ### 🔄 CI/CD Flow
-The **`deploy.yml`** workflow builds the Docker image and pushes it to Artifact Registry.
-1. **API**: Updated via `gcloud run deploy`.
-2. **Worker**: Updated via `gcloud compute instances update-container`. This native GCP method replaces brittle SSH-based deployments, ensuring higher reliability and better security by leveraging the Service Account's IAM roles directly.
+
+The repo ships three production workflows under `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `deploy.yml` | Push to `main` (excl. `**.md`, `docs/**`); `workflow_dispatch` | Build image, deploy API, roll worker. |
+| `bootstrap-worker-vm.yml` | `workflow_dispatch` only | One-time VM setup (OS Login + Docker). |
+| `migrations.yml` | Changes under `alembic/` or `crawler/models/` | Apply Alembic migrations against Supabase. |
+
+#### `deploy.yml` — three sequential jobs
+
+```
+                build-and-push (Artifact Registry)
+                   │
+        ┌──────────┴──────────┐
+        ▼                     ▼
+   deploy-api            deploy-worker
+   (Cloud Run)           (Compute Engine VM via SSH)
+```
+
+1. **`build-and-push`** — Builds the Docker image on the GHA runner and pushes it to Artifact Registry. Tags both `:<sha>` and `:latest`. **Cloud Build is intentionally not used** (per-minute billing); never run `gcloud run deploy --source=...` or `gcloud builds submit`.
+2. **`deploy-api`** — `gcloud run deploy` with the immutable `:<sha>` tag. Image-only deploy, no source upload.
+3. **`deploy-worker`** — SSHes into `WORKER_VM_NAME`, mints a short-lived Artifact Registry access token, pulls the image, replaces the `celery-worker` container, and writes `/etc/celery-worker.env` (mode 600) from the `DATABASE_URL` / `REDIS_URL` secrets. Secrets are base64-encoded in transit so values with quotes/spaces survive the shell.
+
+> **Why SSH and not `gcloud compute instances update-container`?** The worker runs on a plain Debian VM, not a Container-Optimized OS (COS) container-VM, so `update-container` errors out with *"Instance doesn't have gce-container-declaration metadata key"*. GCP has also deprecated the container-startup-agent path, so SSH + Docker is the recommended replacement.
+
+#### `bootstrap-worker-vm.yml` — one-time VM setup
+
+Run this **once** after creating the VM, before the first `deploy.yml` succeeds. Idempotent — safe to re-run after a teardown or partial failure. It:
+
+1. Enables OS Login on the instance (`enable-oslogin=TRUE` metadata).
+2. Installs `docker.io` from the distro repo if missing.
+3. Enables the Docker daemon at boot.
+4. Sanity-checks `docker pull hello-world`.
+
+Trigger it from **Actions → Bootstrap Worker VM → Run workflow**.
+
+#### How the worker stays in sync
+
+- Container name is fixed at `celery-worker`. The deploy step always `docker rm -f`s it before `docker run`ing — first run is a no-op, subsequent runs replace the previous instance.
+- `--restart unless-stopped` keeps the worker up across VM reboots.
+- After each deploy a verify step tails `docker logs --tail 100` for the celery `ready.` / `celery@` markers and fails the job if neither appears within 10 s.
+- `docker image prune -f` runs after every deploy so the e2-micro's 10 GB disk doesn't fill up with old image layers.
 
 ---
 

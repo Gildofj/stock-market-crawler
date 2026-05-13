@@ -119,7 +119,8 @@ Once running, access the interactive docs at:
 │   ├── integration/           # End-to-end DB flow
 │   └── conftest.py
 ├── docs/                      # Technical documentation
-├── .github/workflows/         # daily-sync.yml, migrations.yml
+├── .github/workflows/         # deploy.yml, bootstrap-worker-vm.yml,
+│                              # daily-sync.yml, migrations.yml
 ├── main.py                    # Crawler entrypoint (--chunk / --total-chunks)
 ├── Dockerfile
 ├── docker-compose.yml

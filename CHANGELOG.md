@@ -13,15 +13,17 @@ When opening a pull request, add your entry under the `[Unreleased]` section usi
 
 ### Added
 
-- _Nothing yet._
+- **`bootstrap-worker-vm.yml`** workflow (`workflow_dispatch`) — one-time, idempotent setup for the Celery worker VM: enables OS Login, installs `docker.io`, enables the daemon at boot, and sanity-checks `docker pull`.
+- **`docs/DEPLOYMENT.md`** now documents the three-job structure of `deploy.yml`, the bootstrap workflow, required IAM roles, and how the worker container is kept in sync.
 
 ### Changed
 
-- _Nothing yet._
+- **`deploy.yml › deploy-worker`** now rolls the worker via `gcloud compute ssh` + `docker pull` / `docker run` instead of `gcloud compute instances update-container`. Secrets (`DATABASE_URL`, `REDIS_URL`) are base64-encoded through the SSH command line and written into `/etc/celery-worker.env` (mode 600) for `--env-file`. Artifact Registry auth on the VM uses a short-lived `gcloud auth print-access-token`.
 
 ### Fixed
 
-- _Nothing yet._
+- **Worker deploy failed** with `Instance doesn't have gce-container-declaration metadata key — it is not a container.` The worker VM is a plain Debian host, not a Container-Optimized OS container-VM, so `update-container` never applied; the GCP container-startup-agent path is also deprecated.
+- Typo in the worker-verify step (`compute ssh` → `gcloud compute ssh`) that would have failed the job had it been reached.
 
 ### Security
 
