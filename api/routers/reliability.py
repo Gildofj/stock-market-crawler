@@ -1,10 +1,15 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import DBDep
+from api.limiter import DefaultRateLimit
 from api.schemas import ReliabilityResponse
 from crawler.services.data_service import DataService
 
-router = APIRouter(prefix="/reliability", tags=["Reliability"])
+router = APIRouter(
+    prefix="/reliability",
+    tags=["Reliability"],
+    dependencies=[Depends(DefaultRateLimit)],
+)
 
 
 @router.get("/", response_model=list[ReliabilityResponse])

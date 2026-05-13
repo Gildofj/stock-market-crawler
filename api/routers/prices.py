@@ -1,13 +1,18 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import DBDep
+from api.limiter import DefaultRateLimit
 from crawler.models.models import StockPrice
 from crawler.models.schemas import StockPriceSchema
 
-router = APIRouter(prefix="/prices", tags=["Prices"])
+router = APIRouter(
+    prefix="/prices",
+    tags=["Prices"],
+    dependencies=[Depends(DefaultRateLimit)],
+)
 
 
 @router.get("/{company_id}", response_model=list[StockPriceSchema])

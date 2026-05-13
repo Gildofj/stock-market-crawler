@@ -1,12 +1,30 @@
 import ipaddress
 import os
+import secrets
 import time
 
 import httpx
-from fastapi import Request
+from fastapi import HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def require_api_key(provided: str | None = Security(_api_key_header)) -> None:
+    expected = os.getenv("API_KEY")
+    if not expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API key not configured on server.",
+        )
+    if not provided or not secrets.compare_digest(provided, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key.",
+        )
 
 
 class CloudflareMiddleware(BaseHTTPMiddleware):

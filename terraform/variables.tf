@@ -43,3 +43,9 @@ variable "allowed_origins" {
   type        = string
   default     = "*"
 }
+
+variable "api_key" {
+  description = "Shared secret required on every API request (X-API-Key header). Rotated and re-injected by the GitHub Actions deploy workflow."
+  type        = string
+  sensitive   = true
+}

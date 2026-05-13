@@ -2,20 +2,25 @@ import os
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
+from .limiter import close_rate_limiter, init_rate_limiter
 from .routers import companies, fundamentals, prices, reliability
-from .security import CloudflareMiddleware
+from .security import CloudflareMiddleware, require_api_key
+
+if not os.getenv("API_KEY"):
+    raise RuntimeError(
+        "API_KEY env var must be set. The API requires authentication on every request."
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Inicialização de Cache
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     try:
         r = redis.from_url(redis_url, encoding="utf8", decode_responses=True)
@@ -23,7 +28,10 @@ async def lifespan(app: FastAPI):
         logger.info("API initialized with Redis Cache.")
     except Exception as e:
         logger.error(f"Failed to initialize Redis: {e}")
+
+    await init_rate_limiter()
     yield
+    await close_rate_limiter()
 
 
 app = FastAPI(
@@ -77,13 +85,20 @@ app.openapi_tags = tags_metadata
 if os.getenv("ENV") == "production":
     raw_origins = os.getenv("ALLOWED_ORIGINS", "")
     allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    if not allow_origins:
+        raise RuntimeError(
+            "ALLOWED_ORIGINS must be set to a non-empty comma-separated list "
+            "when ENV=production."
+        )
+    allow_credentials = True
 else:
     allow_origins = ["*"]
+    allow_credentials = False
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -97,10 +112,11 @@ if os.getenv("ENV") == "production":
     app.add_middleware(CloudflareMiddleware)
 
 # 4. Registro de Rotas
-app.include_router(companies.router, prefix="/api/v1")
-app.include_router(fundamentals.router, prefix="/api/v1")
-app.include_router(prices.router, prefix="/api/v1")
-app.include_router(reliability.router, prefix="/api/v1")
+api_dependencies = [Depends(require_api_key)]
+app.include_router(companies.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(fundamentals.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(prices.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(reliability.router, prefix="/api/v1", dependencies=api_dependencies)
 
 
 @app.get("/health")

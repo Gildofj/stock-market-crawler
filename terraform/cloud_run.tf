@@ -25,6 +25,10 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "ALLOWED_ORIGINS"
         value = var.allowed_origins
       }
+      env {
+        name  = "API_KEY"
+        value = var.api_key
+      }
       resources {
         limits = {
           cpu    = "1"
@@ -39,6 +43,18 @@ resource "google_cloud_run_v2_service" "api" {
       min_instance_count = 0
     }
     timeout = "60s"
+  }
+
+  # The deploy workflow (.github/workflows/deploy.yml) rotates the image tag
+  # and may update env vars via `gcloud run deploy --update-env-vars`. Ignore
+  # those drifts so that `terraform apply` does not roll back a fresh deploy.
+  lifecycle {
+    ignore_changes = [
+      client,
+      client_version,
+      template[0].containers[0].image,
+      template[0].containers[0].env,
+    ]
   }
 
   depends_on = [google_project_service.cloudrun]

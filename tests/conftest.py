@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("API_KEY", "test-api-key")
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -5,6 +9,9 @@ from sqlalchemy.orm import sessionmaker
 from crawler.models.models import Base
 from crawler.services.data_service import DataService
 from crawler.services.etl_service import ETLService
+
+TEST_API_KEY = os.environ["API_KEY"]
+TEST_AUTH_HEADERS = {"X-API-Key": TEST_API_KEY}
 
 # Use a fast in-memory SQLite for core logic tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

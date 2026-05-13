@@ -6,6 +6,10 @@ image_name   = "gcr.io/your-gcp-project-id/stock-market-crawler:latest"
 database_url = "postgresql://user:pass@db.supabase.co:6543/postgres"
 redis_url    = "redis://:pass@upstash-redis-url:6379/0"
 
+# API authentication — generated with `openssl rand -base64 32`.
+# Must match the API_KEY GitHub Actions secret used by deploy.yml.
+api_key = "replace-with-openssl-rand-base64-32"
+
 # Optional Customizations
 region          = "us-central1"
 allowed_origins = "*"

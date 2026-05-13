@@ -1,12 +1,17 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from api.deps import DBDep
+from api.limiter import DefaultRateLimit
 from crawler.models.models import Fundamental
 from crawler.models.schemas import FundamentalSchema
 
-router = APIRouter(prefix="/fundamentals", tags=["Fundamentals"])
+router = APIRouter(
+    prefix="/fundamentals",
+    tags=["Fundamentals"],
+    dependencies=[Depends(DefaultRateLimit)],
+)
 
 
 @router.get("/{company_id}", response_model=FundamentalSchema)

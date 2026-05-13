@@ -14,6 +14,8 @@ name: Deploy
 #                              roles/compute.instanceAdmin.v1
 #   DATABASE_URL           - Supabase Postgres URL (already set)
 #   REDIS_URL              - Upstash Redis URL (already set)
+#   API_KEY                - Shared secret required on every API request
+#                            (sent as X-API-Key header)
 #
 # Required GitHub Variables (Settings > Variables, non-sensitive):
 #   GCP_REGION             - e.g. us-central1
@@ -121,15 +123,22 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy Cloud Run revision
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
         run: |
           if [[ -z "${IMAGE_REF}" || "${IMAGE_REF}" == *":" ]]; then
             echo "::error::IMAGE_REF is empty or has no tag: '${IMAGE_REF}'"
+            exit 1
+          fi
+          if [[ -z "${API_KEY}" ]]; then
+            echo "::error::Secret API_KEY is empty — the API will refuse to start."
             exit 1
           fi
           gcloud run deploy "${{ vars.CLOUD_RUN_SERVICE }}" \
             --image="${IMAGE_REF}" \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --update-env-vars="API_KEY=${API_KEY}" \
             --quiet
 
   deploy-worker:

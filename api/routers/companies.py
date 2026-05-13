@@ -1,11 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 
 from api.deps import DBDep
+from api.limiter import DefaultRateLimit
 from crawler.models.models import Company
 from crawler.models.schemas import CompanySchema
 
-router = APIRouter(prefix="/companies", tags=["Companies"])
+router = APIRouter(
+    prefix="/companies",
+    tags=["Companies"],
+    dependencies=[Depends(DefaultRateLimit)],
+)
 
 
 @router.get("/", response_model=list[CompanySchema])

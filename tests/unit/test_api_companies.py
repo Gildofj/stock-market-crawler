@@ -5,8 +5,9 @@ from sqlalchemy.orm import Session
 from api.main import app
 from crawler.models.models import Company
 from crawler.services.database import get_db as get_crawler_db
+from tests.conftest import TEST_AUTH_HEADERS
 
-client = TestClient(app)
+client = TestClient(app, headers=TEST_AUTH_HEADERS)
 
 
 @pytest.fixture

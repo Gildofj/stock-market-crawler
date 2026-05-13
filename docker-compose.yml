@@ -4,7 +4,7 @@ services:
     container_name: stock_market_crawler_db
     restart: unless-stopped
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: stock_market_crawler_data
       POSTGRES_USER: crawler_user
@@ -22,7 +22,7 @@ services:
     container_name: stock_market_crawler_grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -38,7 +38,7 @@ services:
     container_name: stock_market_crawler_redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -50,7 +50,7 @@ services:
     container_name: stock_market_crawler_loki
     restart: unless-stopped
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - ./grafana/loki/local-config.yaml:/etc/loki/local-config.yaml
@@ -72,7 +72,7 @@ services:
     container_name: stock_market_crawler_api
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
       - REDIS_URL=redis://redis:6379/0
