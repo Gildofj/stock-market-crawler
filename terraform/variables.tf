@@ -20,6 +20,12 @@ variable "image_name" {
   type        = string
 }
 
+variable "ar_repo" {
+  description = "Artifact Registry repository id for crawler images (must match AR_REPO GitHub Variable)"
+  type        = string
+  default     = "crawler-images"
+}
+
 variable "database_url" {
   description = "The Supabase database URL"
   type        = string
