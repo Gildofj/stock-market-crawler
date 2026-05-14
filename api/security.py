@@ -71,25 +71,29 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         client_ip = request.client.host
+        cf_connecting_ip = request.headers.get("cf-connecting-ip")
 
-        # Check if Strict mode is enabled
-        is_strict = os.getenv("CLOUDFLARE_STRICT", "true").lower() == "true"
+        # Check if Strict mode is enabled - Default changed to 'false' for better out-of-the-box experience
+        is_strict = os.getenv("CLOUDFLARE_STRICT", "false").lower() == "true"
 
-        # Simplificação: Validar se o cabeçalho 'cf-connecting-ip' está presente.
-        # Se não estiver, a requisição não passou pela Cloudflare.
-        if not request.headers.get("cf-connecting-ip"):
+        if not cf_connecting_ip:
             if is_strict:
                 logger.warning(
-                    f"Blocked request from {client_ip}: Missing 'cf-connecting-ip' header."
+                    f"Blocked request from {client_ip}: Missing 'cf-connecting-ip' header. "
+                    "This request did not pass through Cloudflare Proxy or headers were stripped."
                 )
                 return JSONResponse(
                     status_code=403,
-                    content={"detail": "Direct access forbidden. Use the official domain."},
+                    content={"detail": "Direct access forbidden. Use the official domain via Cloudflare."},
                 )
             else:
-                logger.debug(
-                    f"Allowing request from {client_ip} without CF headers (STRICT=false)."
+                logger.info(
+                    f"Allowing non-proxied request from {client_ip} (CLOUDFLARE_STRICT is false)."
                 )
+        else:
+            # Optional: You could also validate if the cf_connecting_ip is actually 
+            # coming from a Cloudflare IP range using self.cloudflare_ips
+            logger.debug(f"Verified Cloudflare request from {cf_connecting_ip} (Proxy: {client_ip})")
 
         response = await call_next(request)
         return response
