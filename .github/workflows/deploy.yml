@@ -182,10 +182,10 @@ jobs:
           gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --limit=200 | grep -iE "ready|celery" || echo "Worker logs not yet in serial output, checking again in 30s..."
-          
+            | tail -n 200 | grep -iE "ready|celery" || echo "Worker logs not yet in serial output, checking again in 30s..."
+
           sleep 30
           gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --limit=500 | grep -iE "ready|celery" || (echo "Worker health check timed out" && exit 1)
+            | tail -n 500 | grep -iE "ready|celery" || (echo "Worker health check timed out" && exit 1)
