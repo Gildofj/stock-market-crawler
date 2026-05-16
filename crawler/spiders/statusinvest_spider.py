@@ -69,32 +69,33 @@ class StatusInvestSpider(BaseSpider):
             await self._enrich_from_profile_async(result)
         return result
 
+    @staticmethod
+    def _opt_float(value: Any) -> float | None:
+        """Coerces a truthy value to float, returning None otherwise."""
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
     def _map_api_item(self, item: dict[str, Any], result: CrawlResult):
         """Maps API dictionary item to CrawlResult."""
-        result.name = str(item.get("companyName")) if item.get("companyName") else None
-        result.p_l = float(item.get("p_L")) if item.get("p_L") else None
-        result.p_vp = float(item.get("p_VP")) if item.get("p_VP") else None
-        result.dy = float(item.get("dy")) if item.get("dy") else 0
-        result.roe = float(item.get("roe")) if item.get("roe") else None
-        result.roic = float(item.get("roic")) if item.get("roic") else None
-        result.ev_ebitda = float(item.get("ev_Ebitda")) if item.get("ev_Ebitda") else None
-        result.net_margin = float(item.get("margemLiquida")) if item.get("margemLiquida") else None
-        result.liquid_debt_ebitda = (
-            float(item.get("dividaliquidaEbitda")) if item.get("dividaliquidaEbitda") else None
-        )
-        result.cagr_revenue_5y = (
-            float(item.get("receitas_cagr5")) if item.get("receitas_cagr5") else None
-        )
-        result.cagr_profit_5y = (
-            float(item.get("lucros_cagr5")) if item.get("lucros_cagr5") else None
-        )
-        result.debt_to_equity = (
-            float(item.get("dividaLiquidaPatrimonioLiquido"))
-            if item.get("dividaLiquidaPatrimonioLiquido")
-            else None
-        )
-        result.market_cap = float(item.get("valorMercado")) if item.get("valorMercado") else None
-        result.eps = float(item.get("lpa")) if item.get("lpa") else None
+        company_name = item.get("companyName")
+        result.name = str(company_name) if company_name else None
+        result.p_l = self._opt_float(item.get("p_L"))
+        result.p_vp = self._opt_float(item.get("p_VP"))
+        result.dy = self._opt_float(item.get("dy")) or 0.0
+        result.roe = self._opt_float(item.get("roe"))
+        result.roic = self._opt_float(item.get("roic"))
+        result.ev_ebitda = self._opt_float(item.get("ev_Ebitda"))
+        result.net_margin = self._opt_float(item.get("margemLiquida"))
+        result.liquid_debt_ebitda = self._opt_float(item.get("dividaliquidaEbitda"))
+        result.cagr_revenue_5y = self._opt_float(item.get("receitas_cagr5"))
+        result.cagr_profit_5y = self._opt_float(item.get("lucros_cagr5"))
+        result.debt_to_equity = self._opt_float(item.get("dividaLiquidaPatrimonioLiquido"))
+        result.market_cap = self._opt_float(item.get("valorMercado"))
+        result.eps = self._opt_float(item.get("lpa"))
 
     def crawl_ticker(self, symbol: str) -> CrawlResult:
         result = CrawlResult(symbol=symbol)

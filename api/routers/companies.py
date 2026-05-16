@@ -40,7 +40,7 @@ async def search_companies(
     query = db.query(Company)
 
     # Detect dialect to support SQLite in tests
-    is_postgres = db.bind.dialect.name == "postgresql"
+    is_postgres = db.get_bind().dialect.name == "postgresql"
 
     if is_postgres:
         # PostgreSQL: Use similarity for fuzzy matching (handling typos)

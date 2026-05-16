@@ -39,27 +39,27 @@ class B3Spider(BaseSpider):
 
             for symbol in symbols:
                 yf_s = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
-                ticker_df = df[yf_s] if len(symbols) > 1 else df
+                ticker_df: pd.DataFrame = df[yf_s] if len(symbols) > 1 else df  # type: ignore[assignment]
 
                 result = CrawlResult(symbol=symbol)
-                if ticker_df.empty or ticker_df.dropna(how="all").empty:
+                if ticker_df is None or ticker_df.empty or ticker_df.dropna(how="all").empty:
                     results[symbol] = result
                     continue
 
                 # Prices
-                for index, row in ticker_df.dropna(subset=["Close"]).iterrows():
-                    ts = pd.to_datetime(index)  # type: ignore
-                    time_val: datetime.datetime = ts.to_pydatetime()
+                for index, row in ticker_df.dropna(subset=["Close"]).iterrows():  # type: ignore[arg-type]
+                    ts = pd.to_datetime(index)  # type: ignore[call-overload]
+                    time_val: datetime.datetime = ts.to_pydatetime()  # type: ignore[union-attr]
 
                     result.prices.append(
                         StockPriceSchema(
                             time=time_val,
-                            open=float(row["Open"]),
-                            high=float(row["High"]),
-                            low=float(row["Low"]),
-                            close=float(row["Close"]),
-                            adj_close=float(row.get("Adj Close", row["Close"])),
-                            volume=int(row["Volume"]),
+                            open=float(row["Open"]),  # type: ignore[arg-type]
+                            high=float(row["High"]),  # type: ignore[arg-type]
+                            low=float(row["Low"]),  # type: ignore[arg-type]
+                            close=float(row["Close"]),  # type: ignore[arg-type]
+                            adj_close=float(row.get("Adj Close", row["Close"])),  # type: ignore[arg-type]
+                            volume=int(row["Volume"]),  # type: ignore[arg-type]
                         )
                     )
                 results[symbol] = result

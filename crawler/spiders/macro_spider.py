@@ -16,7 +16,9 @@ class MacroSpider:
     SELIC_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json"
     IPCA_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json"
 
-    def __init__(self, data_service: DataService, request_manager: RequestManager = None):
+    def __init__(
+        self, data_service: DataService, request_manager: RequestManager | None = None
+    ):
         self.data_service = data_service
         self.request_manager = request_manager or RequestManager()
 

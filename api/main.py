@@ -10,7 +10,7 @@ from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
 from .limiter import close_rate_limiter, init_rate_limiter
-from .routers import companies, fundamentals, prices, reliability
+from .routers import companies, fundamentals, lake, portfolio, prices, reliability
 from .security import CloudflareMiddleware, require_api_key
 
 if not os.getenv("API_KEY"):
@@ -78,6 +78,14 @@ tags_metadata = [
         "name": "Reliability",
         "description": "Company reliability rankings and scores.",
     },
+    {
+        "name": "Data Lake",
+        "description": "Premium data lake (news, RI documents, AI insights).",
+    },
+    {
+        "name": "Portfolio",
+        "description": "Premium portfolio management and enrichment.",
+    },
 ]
 app.openapi_tags = tags_metadata
 
@@ -117,6 +125,8 @@ app.include_router(companies.router, prefix="/api/v1", dependencies=api_dependen
 app.include_router(fundamentals.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(prices.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(reliability.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(lake.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
 
 
 @app.get("/health")

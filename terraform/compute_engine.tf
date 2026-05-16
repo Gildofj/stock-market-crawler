@@ -32,10 +32,25 @@ resource "google_compute_instance" "worker" {
           env = [
             { name = "DATABASE_URL", value = var.database_url },
             { name = "REDIS_URL", value = var.redis_url },
-            { name = "PYTHONPATH", value = "/app" }
+            { name = "PYTHONPATH", value = "/app" },
+            { name = "R2_ACCOUNT_ID", value = var.r2_account_id },
+            { name = "R2_API_TOKEN", value = var.r2_api_token },
+            { name = "R2_BUCKET_RI_DOCS", value = var.r2_bucket_ri_docs },
+            { name = "R2_BUCKET_PORTFOLIOS", value = var.r2_bucket_portfolios },
+            { name = "R2_RI_PUBLIC_BASE_URL", value = var.r2_ri_public_base_url },
           ]
-          # The image will be updated by GitHub Actions during deploy
-          args = ["celery", "-A", "crawler.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+          # The image will be updated by GitHub Actions during deploy.
+          # --beat: embedded scheduler (single-node, idempotent tasks).
+          # -Q: consume all queues from one worker on free tier.
+          args = [
+            "celery",
+            "-A", "crawler.celery_app",
+            "worker",
+            "--beat",
+            "--loglevel=info",
+            "--concurrency=2",
+            "-Q", "default,crawler,lake,macro",
+          ]
         }]
         restartPolicy = "Always"
       }

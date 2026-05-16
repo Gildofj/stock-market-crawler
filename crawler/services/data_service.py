@@ -14,6 +14,15 @@ class DataService:
     def get_company_by_symbol(self, symbol: str) -> Company | None:
         return self.db.query(Company).filter(Company.symbol == symbol).first()
 
+    def get_all_known_symbols(self) -> set[str]:
+        """
+        Returns the set of every symbol persisted in the companies table.
+
+        Used by spiders that need to detect mentions of known tickers in free text.
+        """
+        rows = self.db.query(Company.symbol).all()
+        return {row[0] for row in rows}
+
     def get_existing_symbols(self, symbols: list[str]) -> set[str]:
         """
         Returns the set of symbols that already exist in the database.

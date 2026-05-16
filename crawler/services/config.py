@@ -48,6 +48,39 @@ class Settings(BaseSettings):
             return f"{url}{separator}ssl_cert_reqs=CERT_REQUIRED"
         return url
 
+    # Cloudflare R2 (S3-compatible) Object Storage.
+    #
+    # Cloudflare's current dashboard returns a single Bearer Token for R2.
+    # The S3 Access Key ID is derived from it as the first 32 hex chars of
+    # SHA-256(token), and the token itself is used as the S3 Secret Access Key.
+    # This is the standard R2 contract — see
+    # https://developers.cloudflare.com/r2/api/tokens/.
+    R2_ACCOUNT_ID: str | None = None
+    R2_API_TOKEN: str | None = None
+    R2_BUCKET_RI_DOCS: str = "ri-docs"
+    R2_BUCKET_PORTFOLIOS: str = "portfolios"
+    # Public base URL for the RI bucket (e.g. https://pub-xxx.r2.dev or
+    # a custom CNAME). Empty disables public-URL generation.
+    R2_RI_PUBLIC_BASE_URL: str | None = None
+    R2_PRESIGN_TTL_SECONDS: int = 900
+
+    @property
+    def r2_credentials(self) -> tuple[str, str] | None:
+        """Returns the (access_key_id, secret_access_key) pair for boto3.
+
+        Derives the S3 credentials from the Cloudflare R2 API token via SHA-256.
+        """
+        if self.R2_API_TOKEN:
+            import hashlib
+
+            digest = hashlib.sha256(self.R2_API_TOKEN.encode("utf-8")).hexdigest()
+            return digest[:32], self.R2_API_TOKEN
+        return None
+
+    @property
+    def r2_enabled(self) -> bool:
+        return bool(self.R2_ACCOUNT_ID and self.r2_credentials)
+
     # Crawler Settings
     LOG_LEVEL: str = "INFO"
 

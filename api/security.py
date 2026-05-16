@@ -70,10 +70,10 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
         if request.url.path in bypass_paths:
             return await call_next(request)
 
-        client_ip = request.client.host
+        client_ip = request.client.host if request.client else "unknown"
         cf_connecting_ip = request.headers.get("cf-connecting-ip")
 
-        # Check if Strict mode is enabled - Default changed to 'false' for better out-of-the-box experience
+        # Default is "false" so the API works out-of-the-box without Cloudflare in front.
         is_strict = os.getenv("CLOUDFLARE_STRICT", "false").lower() == "true"
 
         if not cf_connecting_ip:
@@ -84,16 +84,23 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
                 )
                 return JSONResponse(
                     status_code=403,
-                    content={"detail": "Direct access forbidden. Use the official domain via Cloudflare."},
+                    content={
+                        "detail": (
+                            "Direct access forbidden. "
+                            "Use the official domain via Cloudflare."
+                        )
+                    },
                 )
             else:
                 logger.info(
                     f"Allowing non-proxied request from {client_ip} (CLOUDFLARE_STRICT is false)."
                 )
         else:
-            # Optional: You could also validate if the cf_connecting_ip is actually 
-            # coming from a Cloudflare IP range using self.cloudflare_ips
-            logger.debug(f"Verified Cloudflare request from {cf_connecting_ip} (Proxy: {client_ip})")
+            # Could be tightened to also verify cf_connecting_ip falls inside
+            # self.cloudflare_ips ranges.
+            logger.debug(
+                f"Verified Cloudflare request from {cf_connecting_ip} (Proxy: {client_ip})"
+            )
 
         response = await call_next(request)
         return response

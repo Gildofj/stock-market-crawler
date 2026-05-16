@@ -19,8 +19,14 @@ async def init_rate_limiter() -> None:
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     try:
         connection = from_url(redis_url, encoding="utf8", decode_responses=True)
-        default_bucket = await RedisBucket.init(_default_rates, connection, "rl:default")
-        strict_bucket = await RedisBucket.init(_strict_rates, connection, "rl:strict")
+        # RedisBucket.init is an async classmethod at runtime but its type
+        # stub is marked synchronous in current pyrate-limiter versions.
+        default_bucket = await RedisBucket.init(  # type: ignore[misc]
+            _default_rates, connection, "rl:default"
+        )
+        strict_bucket = await RedisBucket.init(  # type: ignore[misc]
+            _strict_rates, connection, "rl:strict"
+        )
         _default_limiter = Limiter(default_bucket)
         _strict_limiter = Limiter(strict_bucket)
         logger.info("Rate limiter initialized (Redis backend).")

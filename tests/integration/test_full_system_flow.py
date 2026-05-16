@@ -76,7 +76,7 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
     assert result.valuation_graham == pytest.approx(111.24, rel=1e-3)
     # Bazin: ((5.0 / 100) * 110.0) / 0.06 = 5.5 / 0.06 = 91.66
     assert result.valuation_bazin == pytest.approx(91.66, rel=1e-3)
-    # Quality Score: ROE(15>10:10), ROIC(12>8:10), NetMargin(10>5:10), Debt(1.5<2.0:20), CAGR(8>5:20) = 70
+    # Quality Score: ROE(15>10:10)+ROIC(12>8:10)+NetMargin(10>5:10)+Debt(1.5<2.0:20)+CAGR(8>5:20)=70
     assert result.quality_score == 70
 
     # 3. Verify Database Persistence

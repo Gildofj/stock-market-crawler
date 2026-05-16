@@ -1,9 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     BIGINT,
+    JSON,
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -11,6 +14,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     SmallInteger,
     String,
+    Text,
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -170,3 +174,130 @@ class CompanyReliability(Base):
     )
 
     company: Mapped["Company"] = relationship("Company", back_populates="reliability")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    is_premium: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    portfolios: Mapped[list["Portfolio"]] = relationship(
+        "Portfolio", back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class LakeNews(Base):
+    __tablename__ = "lake_news"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(String(1000), nullable=False, unique=True)
+    url_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    sentiment: Mapped[str | None] = mapped_column(String(20))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    tickers: Mapped[list["LakeNewsTicker"]] = relationship(
+        "LakeNewsTicker", back_populates="news", cascade="all, delete-orphan"
+    )
+
+
+class LakeNewsTicker(Base):
+    __tablename__ = "lake_news_tickers"
+
+    news_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("lake_news.id", ondelete="CASCADE"), nullable=False
+    )
+    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+
+    __table_args__ = (PrimaryKeyConstraint("news_id", "ticker"),)
+
+    news: Mapped["LakeNews"] = relationship("LakeNews", back_populates="tickers")
+
+
+class LakeRIDocument(Base):
+    __tablename__ = "lake_ri_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    doc_id: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    company_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="SET NULL")
+    )
+    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    pdf_url: Mapped[str | None] = mapped_column(String(1000))
+    text_excerpt: Mapped[str | None] = mapped_column(Text)
+    reference_date: Mapped[date | None] = mapped_column(Date)
+    r2_key: Mapped[str | None] = mapped_column(String(500))
+    r2_public_url: Mapped[str | None] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class LakeInsightCache(Base):
+    __tablename__ = "lake_insight_cache"
+
+    ticker: Mapped[str] = mapped_column(String(10), primary_key=True)
+    insight: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    score: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    dy_adjusted: Mapped[float | None] = mapped_column(Numeric(8, 2))
+    pl_adjusted: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Portfolio(Base):
+    __tablename__ = "portfolios"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Reference to the original spreadsheet uploaded by the user (stored in
+    # the private R2 bucket). None when the portfolio was created from JSON.
+    source_r2_key: Mapped[str | None] = mapped_column(String(500))
+    source_filename: Mapped[str | None] = mapped_column(String(255))
+    source_content_type: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="portfolios")
+    assets: Mapped[list["PortfolioAsset"]] = relationship(
+        "PortfolioAsset", back_populates="portfolio", cascade="all, delete-orphan"
+    )
+
+
+class PortfolioAsset(Base):
+    __tablename__ = "portfolio_assets"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    portfolio_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("portfolios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    ticker: Mapped[str] = mapped_column(String(10), nullable=False)
+    quantity: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
+    avg_price: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
+    asset_type: Mapped[str | None] = mapped_column(String(20))
+    notes: Mapped[str | None] = mapped_column(String(500))
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    portfolio: Mapped["Portfolio"] = relationship("Portfolio", back_populates="assets")

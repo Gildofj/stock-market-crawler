@@ -16,6 +16,8 @@ name: Deploy
 #   REDIS_URL              - Upstash Redis URL (already set)
 #   API_KEY                - Shared secret required on every API request
 #                            (sent as X-API-Key header)
+#   R2_ACCOUNT_ID          - Cloudflare R2 Account ID
+#   R2_API_TOKEN           - Cloudflare R2 API Token (Bearer)
 #
 # Required GitHub Variables (Settings > Variables, non-sensitive):
 #   GCP_REGION             - e.g. us-central1
@@ -23,6 +25,7 @@ name: Deploy
 #   AR_REPO                - Artifact Registry repository (e.g. crawler-images)
 #   CLOUD_RUN_SERVICE      - Cloud Run service name (e.g. stock-market-api)
 #   WORKER_VM_NAME         - Compute Engine VM name (e.g. crawler-worker-vm)
+#   R2_RI_PUBLIC_BASE_URL  - Public base URL for RI docs (e.g. https://pub-xxx.r2.dev)
 #
 # One-time setup on GCP:
 #   gcloud artifacts repositories create $AR_REPO \
@@ -138,23 +141,15 @@ jobs:
             --image="${IMAGE_REF}" \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --update-env-vars="API_KEY=${API_KEY}" \
+            --update-env-vars="API_KEY=${API_KEY},R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }},R2_API_TOKEN=${{ secrets.R2_API_TOKEN }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
             --quiet
 
   deploy-worker:
     name: Roll Celery worker VM
     runs-on: ubuntu-latest
     needs: build-and-push
-    # The worker VM is a plain Debian/Ubuntu host running Docker — NOT a
-    # Container-Optimized OS (COS) container-VM. So `gcloud compute instances
-    # update-container` does not apply here; we SSH in, pull, and restart.
-    #
-    # SA roles required (in addition to those in the file header):
-    #   roles/compute.osLogin          (or project-level SSH keys configured)
-    #   roles/iap.tunnelResourceAccessor   (only if the VM has no external IP)
     env:
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
-      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -162,70 +157,35 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Roll worker container via SSH
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
+      - name: Update COS container metadata
         run: |
-          set -euo pipefail
-
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
-
-          # base64-encode secrets so they pass safely through shell args
-          # (no quoting headaches even if values contain $, ', ", spaces, etc.)
-          DB_B64=$(printf '%s' "$DATABASE_URL" | base64 -w0)
-          REDIS_B64=$(printf '%s' "$REDIS_URL" | base64 -w0)
-
-          gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
+          gcloud compute instances update-container "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --quiet \
-            --command="bash -s -- $ACCESS_TOKEN $REGISTRY $IMAGE $DB_B64 $REDIS_B64" <<'REMOTE'
-          set -euo pipefail
-
-          ACCESS_TOKEN="$1"
-          REGISTRY="$2"
-          IMAGE="$3"
-          DATABASE_URL=$(printf '%s' "$4" | base64 -d)
-          REDIS_URL=$(printf '%s' "$5" | base64 -d)
-
-          # Auth Docker to Artifact Registry with a short-lived access token
-          echo "$ACCESS_TOKEN" | sudo docker login -u oauth2accesstoken --password-stdin "$REGISTRY"
-
-          sudo docker pull "$IMAGE"
-
-          # Stop & remove existing worker (idempotent — first run is a no-op)
-          sudo docker rm -f celery-worker 2>/dev/null || true
-
-          # Write env file with restrictive perms before populating it
-          sudo install -m 600 /dev/null /etc/celery-worker.env
-          printf 'DATABASE_URL=%s\nREDIS_URL=%s\n' "$DATABASE_URL" "$REDIS_URL" \
-            | sudo tee /etc/celery-worker.env >/dev/null
-
-          sudo docker run -d \
-            --name celery-worker \
-            --restart unless-stopped \
-            --env-file /etc/celery-worker.env \
-            "$IMAGE" \
-            celery -A crawler.celery_app worker --loglevel=info --concurrency=2
-
-          sudo docker image prune -f
-          REMOTE
+            --container-image="${IMAGE}" \
+            --container-env="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},PYTHONPATH=/app,R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }},R2_API_TOKEN=${{ secrets.R2_API_TOKEN }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
+            --container-command="celery" \
+            --container-arg="-A" \
+            --container-arg="crawler.celery_app" \
+            --container-arg="worker" \
+            --container-arg="--beat" \
+            --container-arg="--loglevel=info" \
+            --container-arg="--concurrency=2" \
+            --container-arg="-Q" \
+            --container-arg="default,crawler,lake,macro" \
+            --quiet
 
       - name: Verify worker is healthy
         run: |
-          gcloud compute ssh "${{ vars.WORKER_VM_NAME }}" \
+          # Give COS a moment to pull and start
+          sleep 30
+          gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --quiet \
-            --command='
-              for i in $(seq 1 18); do
-                if sudo docker logs --tail 200 celery-worker 2>&1 | grep -qE "ready\.|celery@"; then
-                  echo "Worker ready"; exit 0
-                fi
-                sleep 5
-              done
-              echo "::error::Worker did not reach ready state"
-              sudo docker logs --tail 100 celery-worker
-              exit 1
-            '
+            --limit=200 | grep -iE "ready|celery" || echo "Worker logs not yet in serial output, checking again in 30s..."
+          
+          sleep 30
+          gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
+            --zone="${{ vars.GCP_ZONE }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --limit=500 | grep -iE "ready|celery" || (echo "Worker health check timed out" && exit 1)

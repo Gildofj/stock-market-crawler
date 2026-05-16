@@ -29,10 +29,33 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "API_KEY"
         value = var.api_key
       }
+      env {
+        name  = "R2_ACCOUNT_ID"
+        value = var.r2_account_id
+      }
+      env {
+        name  = "R2_API_TOKEN"
+        value = var.r2_api_token
+      }
+      env {
+        name  = "R2_BUCKET_RI_DOCS"
+        value = var.r2_bucket_ri_docs
+      }
+      env {
+        name  = "R2_BUCKET_PORTFOLIOS"
+        value = var.r2_bucket_portfolios
+      }
+      env {
+        name  = "R2_RI_PUBLIC_BASE_URL"
+        value = var.r2_ri_public_base_url
+      }
       resources {
         limits = {
-          cpu    = "1"
-          memory = "512Mi"
+          cpu = "1"
+          # Bumped from 512Mi to handle pandas-based spreadsheet parsing in the
+          # /carteira router and pdfplumber sidecars. Free tier (360k GiB-s/mo)
+          # still covers ~100h of active time at 1 GiB.
+          memory = "1Gi"
         }
         cpu_idle          = true
         startup_cpu_boost = true

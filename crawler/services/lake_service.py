@@ -1,0 +1,176 @@
+import uuid
+from datetime import UTC, datetime, timedelta
+
+from loguru import logger
+from sqlalchemy.orm import Session, joinedload
+
+from ..models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
+from ..models.schemas import LakeInsightSchema, LakeNewsSchema, LakeRIDocumentSchema
+
+
+class LakeService:
+    def __init__(self, db: Session):
+        self.db = db
+
+    def upsert_news(self, payload: LakeNewsSchema) -> LakeNews:
+        existing = (
+            self.db.query(LakeNews).filter(LakeNews.url_hash == payload.url_hash).first()
+        )
+
+        if existing:
+            existing.title = payload.title
+            existing.summary = payload.summary
+            existing.sentiment = payload.sentiment
+            existing.published_at = payload.published_at
+            self._sync_tickers(existing, payload.tickers)
+            self.db.commit()
+            return existing
+
+        news = LakeNews(
+            source=payload.source,
+            title=payload.title,
+            summary=payload.summary,
+            url=payload.url,
+            url_hash=payload.url_hash,
+            sentiment=payload.sentiment,
+            published_at=payload.published_at,
+        )
+        for ticker in set(payload.tickers):
+            news.tickers.append(LakeNewsTicker(ticker=ticker))
+        self.db.add(news)
+        try:
+            self.db.commit()
+            self.db.refresh(news)
+            return news
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to insert news {payload.url}: {e}")
+            raise
+
+    def _sync_tickers(self, news: LakeNews, tickers: list[str]) -> None:
+        current = {row.ticker for row in news.tickers}
+        desired = set(tickers)
+        for row in list(news.tickers):
+            if row.ticker not in desired:
+                self.db.delete(row)
+        for ticker in desired - current:
+            news.tickers.append(LakeNewsTicker(ticker=ticker))
+
+    def get_news_by_ticker(
+        self, ticker: str, limit: int = 10, offset: int = 0
+    ) -> list[LakeNews]:
+        return (
+            self.db.query(LakeNews)
+            .join(LakeNewsTicker)
+            .filter(LakeNewsTicker.ticker == ticker.upper())
+            .options(joinedload(LakeNews.tickers))
+            .order_by(LakeNews.published_at.desc().nullslast())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def upsert_ri_document(
+        self,
+        payload: LakeRIDocumentSchema,
+        company_id: uuid.UUID | None = None,
+        r2_key: str | None = None,
+    ) -> LakeRIDocument:
+        existing = (
+            self.db.query(LakeRIDocument)
+            .filter(LakeRIDocument.doc_id == payload.doc_id)
+            .first()
+        )
+        if existing:
+            existing.title = payload.title
+            existing.text_excerpt = payload.text_excerpt
+            existing.pdf_url = payload.pdf_url
+            existing.reference_date = payload.reference_date
+            existing.category = payload.category
+            existing.ticker = payload.ticker.upper()
+            if r2_key is not None:
+                existing.r2_key = r2_key
+            if payload.r2_public_url is not None:
+                existing.r2_public_url = payload.r2_public_url
+            if company_id is not None:
+                existing.company_id = company_id
+            self.db.commit()
+            return existing
+
+        document = LakeRIDocument(
+            doc_id=payload.doc_id,
+            company_id=company_id,
+            ticker=payload.ticker.upper(),
+            category=payload.category,
+            title=payload.title,
+            pdf_url=payload.pdf_url,
+            text_excerpt=payload.text_excerpt,
+            reference_date=payload.reference_date,
+            r2_key=r2_key,
+            r2_public_url=payload.r2_public_url,
+        )
+        self.db.add(document)
+        try:
+            self.db.commit()
+            self.db.refresh(document)
+            return document
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Failed to insert RI doc {payload.doc_id}: {e}")
+            raise
+
+    def get_ri_documents_by_ticker(
+        self, ticker: str, limit: int = 3
+    ) -> list[LakeRIDocument]:
+        return (
+            self.db.query(LakeRIDocument)
+            .filter(LakeRIDocument.ticker == ticker.upper())
+            .order_by(LakeRIDocument.reference_date.desc().nullslast())
+            .limit(limit)
+            .all()
+        )
+
+    def get_insight_cache(self, ticker: str) -> LakeInsightCache | None:
+        cached = (
+            self.db.query(LakeInsightCache)
+            .filter(LakeInsightCache.ticker == ticker.upper())
+            .first()
+        )
+        if not cached:
+            return None
+        if cached.expires_at and cached.expires_at < datetime.now(UTC):
+            return None
+        return cached
+
+    def upsert_insight_cache(
+        self, ticker: str, payload: LakeInsightSchema, ttl_hours: int = 6
+    ) -> LakeInsightCache:
+        ticker = ticker.upper()
+        expires_at = datetime.now(UTC) + timedelta(hours=ttl_hours)
+
+        existing = (
+            self.db.query(LakeInsightCache)
+            .filter(LakeInsightCache.ticker == ticker)
+            .first()
+        )
+        if existing:
+            existing.insight = payload.insight
+            existing.score = payload.score
+            existing.dy_adjusted = payload.dy_adjusted
+            existing.pl_adjusted = payload.pl_adjusted
+            existing.expires_at = expires_at
+            self.db.commit()
+            return existing
+
+        cache = LakeInsightCache(
+            ticker=ticker,
+            insight=payload.insight,
+            score=payload.score,
+            dy_adjusted=payload.dy_adjusted,
+            pl_adjusted=payload.pl_adjusted,
+            expires_at=expires_at,
+        )
+        self.db.add(cache)
+        self.db.commit()
+        self.db.refresh(cache)
+        return cache

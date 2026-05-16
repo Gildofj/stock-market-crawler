@@ -26,7 +26,7 @@ def enqueue_all():
 
     # 1. Enqueue Macro Data Task
     logger.info("Enqueuing macro data task...")
-    crawl_macro_data_task.delay()
+    crawl_macro_data_task.delay()  # type: ignore[attr-defined]
 
     # 2. Fetch Tickers
     ticker_service = TickerService()
@@ -40,7 +40,7 @@ def enqueue_all():
 
     count = 0
     for symbol in all_tickers:
-        crawl_ticker_task.delay(symbol)
+        crawl_ticker_task.delay(symbol)  # type: ignore[attr-defined]
         count += 1
         if count % 50 == 0:
             logger.info(f"Enqueued {count}/{len(all_tickers)} tickers...")
