@@ -85,10 +85,29 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  worker:
+  # Hot worker: high-cadence queues + embedded beat scheduler.
+  # Beat is intentionally only on this process (Celery requires a single scheduler).
+  worker-hot:
     build: .
-    container_name: stock_market_crawler_worker
-    command: celery -A crawler.celery_app worker --loglevel=info --concurrency=4
+    container_name: stock_market_crawler_worker_hot
+    command: celery -A crawler.celery_app worker --beat --loglevel=info --concurrency=2 -Q crawler,default,macro -n hot@%h
+    environment:
+      - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Lake worker: lighter parser workloads (RSS news). RI is NOT consumed here —
+  # it runs as a Cloud Run Job in production (see terraform/cloud_run_job.tf).
+  worker-lake:
+    build: .
+    container_name: stock_market_crawler_worker_lake
+    command: celery -A crawler.celery_app worker --loglevel=info --concurrency=1 -Q lake -n lake@%h
     environment:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
       - REDIS_URL=redis://redis:6379/0

@@ -14,10 +14,8 @@ api_key = "replace-with-openssl-rand-base64-32"
 region          = "us-central1"
 allowed_origins = "*"
 
-# LagoAI scheduling — set to `true` once the API exposes
-# POST /api/v1/internal/jobs/news and /api/v1/internal/jobs/ri.
-enable_lagoai_scheduling = false
-scheduler_timezone       = "America/Sao_Paulo"
+# Timezone used by Cloud Scheduler (drives the daily RI Cloud Run Job trigger).
+scheduler_timezone = "America/Sao_Paulo"
 
 # Cloudflare R2 — leave blank to disable; the app falls back to
 # text-only storage in Postgres when these are empty.

@@ -56,12 +56,6 @@ variable "scheduler_timezone" {
   default     = "America/Sao_Paulo"
 }
 
-variable "enable_lagoai_scheduling" {
-  description = "Toggle Cloud Scheduler jobs that trigger LagoAI lake collection. Disable to keep the infra without scheduling (e.g. when running cron externally)."
-  type        = bool
-  default     = false
-}
-
 # Cloudflare R2 (S3-compatible) Object Storage — used for mirroring RI PDFs
 # (public bucket) and storing portfolio spreadsheet uploads (private bucket).
 # Leave the credentials blank to disable R2 integration; the application

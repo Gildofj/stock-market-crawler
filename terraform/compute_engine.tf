@@ -40,17 +40,10 @@ resource "google_compute_instance" "worker" {
             { name = "R2_RI_PUBLIC_BASE_URL", value = var.r2_ri_public_base_url },
           ]
           # The image will be updated by GitHub Actions during deploy.
-          # --beat: embedded scheduler (single-node, idempotent tasks).
-          # -Q: consume all queues from one worker on free tier.
-          args = [
-            "celery",
-            "-A", "crawler.celery_app",
-            "worker",
-            "--beat",
-            "--loglevel=info",
-            "--concurrency=2",
-            "-Q", "default,crawler,lake,macro",
-          ]
+          # The entrypoint script starts two Celery processes (hot + lake) so
+          # the lake parser workload can't starve the hot path. RI is NOT
+          # consumed here — it runs as a Cloud Run Job (see cloud_run_job.tf).
+          command = ["/app/scripts/worker_entrypoint.sh"]
         }]
         restartPolicy = "Always"
       }

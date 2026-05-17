@@ -11,10 +11,10 @@ output "scheduler_service_account" {
   value       = google_service_account.scheduler_sa.email
 }
 
-output "scheduler_jobs" {
-  description = "Cloud Scheduler job IDs for LagoAI lake collection (null if disabled)."
-  value = var.enable_lagoai_scheduling ? {
-    news = google_cloud_scheduler_job.news_collection[0].name
-    ri   = google_cloud_scheduler_job.ri_collection[0].name
-  } : null
+output "ri_crawl_job" {
+  description = "Cloud Run Job name + Scheduler trigger for the daily RI crawl."
+  value = {
+    job_name = google_cloud_run_v2_job.ri_crawl.name
+    trigger  = google_cloud_scheduler_job.ri_crawl_trigger.name
+  }
 }

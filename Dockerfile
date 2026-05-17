@@ -20,6 +20,10 @@ RUN uv sync --frozen --no-install-project --no-dev
 # Copy the rest of the application code
 COPY . .
 
+# Ensure the worker entrypoint script is executable on Linux even if the
+# repo was checked out on Windows (where COPY can lose the +x bit).
+RUN chmod +x /app/scripts/worker_entrypoint.sh
+
 # Place executables in the path
 ENV PATH="/app/.venv/bin:$PATH"
 

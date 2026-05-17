@@ -20,7 +20,12 @@ from crawler.services.config import settings
 app = Celery(
     "stock_market_crawler",
     broker=settings.redis_url,
-    include=["crawler.tasks"],
+    include=[
+        "crawler.tasks.ticker",
+        "crawler.tasks.lake_news",
+        "crawler.tasks.lake_ri",
+        "crawler.tasks.macro",
+    ],
 )
 
 app.conf.update(
@@ -52,7 +57,10 @@ app.conf.update(
     worker_concurrency=2,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
-    worker_max_memory_per_child=300_000,  # 300 MB (units: KiB)
+    # 200 MB ceiling fits two Celery processes on a 1 GB e2-micro: worker-hot
+    # (concurrency=2) + worker-lake (concurrency=1) stay under ~900 MB worst-case
+    # even when every child is at its peak. See terraform/compute_engine.tf.
+    worker_max_memory_per_child=200_000,  # 200 MB (units: KiB)
     worker_send_task_events=False,
     worker_enable_remote_control=False,
     worker_disable_rate_limits=True,
@@ -90,21 +98,19 @@ app.conf.update(
     task_routes={
         "crawler.tasks.crawl_ticker_task": {"queue": "crawler"},
         "crawler.tasks.crawl_news_task": {"queue": "lake"},
-        "crawler.tasks.crawl_ri_task": {"queue": "lake"},
+        # crawl_ri_task is intentionally NOT routed: it runs as a Cloud Run Job
+        # (entrypoint: ``python -m crawler.tasks.lake_ri``), not via Celery.
+        # The task decorator is kept so local dev / tests can still invoke it.
         "crawler.tasks.crawl_macro_data_task": {"queue": "macro"},
     },
 
     # ── Embedded beat schedule ───────────────────────────────────────
     # Hours are UTC. Brazil = UTC-3.
+    # RI crawl is scheduled by Cloud Scheduler → Cloud Run Job, not here.
     beat_schedule={
         "lake-news-hourly": {
             "task": "crawler.tasks.crawl_news_task",
             "schedule": crontab(minute=0),
-        },
-        "lake-ri-daily": {
-            "task": "crawler.tasks.crawl_ri_task",
-            "schedule": crontab(minute=0, hour=10),  # 07:00 BRT
-            "kwargs": {"days_back": 7},
         },
         "macro-daily": {
             "task": "crawler.tasks.crawl_macro_data_task",
