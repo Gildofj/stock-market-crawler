@@ -10,7 +10,7 @@ from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
 from .limiter import close_rate_limiter, init_rate_limiter
-from .routers import companies, fundamentals, lake, portfolio, prices, reliability, sources
+from .routers import companies, fundamentals, lake, prices, reliability, sources
 from .security import CloudflareMiddleware, require_api_key
 
 if not os.getenv("API_KEY"):
@@ -43,6 +43,7 @@ app = FastAPI(
     * **Companies**: List and details of companies listed on B3.
     * **Fundamentals**: Updated financial fundamentals and indicators.
     * **Prices**: Historical and real-time stock quotes.
+    * **Reliability (LagoAI)**: Company reliability rankings and market insights.
 
     ---
     Developed by gildofj.dev.
@@ -80,11 +81,7 @@ tags_metadata = [
     },
     {
         "name": "Data Lake",
-        "description": "Premium data lake (news, RI documents, AI insights).",
-    },
-    {
-        "name": "Portfolio",
-        "description": "Premium portfolio management and enrichment.",
+        "description": "Agnostic data lake (news, RI documents, AI insights).",
     },
     {
         "name": "Transparency",
@@ -131,7 +128,6 @@ app.include_router(fundamentals.router, prefix="/api/v1", dependencies=api_depen
 app.include_router(prices.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(reliability.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(lake.router, prefix="/api/v1", dependencies=api_dependencies)
-app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
 
 # Transparency endpoint — intentionally public (no api_key, no premium gate).
 # Anyone can audit which sources are active in this deployment.

@@ -2,7 +2,7 @@
 
 Active surface:
 
-* ``portfolios`` — **private**, accessed via short-lived presigned URLs.
+* (Empty) — All current data (CVM PDFs, news) is stored as upstream URLs.
 
 Legacy surface (kept for backwards compatibility, not used by current
 spiders):
@@ -12,6 +12,8 @@ spiders):
   free of redistribution claims. ``upload_ri_pdf`` is preserved so existing
   Terraform / env stays valid; new callers must not use it. See
   ``DISCLAIMER.md`` for rationale.
+* ``portfolios`` — was used for user spreadsheet uploads. Removed as
+  portfolio management moved to the Rendaraq service.
 
 The client degrades gracefully when R2 credentials are not configured: every
 write returns ``None`` and every read returns ``None``. This lets local /
@@ -20,9 +22,7 @@ free-tier deployments run without R2 set up.
 
 from __future__ import annotations
 
-from typing import IO, Any
-
-from loguru import logger
+from typing import Any
 
 from crawler.services.config import settings
 
@@ -90,47 +90,6 @@ class R2Storage:
             stacklevel=2,
         )
         return None
-
-    def upload_portfolio_file(
-        self,
-        key: str,
-        body: bytes | IO[bytes],
-        content_type: str,
-    ) -> str | None:
-        """Uploads a portfolio spreadsheet to the private bucket."""
-        client = self._client_or_none()
-        if client is None:
-            return None
-        try:
-            client.put_object(
-                Bucket=settings.R2_BUCKET_PORTFOLIOS,
-                Key=key,
-                Body=body,
-                ContentType=content_type,
-            )
-            return key
-        except Exception as e:
-            logger.error(f"R2: upload_portfolio_file failed for {key}: {e}")
-            return None
-
-    def presigned_portfolio_url(
-        self,
-        key: str,
-        expires_in: int | None = None,
-    ) -> str | None:
-        """Generates a short-lived GET URL for a private portfolio object."""
-        client = self._client_or_none()
-        if client is None:
-            return None
-        try:
-            return client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": settings.R2_BUCKET_PORTFOLIOS, "Key": key},
-                ExpiresIn=expires_in or settings.R2_PRESIGN_TTL_SECONDS,
-            )
-        except Exception as e:
-            logger.error(f"R2: presigned_portfolio_url failed for {key}: {e}")
-            return None
 
 
 _storage: R2Storage | None = None

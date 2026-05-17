@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from api.deps import DBDep, PremiumUserDep
+from api.deps import DBDep
 from api.limiter import DefaultRateLimit, StrictRateLimit
 from crawler.models.schemas import (
     FundamentalSchema,
@@ -39,7 +39,6 @@ def _news_to_schema(news_rows) -> list[LakeNewsSchema]:
 async def get_lake_snapshot(
     symbol: str,
     db: DBDep,
-    user: PremiumUserDep,
 ):
     """Returns news, RI documents, fundamentals and cached AI insight for a ticker."""
     symbol_u = symbol.upper()
@@ -77,7 +76,6 @@ async def get_lake_snapshot(
 async def get_lake_news(
     symbol: str,
     db: DBDep,
-    user: PremiumUserDep,
     limit: int = Query(20, gt=0, le=100),
     offset: int = Query(0, ge=0),
 ):
@@ -94,7 +92,6 @@ async def get_lake_news(
 async def get_lake_ri(
     symbol: str,
     db: DBDep,
-    user: PremiumUserDep,
     limit: int = Query(5, gt=0, le=20),
 ):
     lake_service = LakeService(db)

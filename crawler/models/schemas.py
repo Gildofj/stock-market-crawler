@@ -58,16 +58,6 @@ class FundamentalSchema(BaseModel):
     quality_score: int | None = Field(default=None, description="Composite Quality Score")
 
 
-class UserSchema(BaseModel):
-    """Schema for user identity and premium status."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
-
-    id: uuid.UUID = Field(..., description="Unique user identifier")
-    email: str = Field(..., description="User email")
-    is_premium: bool = Field(default=False, description="Premium plan flag")
-
-
 class SourceAttributionSchema(BaseModel):
     """Attribution block surfaced on every record that came from a third party.
 
@@ -167,48 +157,3 @@ class LakeInsightSchema(BaseModel):
     pl_adjusted: float | None = Field(default=None, description="AI-adjusted P/L")
     updated_at: datetime | None = Field(default=None, description="Last update timestamp")
     expires_at: datetime | None = Field(default=None, description="Cache expiration timestamp")
-
-
-class PortfolioAssetInput(BaseModel):
-    """Input schema for a single portfolio asset."""
-
-    ticker: str = Field(..., description="Asset ticker symbol")
-    quantity: float = Field(..., gt=0, description="Number of shares")
-    avg_price: float = Field(..., gt=0, description="Average purchase price")
-    asset_type: str | None = Field(default=None, description="Asset type (stock, fii, bdr)")
-    notes: str | None = Field(default=None, max_length=500, description="User notes")
-
-
-class PortfolioAssetSchema(BaseModel):
-    """Schema for a portfolio asset row."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
-
-    id: uuid.UUID | None = Field(default=None)
-    ticker: str = Field(..., description="Asset ticker symbol")
-    quantity: float = Field(..., description="Number of shares")
-    avg_price: float = Field(..., description="Average purchase price")
-    asset_type: str | None = Field(default=None)
-    notes: str | None = Field(default=None)
-
-
-class PortfolioCreateSchema(BaseModel):
-    """Input schema for creating a portfolio via JSON body."""
-
-    name: str = Field(..., min_length=1, max_length=100, description="Portfolio name")
-    assets: list[PortfolioAssetInput] = Field(..., min_length=1, description="Portfolio assets")
-
-
-class PortfolioSchema(BaseModel):
-    """Schema for a portfolio with its assets."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
-
-    id: uuid.UUID = Field(...)
-    name: str = Field(...)
-    assets: list[PortfolioAssetSchema] = Field(default_factory=list)
-    source_filename: str | None = Field(
-        default=None, description="Original spreadsheet filename (if uploaded)"
-    )
-    created_at: datetime | None = Field(default=None)
-    updated_at: datetime | None = Field(default=None)
