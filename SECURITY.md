@@ -63,7 +63,7 @@ The following are **in scope** for security reports:
 The following are **out of scope**:
 
 - **Anti-bot behavior of the HTTP client** (`crawler/services/request_manager.py`). The use of `curl_cffi` (TLS fingerprinting) and `nodriver` (headless browser) is a documented **resilience strategy** for transient blocks — see `docs/ARCHITECTURE.md` → "Tiered HTTP Client". It is not considered a vulnerability of this project.
-- **Third-party site behavior**: blocks, rate limits, ToS enforcement, or legal actions taken by data providers (B3, StatusInvest, Fundamentus, Yahoo Finance) against operators of this software. Compliance with Terms of Service and `robots.txt` is the operator's responsibility — see [LEGAL DISCLAIMER in LICENSE](./LICENSE).
+- **Third-party site behavior**: blocks, rate limits, ToS enforcement, or legal actions taken by data providers (B3, CVM Dados Abertos, Yahoo Finance) against operators of this software. Compliance with Terms of Service and `robots.txt` is the operator's responsibility — see [LEGAL DISCLAIMER in LICENSE](./LICENSE).
 - **Denial-of-service against this repository itself** through automated tooling (Dependabot, CI minutes, etc.) when the underlying configuration is correct.
 - **Issues requiring physical access** to a host already compromised, or requiring an attacker who is already a project maintainer.
 
@@ -112,6 +112,33 @@ Two implications for security reports:
 2. **Commercial use requires independent legal review.** If you intend to deploy this software in a commercial context, evaluate ToS compliance, data licensing, and applicable regulations (LGPD/GDPR, market data redistribution rules) before reporting "lack of compliance features" as a vulnerability.
 
 Reports that fall under these two cases will be acknowledged and closed as `out-of-scope`. Genuine technical vulnerabilities — even when discovered while exercising scraping behavior — remain in scope and welcome.
+
+---
+
+## Data source takedown requests
+
+If you are a content publisher (newsroom, regulator, market data provider) and
+you have observed an instance of this crawler collecting or redistributing
+your content and want it stopped or removed, contact the **operator** of the
+deployment you observed — not the upstream repository maintainers.
+
+A starting point: every request emitted by a properly-configured deployment
+carries an RFC 9110 `From:` header (see `CRAWLER_CONTACT_EMAIL` in
+`crawler/services/config.py`). That email is the operator's documented
+takedown channel for that deployment.
+
+For the **rendaraq** deployment specifically, takedown requests should go to
+the channel listed on the rendaraq website (`/about/data-sources` or the
+footer contact). Reports filed against the upstream repository will be
+acknowledged but cannot remove data held by individual deployments.
+
+Operators can disable a source instantly without a deploy via:
+
+```sql
+UPDATE data_sources SET enabled = false WHERE slug = '<slug>';
+```
+
+See `docs/PRODUCTION_LEGAL_CHECKLIST.md` for the full takedown workflow.
 
 ---
 

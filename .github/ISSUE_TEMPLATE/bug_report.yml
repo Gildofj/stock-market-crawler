@@ -20,10 +20,12 @@ body:
       options:
         - API (FastAPI / routers)
         - Crawler Engine (enrichment chain)
-        - Spider — B3 / yfinance
-        - Spider — Fundamentus
-        - Spider — StatusInvest
+        - Spider — B3 / yfinance (prices)
+        - Spider — CVM (DFP/ITR fundamentals)
         - Spider — Macro
+        - Spider — News (RSS)
+        - Spider — RI (CVM filings)
+        - Financial calculator (formulas)
         - Database / Alembic migrations
         - Reliability scoring
         - Infra (Docker, docker-compose, Render)

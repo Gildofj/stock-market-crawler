@@ -5,7 +5,28 @@ from loguru import logger
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
-from ..models.schemas import LakeInsightSchema, LakeNewsSchema, LakeRIDocumentSchema
+from ..models.schemas import (
+    LakeInsightSchema,
+    LakeNewsSchema,
+    LakeRIDocumentInternalSchema,
+)
+from .source_registry import SourceNotFoundError, get_source_registry
+
+
+def _resolve_source_id(slug: str | None) -> uuid.UUID | None:
+    """Best-effort lookup of a slug → data_sources.id. Returns None on miss.
+
+    Persistence stays nullable on purpose: a missing slug is a soft signal
+    (e.g. enrichment from a legacy spider that hasn't been wired yet), not
+    a reason to drop the row.
+    """
+    if not slug:
+        return None
+    try:
+        return uuid.UUID(get_source_registry().get(slug).id)
+    except SourceNotFoundError:
+        logger.warning(f"LakeService: unknown source slug {slug!r}; persisting without FK.")
+        return None
 
 
 class LakeService:
@@ -17,17 +38,22 @@ class LakeService:
             self.db.query(LakeNews).filter(LakeNews.url_hash == payload.url_hash).first()
         )
 
+        source_id = _resolve_source_id(payload.source)
+
         if existing:
             existing.title = payload.title
             existing.summary = payload.summary
             existing.sentiment = payload.sentiment
             existing.published_at = payload.published_at
+            if source_id is not None and existing.source_id is None:
+                existing.source_id = source_id
             self._sync_tickers(existing, payload.tickers)
             self.db.commit()
             return existing
 
         news = LakeNews(
             source=payload.source,
+            source_id=source_id,
             title=payload.title,
             summary=payload.summary,
             url=payload.url,
@@ -72,15 +98,18 @@ class LakeService:
 
     def upsert_ri_document(
         self,
-        payload: LakeRIDocumentSchema,
+        payload: LakeRIDocumentInternalSchema,
         company_id: uuid.UUID | None = None,
         r2_key: str | None = None,
+        source_slug: str = "cvm",
     ) -> LakeRIDocument:
         existing = (
             self.db.query(LakeRIDocument)
             .filter(LakeRIDocument.doc_id == payload.doc_id)
             .first()
         )
+        source_id = _resolve_source_id(source_slug)
+
         if existing:
             existing.title = payload.title
             existing.text_excerpt = payload.text_excerpt
@@ -88,6 +117,8 @@ class LakeService:
             existing.reference_date = payload.reference_date
             existing.category = payload.category
             existing.ticker = payload.ticker.upper()
+            if source_id is not None and existing.source_id is None:
+                existing.source_id = source_id
             if r2_key is not None:
                 existing.r2_key = r2_key
             if payload.r2_public_url is not None:
@@ -108,6 +139,7 @@ class LakeService:
             reference_date=payload.reference_date,
             r2_key=r2_key,
             r2_public_url=payload.r2_public_url,
+            source_id=source_id,
         )
         self.db.add(document)
         try:

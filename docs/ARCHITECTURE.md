@@ -19,10 +19,12 @@ crawler/
 │                             #   (Graham/Bazin valuation, Quality Score)
 ├── spiders/
 │   ├── base_spider.py        # Abstract BaseSpider contract
-│   ├── b3_spider.py          # B3/yfinance (bulk price fetching)
-│   ├── fundamentus_spider.py # Fallback #1 — Fundamentus.com.br
-│   ├── statusinvest_spider.py# Fallback #2 — StatusInvest API + profile pages
-│   └── macro_spider.py       # Macro indicators (SELIC, IPCA, USD, etc.)
+│   ├── b3_spider.py          # B3/yfinance bulk prices + market cap
+│   ├── cvm_spider.py         # Raw DFP/ITR statements -> universal indicators
+│   │                         #   computed locally via financial_calculator
+│   ├── macro_spider.py       # Macro indicators (SELIC, IPCA, USD, etc.)
+│   ├── news_spider.py        # RSS news ingestion
+│   └── ri_spider.py          # CVM RI filings (ITR/DFP/IPE/FRE)
 ├── services/
 │   ├── request_manager.py    # Tiered HTTP client: curl_cffi + headless browser
 │   │                         # Concurrency-capped browser semaphore for CI
@@ -76,12 +78,14 @@ GitHub Actions matrix [0..9] @ 02:00 UTC
          for symbol in sub_batch
        )
             ↓
-            [Enrichment Chain]
-            FundamentusSpider.enrich_async()   ← Fallback #1 if incomplete
-                ↓
-            StatusInvestSpider.crawl_ticker_async()
-                                               ← Fallback #2 (also fetches
-                                                 company metadata for new ones)
+            [Enrichment Chain — clean-room only]
+            CVMSpider.enrich_async()           ← Raw DFP/ITR statements from
+                                                 CVM Dados Abertos. The
+                                                 financial_calculator module
+                                                 derives every universal
+                                                 indicator (P/L, P/VP, ROE,
+                                                 ROIC, EV/EBITDA, margins,
+                                                 debt ratios) locally.
             ↓
             CrawlerEngine._calculate_advanced_metrics()
                                                ← Graham, Bazin, Quality Score

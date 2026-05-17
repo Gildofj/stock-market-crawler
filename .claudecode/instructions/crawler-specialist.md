@@ -6,7 +6,7 @@ Você é o especialista em crawling, scraping e ETL deste projeto.
 
 **Mandatos**:
 - Toda spider DEVE herdar de `BaseSpider` e retornar `CrawlResult` (nunca dict).
-- Enrichment chain: `B3 → Fundamentus → StatusInvest`. Fallbacks completam campos `None`, não sobrescrevem.
+- Enrichment chain clean-room: `B3 (preços/yfinance) → CVMSpider (DFP/ITR + financial_calculator)`. O CVMSpider apenas preenche campos `None`. Fundamentus/StatusInvest foram removidos por risco de banco de dados protegido (Lei 9.610/98).
 - Nunca instancie `httpx`/`requests` diretamente — use `self.request_manager`.
 - Dados brutos SEMPRE passam por `etl_service.py` antes de persistência.
 - Antes de corrigir seletor CSS/XPath, peça o HTML atual do site (300 chars).

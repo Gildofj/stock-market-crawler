@@ -23,6 +23,44 @@ from sqlalchemy.sql import func
 from ..services.database import Base
 
 
+class DataSource(Base):
+    """Canonical registry of every third-party data source the crawler talks to.
+
+    Used for three things:
+
+    * UI attribution — every API response can join here to expose ``via X``
+      with a clickable link back to the source homepage.
+    * DMCA / takedown response — flipping ``enabled`` to False stops new
+      collection from that source immediately (no deploy) and lets the
+      operator filter affected rows via the per-table ``source_id`` FK.
+    * Public transparency endpoint (`GET /sources`) so anyone can audit
+      which feeds power the deployment.
+    """
+
+    __tablename__ = "data_sources"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Short stable identifier used in code (e.g. ``'cvm'``, ``'infomoney'``).
+    slug: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    homepage_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    tos_url: Mapped[str | None] = mapped_column(String(500))
+    # 'public-domain' | 'rss-fair-use' | 'tos-restricted' | 'unknown'
+    license_label: Mapped[str | None] = mapped_column(String(60))
+    legal_basis: Mapped[str | None] = mapped_column(Text)
+    contact_email: Mapped[str | None] = mapped_column(String(255))
+    # 'low' | 'medium' | 'high' — informal heuristic; see DISCLAIMER.md.
+    risk_tier: Mapped[str] = mapped_column(String(10), nullable=False, default="medium")
+    # Operator kill switch: spiders skip on False, /sources hides on False.
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Company(Base):
     __tablename__ = "companies"
 
@@ -35,6 +73,11 @@ class Company(Base):
     is_active: Mapped[int] = mapped_column(Integer, default=1)  # 1 for Active, 0 for Inactive
     logo_url: Mapped[str | None] = mapped_column(String(500))
     website: Mapped[str | None] = mapped_column(String(255))
+    # Provenance: which spider populated the metadata (name/sector/logo).
+    # Nullable for legacy rows; new rows should populate via SourceRegistry.
+    metadata_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -46,6 +89,9 @@ class Company(Base):
     )
     reliability: Mapped["CompanyReliability | None"] = relationship(
         "CompanyReliability", back_populates="company", uselist=False
+    )
+    metadata_source: Mapped["DataSource | None"] = relationship(
+        "DataSource", foreign_keys=[metadata_source_id]
     )
 
 
@@ -62,10 +108,16 @@ class StockPrice(Base):
     close: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     adj_close: Mapped[float | None] = mapped_column(Numeric(12, 4))
     volume: Mapped[int | None] = mapped_column(BIGINT)
+    # Provenance: which spider produced this row (e.g. yfinance, b3). Nullable
+    # for legacy rows. Populated via SourceRegistry from new spiders.
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
+    )
 
     __table_args__ = (PrimaryKeyConstraint("time", "company_id"),)
 
     company: Mapped["Company"] = relationship("Company", back_populates="prices")
+    source: Mapped["DataSource | None"] = relationship("DataSource")
 
 
 class Fundamental(Base):
@@ -106,11 +158,19 @@ class Fundamental(Base):
     valuation_bazin: Mapped[float | None] = mapped_column(Numeric(12, 4))
 
     quality_score: Mapped[int | None] = mapped_column(Integer)
+    # Provenance: the *last* spider to touch this snapshot in the enrichment
+    # chain (b3 prices → cvm fundamentals). For per-field attribution,
+    # `contributing_sources` lists every slug that contributed.
+    primary_source_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
+    )
+    contributing_sources: Mapped[list[str] | None] = mapped_column(JSON)
     collected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
     company: Mapped["Company"] = relationship("Company", back_populates="fundamentals")
+    primary_source: Mapped["DataSource | None"] = relationship("DataSource")
 
 
 class MLFeature(Base):
@@ -196,6 +256,8 @@ class LakeNews(Base):
     __tablename__ = "lake_news"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Legacy free-form source label (e.g. "infomoney"). Kept for backwards
+    # compatibility; new code should prefer the FK below for provenance.
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     summary: Mapped[str | None] = mapped_column(Text)
@@ -203,11 +265,17 @@ class LakeNews(Base):
     url_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     sentiment: Mapped[str | None] = mapped_column(String(20))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    # Canonical provenance link. Nullable so existing rows are not blocked;
+    # populated for every new row via SourceRegistry.
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tickers: Mapped[list["LakeNewsTicker"]] = relationship(
         "LakeNewsTicker", back_populates="news", cascade="all, delete-orphan"
     )
+    data_source: Mapped["DataSource | None"] = relationship("DataSource")
 
 
 class LakeNewsTicker(Base):
@@ -237,9 +305,18 @@ class LakeRIDocument(Base):
     pdf_url: Mapped[str | None] = mapped_column(String(1000))
     text_excerpt: Mapped[str | None] = mapped_column(Text)
     reference_date: Mapped[date | None] = mapped_column(Date)
+    # Legacy: mirror columns kept for backwards compatibility; new rows leave
+    # them NULL (see ``crawler/services/storage_service.py`` upload_ri_pdf).
     r2_key: Mapped[str | None] = mapped_column(String(500))
     r2_public_url: Mapped[str | None] = mapped_column(String(1000))
+    # Always CVM today, but keeping the FK lets the operator disable RI
+    # collection centrally via the registry kill-switch.
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    data_source: Mapped["DataSource | None"] = relationship("DataSource")
 
 
 class LakeInsightCache(Base):

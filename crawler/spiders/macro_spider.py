@@ -4,6 +4,7 @@ from loguru import logger
 
 from ..services.data_service import DataService
 from ..services.request_manager import RequestManager
+from ..services.source_registry import get_source_registry
 
 
 class MacroSpider:
@@ -23,6 +24,9 @@ class MacroSpider:
         self.request_manager = request_manager or RequestManager()
 
     def crawl_macro_indicators(self):
+        if not get_source_registry().is_enabled("bcb"):
+            logger.info("MacroSpider: 'bcb' source disabled — skipping crawl.")
+            return
         logger.info("Fetching macroeconomic indicators from BCB...")
 
         # BCB daily series (like SELIC) require a date window (max 10 years)

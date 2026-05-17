@@ -6,16 +6,22 @@ import pandas as pd
 import pdfplumber
 from loguru import logger
 
-from ..models.schemas import LakeRIDocumentSchema
+from ..models.schemas import LakeRIDocumentInternalSchema
 from ..services.cnpj_map import resolve_ticker, watched_cnpjs
 from ..services.data_service import DataService
 from ..services.lake_service import LakeService
 from ..services.request_manager import RequestManager
-from ..services.storage_service import R2Storage, get_storage
+from ..services.source_registry import get_source_registry
 
 
 class RISpider:
-    """Collects Brazilian RI documents (ITR/DFP/IPE) from CVM open data."""
+    """Collects Brazilian RI documents (ITR/DFP/IPE) from CVM open data.
+
+    PDFs are *not* mirrored. Persisted records keep the upstream CVM URL
+    (``pdf_url``) and a length-capped text excerpt extracted in-memory; both
+    the public R2 mirror and the bucket key are intentionally unset. See
+    DISCLAIMER.md for the rationale.
+    """
 
     IPE_URL_TEMPLATE = (
         "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/"
@@ -30,12 +36,10 @@ class RISpider:
         data_service: DataService,
         lake_service: LakeService,
         request_manager: RequestManager | None = None,
-        storage: R2Storage | None = None,
     ):
         self.data_service = data_service
         self.lake_service = lake_service
         self.request_manager = request_manager or RequestManager()
-        self.storage = storage or get_storage()
 
     def _fetch_index_csv(self, year: int) -> pd.DataFrame | None:
         url = self.IPE_URL_TEMPLATE.format(year=year)
@@ -79,11 +83,6 @@ class RISpider:
             return None
 
     @staticmethod
-    def _r2_key_for(ticker: str, doc_id: str) -> str:
-        safe_doc_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in doc_id)
-        return f"{ticker.upper()}/{safe_doc_id}.pdf"
-
-    @staticmethod
     def _coerce_date(value: Any) -> date | None:
         if value is None:
             return None
@@ -102,6 +101,12 @@ class RISpider:
         return None
 
     def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
+        # Operator kill-switch: disabling 'cvm' in data_sources halts new
+        # collection without a deploy. Existing rows are unaffected.
+        if not get_source_registry().is_enabled("cvm"):
+            logger.info("RISpider: 'cvm' source disabled — skipping crawl.")
+            return 0
+
         cutoff = datetime.utcnow().date() - timedelta(days=days_back)
         target_year = year or datetime.utcnow().year
         df = self._fetch_index_csv(target_year)
@@ -144,22 +149,18 @@ class RISpider:
                 str(pdf_url_raw) if pdf_url_raw and pd.notna(pdf_url_raw) else None
             )
 
+            # PDFs are fetched only to extract the text excerpt; the bytes are
+            # never mirrored. The upstream CVM URL is the only redistributable
+            # reference we keep.
             text: str | None = None
-            r2_key: str | None = None
-            r2_public_url: str | None = None
             if pdf_url:
                 pdf_bytes = self._fetch_pdf_bytes(pdf_url)
                 if pdf_bytes:
                     text = self._extract_pdf_text(pdf_bytes, pdf_url)
-                    upload = self.storage.upload_ri_pdf(
-                        self._r2_key_for(ticker, doc_id), pdf_bytes
-                    )
-                    if upload:
-                        r2_key, r2_public_url = upload
 
             ref_value = row.get("Data_Referencia") or (row.get(date_col) if date_col else None)
 
-            payload = LakeRIDocumentSchema(
+            payload = LakeRIDocumentInternalSchema(
                 doc_id=doc_id,
                 ticker=ticker,
                 category=str(row.get("Categoria") or "UNKNOWN"),
@@ -167,7 +168,7 @@ class RISpider:
                 pdf_url=pdf_url,
                 text_excerpt=text,
                 reference_date=self._coerce_date(ref_value),
-                r2_public_url=r2_public_url,
+                r2_public_url=None,
             )
 
             company = self.data_service.get_company_by_symbol(ticker)
@@ -175,7 +176,7 @@ class RISpider:
 
             try:
                 self.lake_service.upsert_ri_document(
-                    payload, company_id=company_id, r2_key=r2_key
+                    payload, company_id=company_id, r2_key=None
                 )
                 persisted += 1
             except Exception as e:

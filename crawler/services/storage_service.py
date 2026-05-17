@@ -1,14 +1,21 @@
 """Cloudflare R2 storage client (S3-compatible).
 
-Two buckets are used:
+Active surface:
 
-* ``ri-docs`` — **public**, CDN-served. CVM filings are public records.
 * ``portfolios`` — **private**, accessed via short-lived presigned URLs.
+
+Legacy surface (kept for backwards compatibility, not used by current
+spiders):
+
+* ``ri-docs`` — was a public CDN-served mirror of CVM PDFs. Mirroring was
+  removed because the upstream CVM URL is already public, durable, and
+  free of redistribution claims. ``upload_ri_pdf`` is preserved so existing
+  Terraform / env stays valid; new callers must not use it. See
+  ``DISCLAIMER.md`` for rationale.
 
 The client degrades gracefully when R2 credentials are not configured: every
 write returns ``None`` and every read returns ``None``. This lets local /
-free-tier deployments run without R2 set up, falling back to text-only
-storage in Postgres.
+free-tier deployments run without R2 set up.
 """
 
 from __future__ import annotations
@@ -66,30 +73,23 @@ class R2Storage:
         body: bytes,
         content_type: str = "application/pdf",
     ) -> tuple[str, str | None] | None:
-        """Uploads a PDF to the public RI bucket.
+        """DEPRECATED. Mirroring CVM PDFs is no longer supported.
 
-        Returns ``(key, public_url)`` on success, ``None`` if R2 is disabled
-        or the upload fails. ``public_url`` is ``None`` when the public base
-        URL is not configured (caller may build it later).
+        Calling this raises a ``DeprecationWarning`` and uploads nothing.
+        The method signature is preserved so old deploys keep importing,
+        but every invocation is a no-op returning ``None``. Drop the call
+        and store the upstream CVM URL instead — that is the canonical,
+        legally clean reference.
         """
-        client = self._client_or_none()
-        if client is None:
-            return None
-        try:
-            client.put_object(
-                Bucket=settings.R2_BUCKET_RI_DOCS,
-                Key=key,
-                Body=body,
-                ContentType=content_type,
-            )
-        except Exception as e:
-            logger.error(f"R2: upload_ri_pdf failed for {key}: {e}")
-            return None
+        import warnings
 
-        public_url: str | None = None
-        if settings.R2_RI_PUBLIC_BASE_URL:
-            public_url = f"{settings.R2_RI_PUBLIC_BASE_URL.rstrip('/')}/{key}"
-        return key, public_url
+        warnings.warn(
+            "R2Storage.upload_ri_pdf is deprecated and a no-op. "
+            "Store the upstream CVM URL (pdf_url) instead of mirroring the PDF.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return None
 
     def upload_portfolio_file(
         self,

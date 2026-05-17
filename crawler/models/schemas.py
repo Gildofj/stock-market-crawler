@@ -68,13 +68,38 @@ class UserSchema(BaseModel):
     is_premium: bool = Field(default=False, description="Premium plan flag")
 
 
+class SourceAttributionSchema(BaseModel):
+    """Attribution block surfaced on every record that came from a third party.
+
+    The front-end uses this to render "via {display_name}" with a link back
+    to the original. The slug is also the kill-switch handle: if a takedown
+    is filed and the operator sets ``data_sources.enabled=false``, the slug
+    here still identifies which past records the complaint affected.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
+
+    slug: str = Field(..., description="Stable source identifier (e.g. 'cvm', 'infomoney').")
+    display_name: str = Field(..., description="Human-readable source name shown in the UI.")
+    homepage_url: str = Field(..., description="Source homepage; click-through target for 'via X'.")
+    original_url: str | None = Field(
+        default=None,
+        description="Specific upstream URL for this record (e.g. CVM PDF, news article).",
+    )
+
+
 class LakeNewsSchema(BaseModel):
-    """Schema for news item collected from RSS feeds."""
+    """Schema for news item collected from RSS feeds.
+
+    Attribution (``source`` + ``url``) is part of the contract: every news
+    response surfaces both fields so the consumer can render "via {source}"
+    with a click-through link.
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
 
     id: uuid.UUID | None = Field(default=None)
-    source: str = Field(..., description="Feed source identifier")
+    source: str = Field(..., description="Feed source identifier (legacy free-form slug).")
     title: str = Field(..., description="News headline")
     summary: str | None = Field(default=None, description="News summary / excerpt")
     url: str = Field(..., description="Original article URL")
@@ -85,21 +110,48 @@ class LakeNewsSchema(BaseModel):
 
 
 class LakeRIDocumentSchema(BaseModel):
-    """Schema for RI document (CVM public filing)."""
+    """Public schema for an RI document (CVM filing).
+
+    Intentionally omits ``text_excerpt`` and ``r2_public_url``:
+    * ``text_excerpt`` lives in the DB so internal AI consumers can read it,
+      but is not part of the public API contract.
+    * ``r2_public_url`` is a legacy mirror field that is no longer populated.
+
+    See ``LakeRIDocumentInternalSchema`` for the unfiltered variant intended
+    for in-process consumers (LagoAI insight pipeline).
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
 
     id: uuid.UUID | None = Field(default=None)
     doc_id: str = Field(..., description="Unique CVM document identifier")
     ticker: str = Field(..., description="Associated ticker symbol")
-    category: str = Field(..., description="Document category (ITR, DFP, NSD)")
+    category: str = Field(..., description="Document category (ITR, DFP, IPE, etc.)")
     title: str = Field(..., description="Document title")
-    pdf_url: str | None = Field(default=None, description="Upstream CVM PDF URL")
-    text_excerpt: str | None = Field(default=None, description="First chunk of extracted text")
-    reference_date: date | None = Field(default=None, description="Reference date of the document")
-    r2_public_url: str | None = Field(
+    pdf_url: str | None = Field(
         default=None,
-        description="CDN-served URL of the mirrored PDF in Cloudflare R2 (public bucket)",
+        description="Upstream CVM PDF URL — canonical reference.",
+    )
+    reference_date: date | None = Field(default=None, description="Reference date of the document")
+    pdf_source: str = Field(
+        default="CVM (dados.cvm.gov.br)",
+        description="Static attribution string for the original publisher.",
+    )
+
+
+class LakeRIDocumentInternalSchema(LakeRIDocumentSchema):
+    """Internal RI schema with the full text excerpt + mirror fields.
+
+    Used by in-process consumers (e.g. the LagoAI insight generator) that
+    need the text body to reason about the filing. **Never** returned by
+    public HTTP routes — they always use the parent class.
+    """
+
+    text_excerpt: str | None = Field(
+        default=None, description="First chunk of extracted text (legacy column)."
+    )
+    r2_public_url: str | None = Field(
+        default=None, description="Deprecated mirror URL — kept for backwards compat."
     )
 
 

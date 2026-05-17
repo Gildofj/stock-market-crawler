@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Gildo FJ
+Copyright (c) 2026 gildofj.dev
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,6 @@ SOFTWARE.
 
 This project was developed for **educational and research purposes only**. It demonstrates web scraping and data pipeline architecture techniques.
 
-1. **Compliance**: Users are solely responsible for ensuring that their use of this software complies with the Terms of Service (ToS) and `robots.txt` of any target websites (e.g., B3, StatusInvest, Fundamentus).
+1. **Compliance**: Users are solely responsible for ensuring that their use of this software complies with the Terms of Service (ToS) and `robots.txt` of any target websites (e.g., B3 arquivos, CVM Dados Abertos, Yahoo Finance via `yfinance`). Fundamental indicators are computed locally from raw CVM open data — no proprietary aggregator is queried by the default configuration.
 2. **Commercial Use**: Redistribution of scraped data for commercial purposes may violate the proprietary rights of the data providers.
 3. **No Warranty**: The author assumes no responsibility for any misuse of this tool or for any blocks, legal actions, or damages resulting from its use.

@@ -75,7 +75,10 @@ variable "r2_api_token" {
 }
 
 variable "r2_bucket_ri_docs" {
-  description = "R2 bucket name for public RI PDFs (CVM filings)."
+  # LEGACY. RI PDFs are no longer mirrored — the upstream CVM URL is the
+  # canonical reference. This variable is kept so existing tfvars / env stay
+  # valid; the bucket can be drained manually when comfortable.
+  description = "(Legacy) Former public mirror bucket for CVM RI PDFs. No longer written to."
   type        = string
   default     = "ri-docs"
 }
@@ -87,7 +90,8 @@ variable "r2_bucket_portfolios" {
 }
 
 variable "r2_ri_public_base_url" {
-  description = "Public base URL for the RI bucket (e.g. https://pub-<hash>.r2.dev or a CNAME)."
+  # LEGACY. See `r2_bucket_ri_docs`. Kept to avoid breaking existing deploys.
+  description = "(Legacy) Former public base URL for the RI mirror bucket."
   type        = string
   default     = ""
 }

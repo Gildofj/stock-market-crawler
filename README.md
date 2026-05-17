@@ -7,7 +7,7 @@
 
 A high-performance stock market crawler and REST API for the Brazilian financial market (B3). Built with **FastAPI**, **asyncio**, **GitHub Actions**, and **Clean Architecture**.
 
-> :warning: **Educational & research purposes only.** Compliance with the Terms of Service and `robots.txt` of target sites (B3, StatusInvest, Fundamentus, Yahoo Finance) is the operator's responsibility. See the [LEGAL DISCLAIMER in LICENSE](./LICENSE) before deploying.
+> :warning: **Operator-responsibility tool.** Compliance with the Terms of Service and `robots.txt` of target sites (B3, CVM Dados Abertos, Yahoo Finance) is the operator's responsibility. The fundamentals pipeline reads raw CVM open-data statements and computes every indicator locally — no proprietary aggregator is touched. Released under the [MIT License](./LICENSE) — see [`DISCLAIMER.md`](./DISCLAIMER.md) for the per-source legal status and the takedown channel before deploying commercially.
 
 ---
 
@@ -15,7 +15,7 @@ A high-performance stock market crawler and REST API for the Brazilian financial
 
 - **🚀 High Performance**: FastAPI + Uvicorn with Redis caching for sub-millisecond responses.
 - **⚡ Async Batch Crawling**: `asyncio` engine with sub-batches of 100 tickers, parallel enrichment (`Semaphore(15)`), and yfinance bulk price fetching — runs daily on a 10-chunk GitHub Actions matrix.
-- **🔗 Enrichment Chain**: Multi-source resilience — B3/yfinance → Fundamentus → StatusInvest. Each source fills gaps left by the previous.
+- **🔗 Clean-room Enrichment Chain**: B3/yfinance for prices (facts — Lei 9.610/98 Art. 8º), then `CVMSpider` reads raw DFP/ITR statements from CVM Dados Abertos and the in-process `financial_calculator` derives every universal indicator (P/L, P/VP, ROE, ROIC, EV/EBITDA, margins, Graham, Bazin) using public-domain formulas.
 - **🌐 Tiered HTTP Client**: Tier-1 `curl_cffi` with rotating User-Agents and realistic headers; Tier-2 fallback to a headless browser (`nodriver`) for JS-heavy pages.
 - **🏅 Reliability Scoring**: `ReliabilityService` computes a composite company reliability score and grade, queryable via API.
 - **📊 Rich Data**:
@@ -40,33 +40,39 @@ A high-performance stock market crawler and REST API for the Brazilian financial
 ### Local Setup
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/gildofj/stock-market-crawler.git
    cd stock-market-crawler
    ```
 
 2. **Environment variables**:
+
    ```bash
    cp .env.example .env
    # Edit .env with your local credentials
    ```
 
 3. **Install dependencies**:
+
    ```bash
    uv sync
    ```
 
 4. **Start infrastructure**:
+
    ```bash
    docker-compose up -d
    ```
 
 5. **Apply migrations**:
+
    ```bash
    uv run alembic upgrade head
    ```
 
 6. **Run the crawler**:
+
    ```bash
    uv run python main.py
    # Or use a specific shard (used in GHA):
@@ -81,6 +87,7 @@ A high-performance stock market crawler and REST API for the Brazilian financial
 ### API Documentation
 
 Once running, access the interactive docs at:
+
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
@@ -98,8 +105,9 @@ Once running, access the interactive docs at:
 ├── crawler/                   # Core Domain (Crawler + ETL)
 │   ├── engine/
 │   │   └── crawler_engine.py  # Enrichment chain orchestration + advanced metrics
-│   ├── spiders/               # base_spider, b3_spider, fundamentus_spider,
-│   │                          # statusinvest_spider, macro_spider
+│   ├── spiders/               # base_spider, b3_spider (prices),
+│   │                          # cvm_spider (raw DFP/ITR fundamentals),
+│   │                          # macro_spider, news_spider, ri_spider
 │   ├── services/
 │   │   ├── request_manager.py # Tier-1 curl_cffi + Tier-2 nodriver stealth
 │   │   ├── data_service.py    # CRUD (SQLAlchemy)
@@ -152,4 +160,4 @@ Contributions are welcome! Please read:
 
 MIT License — see [LICENSE](LICENSE).
 
-Developed by **[Gildo FJ](https://gildofj.dev)**.
+Developed by **[gildofj.dev](https://gildofj.dev)**.

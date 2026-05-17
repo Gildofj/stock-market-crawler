@@ -55,5 +55,5 @@ Após corrigir o seletor, atualize o `FIXTURE_HTML` no teste unitário com o HTM
 ## ⚠️ Regras
 - Nunca corrija seletores sem ter o HTML atual em mãos.
 - Nunca atualize testes com HTML antigo — o teste vai passar mas a prod vai falhar.
-- Sites BR (Fundamentus, StatusInvest) mudam layout frequentemente. Sempre verifique ao debugar.
+- Endpoints públicos (CVM Dados Abertos, B3 arquivos, RSS) podem alterar schema/CSV. Sempre verifique a fonte oficial antes de corrigir parser.
 - Se o bloqueio for por IP: tente com `curl_cffi` ou cabeçalhos de browser real no `request_manager`.

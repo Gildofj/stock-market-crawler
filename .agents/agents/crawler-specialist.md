@@ -13,7 +13,7 @@ Especialista em sistemas de crawling, scraping e ETL. Prioridade: extração res
 ## 🛠️ Mandatos Técnicos
 1. **BaseSpider**: Toda spider DEVE herdar de `BaseSpider`. Nunca crie scrapers standalone.
 2. **CrawlResult**: Use `CrawlResult` como único contêiner de dados entre spiders. Nunca retorne `dict` cru.
-3. **Enrichment Chain**: Respeite a hierarquia `B3 → Fundamentus → StatusInvest`. Fallbacks enriquecem campos ausentes, não substituem dados existentes.
+3. **Enrichment Chain (clean-room)**: Respeite a hierarquia `B3 (preços/yfinance) → CVM (DFP/ITR + financial_calculator)`. O `CVMSpider` apenas preenche campos ausentes — nunca sobrescreve dados existentes no `CrawlResult`. Spiders proprietários (Fundamentus/StatusInvest) foram removidos por proteção de banco de dados sob Lei 9.610/98.
 4. **RequestManager**: Nunca instancie `httpx`/`requests` diretamente nas spiders. Use `self.request_manager` injetado.
 5. **ETL Obrigatório**: Dados brutos de spiders SEMPRE passam por `etl_service.py` antes de qualquer persistência.
 6. **Seletores**: CSS selectors por padrão. XPath apenas para navegação complexa de DOM (ex: eixo `ancestor::`).

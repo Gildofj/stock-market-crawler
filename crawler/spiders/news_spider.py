@@ -9,6 +9,7 @@ from loguru import logger
 from ..models.schemas import LakeNewsSchema
 from ..services.data_service import DataService
 from ..services.lake_service import LakeService
+from ..services.source_registry import get_source_registry
 
 TICKER_PATTERN = re.compile(r"\b([A-Z]{4}[0-9]{1,2})\b")
 
@@ -66,8 +67,14 @@ class NewsSpider:
             logger.warning("NewsSpider: no known tickers — skipping all feeds.")
             return 0
 
+        registry = get_source_registry()
         persisted = 0
         for source, url in self.FEEDS.items():
+            # Operator kill-switch: an UPDATE on data_sources.enabled stops the
+            # spider from re-collecting from this feed within ~30s (cache TTL).
+            if not registry.is_enabled(source):
+                logger.info(f"NewsSpider: skipping disabled source: {source}")
+                continue
             try:
                 feed = feedparser.parse(url)
             except Exception as e:

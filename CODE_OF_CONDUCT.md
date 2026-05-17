@@ -29,7 +29,7 @@ Examples of unacceptable behavior include:
 Because this project performs **web scraping** of public financial data sources, contributors and maintainers commit to the following additional principles:
 
 1. **Educational & Research Purpose**: This project exists for educational, research, and personal use, as stated in the [LICENSE](./LICENSE). Contributions that promote large-scale commercial redistribution of scraped data will not be accepted.
-2. **Respect for Data Providers**: Contributions must not deliberately violate the Terms of Service of target sites (B3, StatusInvest, Fundamentus, Yahoo Finance, etc.). When adding a new data source, contributors should attest that the source either permits programmatic access or that the use is educational/research-aligned.
+2. **Respect for Data Providers**: Contributions must not deliberately violate the Terms of Service of target sites (B3 arquivos, CVM Dados Abertos, Yahoo Finance via `yfinance`, RSS feeds). When adding a new data source, contributors should attest that the source either permits programmatic access or that the use is educational/research-aligned. Proprietary aggregators that build curated indicator databases (e.g. Fundamentus, StatusInvest, Investidor10) are intentionally out of scope — their indicator tables are protected as compilations under Lei 9.610/98.
 3. **No Bypass of Authentication**: Contributions that bypass login walls, paywalls, CAPTCHA challenges, or other access-control mechanisms will be rejected.
 4. **Responsible Disclosure**: Security vulnerabilities must be reported privately per [SECURITY.md](./SECURITY.md) — never in a public issue, PR, or discussion.
 

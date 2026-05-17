@@ -97,9 +97,11 @@ class RequestManager:
         """Generates realistic headers for a request."""
         from urllib.parse import urlparse
 
+        from crawler.services.config import settings
+
         domain = urlparse(url).netloc
 
-        return {
+        headers = {
             "User-Agent": random.choice(self.USER_AGENTS),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,"
             "image/avif,image/webp,*/*;q=0.8",
@@ -108,6 +110,12 @@ class RequestManager:
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
         }
+        # RFC 9110 `From:` — operator contact for robots. Surfaces only when the
+        # deployment explicitly opts in via `CRAWLER_CONTACT_EMAIL`. Sites that
+        # log this header can reach the operator without disabling collection.
+        if settings.CRAWLER_CONTACT_EMAIL:
+            headers["From"] = settings.CRAWLER_CONTACT_EMAIL
+        return headers
 
     async def _nodriver_get(self, url: str) -> StealthResponse:
         """Tier 2: Headless browser fallback using nodriver."""

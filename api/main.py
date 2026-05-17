@@ -10,7 +10,7 @@ from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
 from .limiter import close_rate_limiter, init_rate_limiter
-from .routers import companies, fundamentals, lake, portfolio, prices, reliability
+from .routers import companies, fundamentals, lake, portfolio, prices, reliability, sources
 from .security import CloudflareMiddleware, require_api_key
 
 if not os.getenv("API_KEY"):
@@ -45,14 +45,14 @@ app = FastAPI(
     * **Prices**: Historical and real-time stock quotes.
 
     ---
-    Developed by Gildo FJ.
+    Developed by gildofj.dev.
     """,
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     contact={
-        "name": "Gildo FJ",
+        "name": "gildofj.dev",
         "url": "https://gildofj.dev",
     },
     license_info={
@@ -85,6 +85,11 @@ tags_metadata = [
     {
         "name": "Portfolio",
         "description": "Premium portfolio management and enrichment.",
+    },
+    {
+        "name": "Transparency",
+        "description": "Public, unauthenticated metadata about the deployment "
+        "(data sources, attribution, takedown signals).",
     },
 ]
 app.openapi_tags = tags_metadata
@@ -127,6 +132,10 @@ app.include_router(prices.router, prefix="/api/v1", dependencies=api_dependencie
 app.include_router(reliability.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(lake.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
+
+# Transparency endpoint — intentionally public (no api_key, no premium gate).
+# Anyone can audit which sources are active in this deployment.
+app.include_router(sources.router, prefix="/api/v1")
 
 
 @app.get("/health")

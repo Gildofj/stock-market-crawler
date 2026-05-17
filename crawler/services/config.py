@@ -84,6 +84,13 @@ class Settings(BaseSettings):
     # Crawler Settings
     LOG_LEVEL: str = "INFO"
 
+    # Optional operator contact email. When set, the crawler attaches an RFC 9110
+    # `From:` header to every outbound request — the standard signal for "robot
+    # operator email". It is the recommended way for a commercial operator to
+    # identify themselves without disabling the realistic User-Agent rotation
+    # used to bypass anti-bot challenges. Empty means no header is sent.
+    CRAWLER_CONTACT_EMAIL: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("REDIS_URL", mode="before")

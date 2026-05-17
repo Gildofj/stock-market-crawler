@@ -13,8 +13,17 @@ When opening a pull request, add your entry under the `[Unreleased]` section usi
 
 ### Added
 
+- **Clean-room fundamentals pipeline**: `crawler/services/financial_calculator.py` implements every universal indicator (P/L, P/VP, ROE, ROIC, EV/EBITDA, margins, debt ratios, Graham, Bazin, CAGR) as pure functions over a `RawFinancials` dataclass.
+- **`CVMDatasetService`** downloads and caches CVM Dados Abertos ZIPs (DFP, ITR, CAD) under `$TMPDIR/cvm_cache` with a configurable TTL.
+- **`CVMSpider`** maps tickers to `CD_CVM`, extracts raw line items from DFP statements using account-code + descriptive fallbacks, and feeds the calculator to derive every indicator locally.
 - **`bootstrap-worker-vm.yml`** workflow (`workflow_dispatch`) — one-time, idempotent setup for the Celery worker VM: enables OS Login, installs `docker.io`, enables the daemon at boot, and sanity-checks `docker pull`.
 - **`docs/DEPLOYMENT.md`** now documents the three-job structure of `deploy.yml`, the bootstrap workflow, required IAM roles, and how the worker container is kept in sync.
+
+### Removed
+
+- **`FundamentusSpider` and `StatusInvestSpider`** — proprietary fundamentals scrapers. Their per-row numbers were facts (no IP protection), but the curated indicator databases they ship are protected as compilations under Lei 9.610/98. Indicators are now computed locally from raw CVM open data.
+- Logo and ticker-discovery fallbacks that scraped the proprietary aggregators. `LogoService` now resolves logos from each company's own website only; `TickerService` falls back to Brapi → B3 instruments CSV → CVM CAD → curated blue-chip list.
+- `data_sources` rows for `fundamentus` and `statusinvest` (migration `e5f6a7b8c9d0`), replaced by a new `b3` row covering the public B3 arquivos endpoint.
 
 ### Changed
 
@@ -39,7 +48,7 @@ Initial public-quality release. The crawler engine, FastAPI surface, enrichment 
 
 - **Community Health Files**: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1 + Ethical Use section), `SECURITY.md`, this `CHANGELOG.md`, and GitHub issue/PR templates under `.github/`.
 - **Reliability scoring**: `ReliabilityService` computes a composite reliability score and grade per company; exposed via dedicated router.
-- **Enrichment chain**: B3/yfinance → Fundamentus → StatusInvest with `CrawlResult` contract preserving partial results across sources.
+- **Enrichment chain**: B3/yfinance → Fundamentus → StatusInvest with `CrawlResult` contract preserving partial results across sources. *(The Fundamentus/StatusInvest stages were removed in the next unreleased iteration — see the `[Unreleased]` section above.)*
 - **Tiered HTTP client**: `curl_cffi` (Tier 1) with rotating User-Agents and exponential backoff; `nodriver` headless browser (Tier 2) as fallback for JS-heavy pages.
 - **Sharded crawl entrypoint**: `main.py --chunk N --total-chunks 10` for parallel execution across a GitHub Actions matrix.
 - **Observability stack**: Loguru → Promtail → Loki → Grafana provisioning under `grafana/`.

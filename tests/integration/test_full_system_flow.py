@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -10,20 +10,21 @@ from crawler.services.etl_service import ETLService
 
 
 def test_crawler_to_etl_full_flow(db_session, mocker):
+    """End-to-end pipeline with CVM-derived fundamentals (mocked).
+
+    The B3 spider supplies prices + market_cap (yfinance), and the CVM
+    spider supplies the universal indicators that the engine calculates
+    locally from the dataset. No proprietary scraper is involved.
     """
-    Tests the full flow from CrawlerEngine (mocked spiders) to Database,
-    including advanced metrics calculation and ML feature generation.
-    """
-    # 1. Setup Engine and Mocks
     engine = CrawlerEngine(db=db_session)
 
-    # Mock spiders to avoid network calls but simulate real data return
     mocker.patch.object(
         engine.b3_spider,
         "crawl_ticker",
         return_value=CrawlResult(
             symbol="FLOW3",
             name="Flow Corp",
+            market_cap=2_200_000_000,
             prices=[
                 {
                     "time": datetime(2023, 1, 1),
@@ -45,41 +46,29 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
         ),
     )
 
-    # Simulate enrichment from Fundamentus
-    mocker.patch.object(
-        engine.fundamentus_spider,
-        "crawl_ticker",
-        return_value=CrawlResult(
-            symbol="FLOW3",
-            p_l=10.0,
-            p_vp=2.0,
-            dy=5.0,
-            roe=15.0,
-            roic=12.0,
-            eps=10.0,
-            liquid_debt_ebitda=1.5,
-            cagr_revenue_5y=8.0,
-            net_margin=10.0,
-        ),
-    )
+    # Fundamentals computed locally — the spider returns indicator values that
+    # would normally come from running the calculator over CVM line items.
+    def _cvm_enrich(result: CrawlResult) -> None:
+        result.p_l = 10.0
+        result.p_vp = 2.0
+        result.dy = 5.0
+        result.roe = 15.0
+        result.roic = 12.0
+        result.eps = 10.0
+        result.liquid_debt_ebitda = 1.5
+        result.cagr_revenue_5y = 8.0
+        result.net_margin = 10.0
 
-    # Simulate enrichment from StatusInvest
-    mocker.patch.object(
-        engine.status_spider, "crawl_ticker", return_value=CrawlResult(symbol="FLOW3")
-    )
+    mocker.patch.object(engine.cvm_spider, "enrich", side_effect=_cvm_enrich)
 
-    # 2. Run Engine
     result = engine.run_for_ticker("FLOW3")
 
-    # Verify Engine Calculations
-    # Graham: sqrt(22.5 * 10.0 * (110.0 / 2.0)) = sqrt(22.5 * 10 * 55) = sqrt(12375) ≈ 111.24
+    # Graham: sqrt(22.5 * 10.0 * (110.0 / 2.0)) ≈ 111.24
     assert result.valuation_graham == pytest.approx(111.24, rel=1e-3)
-    # Bazin: ((5.0 / 100) * 110.0) / 0.06 = 5.5 / 0.06 = 91.66
+    # Bazin: ((5.0 / 100) * 110.0) / 0.06 = 5.5 / 0.06 ≈ 91.66
     assert result.valuation_bazin == pytest.approx(91.66, rel=1e-3)
-    # Quality Score: ROE(15>10:10)+ROIC(12>8:10)+NetMargin(10>5:10)+Debt(1.5<2.0:20)+CAGR(8>5:20)=70
     assert result.quality_score == 70
 
-    # 3. Verify Database Persistence
     company = db_session.query(Company).filter_by(symbol="FLOW3").first()
     assert company is not None
     assert company.name == "Flow Corp"
@@ -88,12 +77,7 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
     assert float(fundamental.valuation_graham) == pytest.approx(111.24, rel=1e-3)
     assert fundamental.quality_score == 70
 
-    # 4. Run ETL Service
     etl = ETLService(db=db_session)
-
-    # Add more prices to satisfy rolling windows (SMA-50 needs 50 rows)
-    # Use StockPriceSchema instead of dict
-    from datetime import timedelta
 
     base_date = datetime(2023, 1, 3)
     for i in range(65):
@@ -113,7 +97,6 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
 
     etl.generate_features(company.id)
 
-    # 5. Verify ML Features
     feature = (
         db_session.query(MLFeature)
         .filter_by(company_id=company.id)
@@ -121,8 +104,7 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
         .first()
     )
     assert feature is not None
-    # Latest stored feature is PENULTIMATE price because last price has no target_next_day_change
-    # i=63 -> close = 110 + 63 = 173.0
-    # EPS: 10.0 -> p_l_ratio: 17.3
+    # Latest stored feature is PENULTIMATE price: i=63 -> close = 110 + 63 = 173.0
+    # p_l_ratio = close / EPS = 173.0 / 10.0 = 17.3
     assert float(feature.p_l_ratio) == pytest.approx(17.3)
     assert feature.sma_20 is not None

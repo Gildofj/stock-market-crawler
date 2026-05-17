@@ -1,6 +1,17 @@
-import re
+"""Best-effort logo discovery for companies that don't carry one yet.
 
-from bs4 import BeautifulSoup
+Logos are sourced *only* from each company's own website (or its public
+favicon endpoint). We deliberately do not scrape proprietary aggregators
+because their logo assets are part of their bundled product offering and
+attract the same database-protection risk as their indicators.
+"""
+
+from __future__ import annotations
+
+import re
+from urllib.parse import urljoin, urlparse
+
+from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
 from ..services.data_service import DataService
@@ -8,71 +19,63 @@ from ..services.request_manager import RequestManager
 
 
 class LogoService:
-    """
-    Serviço para busca manual de logos.
-    Nota: Os spiders agora extraem logos durante o crawl principal para eficiência.
-    """
+    """Resolves a logo URL for a company directly from its own site."""
 
-    def __init__(self, data_service: DataService):
+    def __init__(self, data_service: DataService) -> None:
         self.data_service = data_service
         self.request_manager = RequestManager()
 
-    def update_logo_if_missing(self, symbol: str):
+    def update_logo_if_missing(self, symbol: str) -> str | None:
         company = self.data_service.get_company_by_symbol(symbol)
-        if company and hasattr(company, "logo_url") and company.logo_url:
+        if company is None:
+            return None
+        if company.logo_url:
             return str(company.logo_url)
 
-        sources = [self._fetch_from_statusinvest, self._fetch_from_fundamentus]
+        website = getattr(company, "website", None)
+        if not website:
+            return None
 
-        for source_fn in sources:
-            try:
-                logo_url = source_fn(symbol)
-                if logo_url:
-                    self.data_service.update_company_info(symbol, {"logo_url": logo_url})
-                    logger.info(f"Logo for {symbol} found via {source_fn.__name__}")
-                    return logo_url
-            except Exception as e:
-                logger.debug(f"Logo source {source_fn.__name__} failed for {symbol}: {e}")
+        logo_url = self._extract_logo_from_site(str(website))
+        if logo_url:
+            self.data_service.update_company_info(symbol, {"logo_url": logo_url})
+            logger.info(f"Logo for {symbol} resolved from official site.")
+        return logo_url
 
-        return None
+    def _extract_logo_from_site(self, site_url: str) -> str | None:
+        try:
+            response = self.request_manager.get(site_url, timeout=10)
+        except Exception as exc:
+            logger.debug(f"LogoService: failed to fetch {site_url}: {exc}")
+            return None
+        if response.status_code != 200:
+            return None
 
-    def _fetch_from_statusinvest(self, symbol: str) -> str | None:
-        url = f"https://statusinvest.com.br/acoes/{symbol.lower()}"
-        response = self.request_manager.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "lxml")
-            avatar_div = soup.find("div", class_="avatar")
-            if avatar_div and avatar_div.has_attr("style"):
-                style_attr = avatar_div.get("style")
-                if isinstance(style_attr, list):
-                    style_attr = " ".join(style_attr)
+        soup = BeautifulSoup(response.text, "lxml")
 
-                match = re.search(r"url\((.*?)\)", str(style_attr))
-                if match:
-                    logo_path = match.group(1).replace("'", "").replace('"', "")
-                    return (
-                        f"https://statusinvest.com.br{logo_path}"
-                        if logo_path.startswith("/")
-                        else logo_path
-                    )
-        return None
+        icon = soup.find("link", rel=lambda value: value and "icon" in value.lower())
+        if isinstance(icon, Tag):
+            href = icon.get("href")
+            href_str = href[0] if isinstance(href, list) else href
+            if href_str:
+                return urljoin(site_url, str(href_str))
 
-    def _fetch_from_fundamentus(self, symbol: str) -> str | None:
-        url = f"https://www.fundamentus.com.br/detalhes.php?papel={symbol.upper()}"
-        response = self.request_manager.get(url, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, "lxml")
-            img = soup.find("img", alt=re.compile(r"logo", re.I))
-            if img and img.has_attr("src"):
-                src = img.get("src")
-                if isinstance(src, list):
-                    src = src[0]
+        og_image = soup.find("meta", attrs={"property": "og:image"})
+        if isinstance(og_image, Tag):
+            content = og_image.get("content")
+            content_str = content[0] if isinstance(content, list) else content
+            if content_str:
+                return urljoin(site_url, str(content_str))
 
-                src_str = str(src)
-                return (
-                    f"https://www.fundamentus.com.br/{src_str}"
-                    if src_str.startswith("/")
-                    else src_str
-                )
-        return None
+        logo_img = soup.find("img", alt=re.compile(r"logo", re.I))
+        if isinstance(logo_img, Tag):
+            src = logo_img.get("src")
+            src_str = src[0] if isinstance(src, list) else src
+            if src_str:
+                return urljoin(site_url, str(src_str))
+
+        # Last resort: assume there's a /favicon.ico at the site root.
+        parsed = urlparse(site_url)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}/favicon.ico"
         return None

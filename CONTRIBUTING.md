@@ -98,7 +98,7 @@ A condensed view of where things live:
 api/         FastAPI application — routers, schemas, deps, security, limiter
 crawler/     Core domain
   engine/    Enrichment chain orchestration + advanced metrics
-  spiders/   Data sources (B3, Fundamentus, StatusInvest, Macro)
+  spiders/   Data sources (B3/yfinance prices, CVM DFP/ITR fundamentals, Macro, News, RI)
   services/  Business logic — request_manager, etl, data, reliability, ...
   models/    SQLAlchemy ORM + Pydantic schemas + CrawlResult contract
 alembic/     Database migrations
@@ -116,7 +116,7 @@ A full tour lives in [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 We follow a lightweight **GitHub Flow**:
 
 1. **Fork** the repository (external contributors) or create a topic **branch** off `main` (maintainers).
-2. Use a descriptive branch name: `feat/reliability-grade-cache`, `fix/statusinvest-timeout`, `docs/contributing-guide`.
+2. Use a descriptive branch name: `feat/reliability-grade-cache`, `fix/cvm-dfp-parser`, `docs/contributing-guide`.
 3. Make small, focused commits — see [Commit Convention](#commit-convention).
 4. **Rebase** on `main` before opening a PR — keep history linear.
 5. Open a **Pull Request** against `main`. Fill out the PR template.
@@ -154,7 +154,7 @@ This project follows **[Conventional Commits 1.0.0](https://www.conventionalcomm
 
 ```
 feat(api): expose /reliability/{symbol}/history endpoint
-fix(statusinvest): retry on 504 and skip ticker after 3 failures
+fix(cvm): handle missing 3.05 EBIT row for financial-sector filers
 perf(engine): parallelize ticker enrichment within a sub-batch
 docs(deployment): clarify Supabase transaction pooler usage
 ```
@@ -202,7 +202,7 @@ We follow **Test-Driven Development** wherever practical.
 
 - New features **must** ship with tests. New spiders need at minimum unit tests covering parsing + fallback behavior.
 - Bug fixes **must** ship with a regression test that fails on the previous code.
-- Mock external HTTP at the `RequestManager` boundary — do not hit live B3/StatusInvest/Fundamentus in tests.
+- Mock external HTTP at the `RequestManager` boundary — do not hit live CVM/B3/yfinance endpoints in tests.
 - Integration tests use the Docker Postgres on port `5433`. Bring it up with `docker-compose up -d db`.
 
 ### Adding a New Spider
