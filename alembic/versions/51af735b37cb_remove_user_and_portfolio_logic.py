@@ -5,24 +5,22 @@ Revises: e5f6a7b8c9d0
 Create Date: 2026-05-17 15:36:24.384106
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = '51af735b37cb'
-down_revision: Union[str, Sequence[str], None] = 'e5f6a7b8c9d0'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = 'e5f6a7b8c9d0'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     # 1. Drop portfolio-related tables
     op.execute("DROP TABLE IF EXISTS portfolio_assets")
     op.execute("DROP TABLE IF EXISTS portfolios")
-    
+
     # 2. Drop users table
     op.execute("DROP TABLE IF EXISTS users")
 

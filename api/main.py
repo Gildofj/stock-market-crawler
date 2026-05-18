@@ -10,7 +10,16 @@ from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
 from .limiter import close_rate_limiter, init_rate_limiter
-from .routers import companies, fundamentals, lake, prices, reliability, sources
+from .routers import (
+    companies,
+    fundamentals,
+    investor_relations,
+    lake,
+    news,
+    prices,
+    reliability,
+    sources,
+)
 from .security import CloudflareMiddleware, require_api_key
 
 if not os.getenv("API_KEY"):
@@ -128,6 +137,8 @@ app.include_router(fundamentals.router, prefix="/api/v1", dependencies=api_depen
 app.include_router(prices.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(reliability.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(lake.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(news.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(investor_relations.router, prefix="/api/v1", dependencies=api_dependencies)
 
 # Transparency endpoint — intentionally public (no api_key, no premium gate).
 # Anyone can audit which sources are active in this deployment.

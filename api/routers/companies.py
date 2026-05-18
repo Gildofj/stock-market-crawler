@@ -17,7 +17,7 @@ router = APIRouter(
 async def get_companies(
     db: DBDep,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, gt=0, le=500),
+    limit: int = Query(1000, gt=0, le=2000),
 ):
     """
     Lists all tracked companies with pagination.

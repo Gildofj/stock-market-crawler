@@ -53,7 +53,7 @@ class LogoService:
 
         soup = BeautifulSoup(response.text, "lxml")
 
-        icon = soup.find("link", rel=lambda value: value and "icon" in value.lower())
+        icon = soup.find("link", rel=lambda value: bool(value and "icon" in str(value).lower()))
         if isinstance(icon, Tag):
             href = icon.get("href")
             href_str = href[0] if isinstance(href, list) else href
