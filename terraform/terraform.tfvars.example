@@ -9,7 +9,7 @@ database_url = "postgresql://user:pass@db.supabase.co:6543/postgres"
 redis_url      = "redis://:STRONG_PASSWORD_HERE@VM_PUBLIC_IP:6379/0"
 redis_password = "STRONG_PASSWORD_HERE"
 
-# API authentication — generated with `openssl rand -base64 32`.
+# API authentication — generated with `openssl rand -hex 32`.
 # Must match the API_KEY GitHub Actions secret used by deploy.yml.
 api_key = "replace-with-openssl-rand-base64-32"
 
