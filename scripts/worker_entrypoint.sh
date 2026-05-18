@@ -19,9 +19,24 @@ set -euo pipefail
 cleanup() {
   echo "[entrypoint] shutting down workers..."
   kill -TERM "${HOT_PID:-}" "${LAKE_PID:-}" 2>/dev/null || true
+  # Also stop redis
+  redis-cli shutdown || true
   wait
 }
 trap cleanup EXIT INT TERM
+
+echo "[entrypoint] starting redis-server..."
+# Extract password from REDIS_URL: redis://:PASSWORD@localhost:6379/0
+# This handle formats like redis://:pass@host:port/db
+REDIS_PWD=$(echo "${REDIS_URL:-}" | sed -n 's/.*:\(.*\)@.*/\1/p')
+
+if [ -n "$REDIS_PWD" ]; then
+  echo "[entrypoint] redis starting with password protection"
+  redis-server --requirepass "$REDIS_PWD" --daemonize yes
+else
+  echo "[entrypoint] redis starting without password (WARNING: local only recommended)"
+  redis-server --daemonize yes
+fi
 
 echo "[entrypoint] starting worker-hot (queues: crawler,default,macro, with beat)..."
 celery -A crawler.celery_app worker \

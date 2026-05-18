@@ -157,30 +157,16 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Update Crawler Image in Multi-Container Metadata
+      - name: Update COS container metadata
         run: |
-          # 1. Get current metadata
-          spec=$(gcloud compute instances describe "${{ vars.WORKER_VM_NAME }}" \
+          gcloud compute instances update-container "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --format="value(metadata.gce-container-declaration)")
-
-          # 2. Use python or sed to replace the image for the celery-worker container only
-          # We search for the celery-worker name and update the following image line.
-          updated_spec=$(echo "$spec" | python3 -c "
-          import sys, yaml
-          data = yaml.safe_load(sys.stdin)
-          for container in data['spec']['containers']:
-              if container['name'] == 'celery-worker':
-                  container['image'] = '${{ env.IMAGE }}'
-          print(yaml.dump(data))
-          ")
-
-          # 3. Apply the updated metadata back to the instance
-          gcloud compute instances add-metadata "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --metadata="gce-container-declaration=$updated_spec"
+            --container-image="${IMAGE}" \
+            --container-env="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},PYTHONPATH=/app,R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }},R2_API_TOKEN=${{ secrets.R2_API_TOKEN }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
+            --container-command="/app/scripts/worker_entrypoint.sh" \
+            --clear-container-args \
+            --quiet
 
       - name: Verify worker is healthy
         run: |

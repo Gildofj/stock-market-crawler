@@ -1,6 +1,9 @@
 # Use a slim Python image
 FROM python:3.12-slim-bookworm
 
+# Install redis-server
+RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
+
 # Install uv directly from the official GitHub Container Registry
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
