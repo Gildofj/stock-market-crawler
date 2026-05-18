@@ -8,8 +8,8 @@ This project supports a 100% Free Tier deployment on Google Cloud Platform, sepa
 
 ### 🏗️ Architecture
 - **API (Cloud Run)**: Serverless FastAPI backend.
-- **Worker (Compute Engine e2-micro)**: 24/7 Celery worker running on a free-tier eligible VM in `us-central1`.
-- **Broker (Upstash Redis)**: External Redis for Celery tasks.
+- **Worker (Compute Engine e2-micro)**: 24/7 Celery worker running on Container-Optimized OS (COS).
+- **Broker (Self-hosted Redis)**: Sidecar container on the GCE VM.
 - **Database (Supabase)**: External PostgreSQL.
 
 ### 🛠️ Infrastructure as Code (Terraform)
@@ -31,7 +31,8 @@ The `terraform/` directory contains the configuration to provision this setup.
      -var="project_id=YOUR_PROJECT_ID" \
      -var="image_name=gcr.io/YOUR_PROJECT_ID/stock-market-crawler" \
      -var="database_url=YOUR_SUPABASE_URL" \
-     -var="redis_url=YOUR_UPSTASH_URL"
+     -var="redis_url=redis://:YOUR_PASSWORD@VM_PUBLIC_IP:6379/0" \
+     -var="redis_password=YOUR_PASSWORD"
    ```
 
 ### 🔑 Required GitHub Secrets & Variables
@@ -43,7 +44,8 @@ The `terraform/` directory contains the configuration to provision this setup.
 | `GCP_PROJECT_ID` | GCP project ID. |
 | `GCP_SA_KEY` | Service Account JSON key. Required IAM roles below. |
 | `DATABASE_URL` | Supabase Transaction Pooler URL (port **6543**). |
-| `REDIS_URL` | Upstash Redis URL (Celery broker). |
+| `REDIS_URL` | Redis URL (`redis://:password@ip:6379/0`). |
+| `REDIS_PASSWORD` | Password for the self-hosted Redis instance. |
 
 **Variables** (`Settings → Secrets and variables → Actions → Variables` — non-sensitive):
 

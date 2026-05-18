@@ -13,7 +13,7 @@ name: Deploy
 #                              roles/iam.serviceAccountUser
 #                              roles/compute.instanceAdmin.v1
 #   DATABASE_URL           - Supabase Postgres URL (already set)
-#   REDIS_URL              - Upstash Redis URL (already set)
+#   REDIS_URL              - Redis URL (self-hosted or managed)
 #   API_KEY                - Shared secret required on every API request
 #                            (sent as X-API-Key header)
 #   R2_ACCOUNT_ID          - Cloudflare R2 Account ID

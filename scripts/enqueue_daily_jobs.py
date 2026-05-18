@@ -14,7 +14,7 @@ def _assert_redis_broker() -> None:
         logger.error(
             "REDIS_URL must point to a Redis broker (redis:// or rediss://), "
             "but resolved to {!r}. In GitHub Actions, ensure the REDIS_URL "
-            "repository secret is set to your Upstash/Redis URL.",
+            "repository secret is set to your Redis URL.",
             broker,
         )
         sys.exit(1)

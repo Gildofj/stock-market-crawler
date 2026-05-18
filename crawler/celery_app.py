@@ -1,9 +1,9 @@
-"""Celery application configured for a single-VM, Upstash-Redis, free-tier deployment.
+"""Celery application configured for a single-VM, self-hosted Redis deployment.
 
 Design constraints
 ------------------
-* **Upstash free tier**: command budget is the binding limit. We disable the
-  result backend and stretch BLPOP polling to keep idle traffic minimal.
+* **Self-hosted Redis**: Runs as a sidecar container on the GCE VM. No command
+  budget limits, allowing for low-latency polling.
 * **GCP e2-micro (1 GB RAM)**: workers are recycled on a memory ceiling so a
   rogue ``pdfplumber`` parse cannot OOM the VM.
 * **No external scheduler**: beat runs embedded inside the worker process so we
@@ -66,8 +66,8 @@ app.conf.update(
     worker_disable_rate_limits=True,
     worker_hijack_root_logger=False,
 
-    # ── Broker (Upstash Redis) ───────────────────────────────────────
-    broker_pool_limit=5,
+    # ── Broker (Self-hosted Redis) ───────────────────────────────────
+    broker_pool_limit=10,
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=None,
     broker_heartbeat=None,
@@ -76,9 +76,8 @@ app.conf.update(
         # can take a couple of minutes per document, so 1h is generous.
         "visibility_timeout": 3600,
         "socket_keepalive": True,
-        # 5s BLPOP idle interval keeps Upstash usage under ~17k cmds/day
-        # in a fully idle worker — comfortably inside the free quota.
-        "polling_interval": 5.0,
+        # Polling interval can be low for self-hosted Redis
+        "polling_interval": 0.5,
         "max_retries": 5,
         "interval_start": 1.0,
         "interval_step": 2.0,
