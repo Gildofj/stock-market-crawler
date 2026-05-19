@@ -25,15 +25,9 @@ set -euo pipefail
 
 : "${GCP_PROJECT:?GCP_PROJECT env var is required to fetch secrets}"
 
+# Wrapper around scripts/fetch_secret.py (pure stdlib — no curl needed).
 fetch_secret() {
-  local name="$1"
-  local token
-  token=$(curl -sf -H "Metadata-Flavor: Google" \
-    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
-    | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
-  curl -sf -H "Authorization: Bearer ${token}" \
-    "https://secretmanager.googleapis.com/v1/projects/${GCP_PROJECT}/secrets/${name}/versions/latest:access" \
-    | python3 -c "import sys,json,base64;print(base64.b64decode(json.load(sys.stdin)['data']).decode(), end='')"
+  python3 /app/scripts/fetch_secret.py "$1"
 }
 
 echo "[entrypoint] fetching secrets from Google Secret Manager (project=${GCP_PROJECT})..."
