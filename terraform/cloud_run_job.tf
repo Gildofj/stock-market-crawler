@@ -48,8 +48,13 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
         args    = ["-m", "crawler.tasks.lake_ri"]
 
         env {
-          name  = "DATABASE_URL"
-          value = var.database_url
+          name = "DATABASE_URL"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app["database-url"].secret_id
+              version = "latest"
+            }
+          }
         }
         # REDIS_URL is intentionally absent — the Job writes directly to
         # Postgres and never enqueues anything, so it has no business
@@ -63,12 +68,22 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
           value = "7"
         }
         env {
-          name  = "R2_ACCOUNT_ID"
-          value = var.r2_account_id
+          name = "R2_ACCOUNT_ID"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app["r2-account-id"].secret_id
+              version = "latest"
+            }
+          }
         }
         env {
-          name  = "R2_API_TOKEN"
-          value = var.r2_api_token
+          name = "R2_API_TOKEN"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.app["r2-api-token"].secret_id
+              version = "latest"
+            }
+          }
         }
         env {
           name  = "R2_BUCKET_RI_DOCS"
@@ -102,7 +117,11 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
     ]
   }
 
-  depends_on = [google_project_service.cloudrun]
+  depends_on = [
+    google_project_service.cloudrun,
+    google_secret_manager_secret_version.app_bootstrap,
+    google_secret_manager_secret_iam_member.accessor,
+  ]
 }
 
 # Cloud Scheduler invokes the Job via the Cloud Run Admin API. Free tier of

@@ -32,12 +32,6 @@ variable "database_url" {
   sensitive   = true
 }
 
-variable "redis_url" {
-  description = "The Redis URL (previously Upstash, now pointing to GCE self-hosted)"
-  type        = string
-  sensitive   = true
-}
-
 variable "redis_password" {
   description = "Password for the self-hosted Redis instance on GCE"
   type        = string

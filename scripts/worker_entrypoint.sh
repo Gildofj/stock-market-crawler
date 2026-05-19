@@ -13,8 +13,39 @@
 #     documented and not worth the operational cost for a 2-process split.
 #   * If either Celery dies, `wait -n` returns and the script exits, which makes
 #     COS recycle the whole container (restartPolicy: Always).
+#
+# Secrets:
+#   * DATABASE_URL, REDIS_PASSWORD, R2_ACCOUNT_ID, R2_API_TOKEN are fetched from
+#     Google Secret Manager via the metadata server (no gcloud SDK needed on
+#     the runtime image — curl + python3 only). The VM's service account
+#     (crawler-worker-sa) has roles/secretmanager.secretAccessor wired in
+#     terraform/secrets.tf.
 
 set -euo pipefail
+
+: "${GCP_PROJECT:?GCP_PROJECT env var is required to fetch secrets}"
+
+fetch_secret() {
+  local name="$1"
+  local token
+  token=$(curl -sf -H "Metadata-Flavor: Google" \
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+    | python3 -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
+  curl -sf -H "Authorization: Bearer ${token}" \
+    "https://secretmanager.googleapis.com/v1/projects/${GCP_PROJECT}/secrets/${name}/versions/latest:access" \
+    | python3 -c "import sys,json,base64;print(base64.b64decode(json.load(sys.stdin)['data']).decode(), end='')"
+}
+
+echo "[entrypoint] fetching secrets from Google Secret Manager (project=${GCP_PROJECT})..."
+export DATABASE_URL="$(fetch_secret database-url)"
+export REDIS_PASSWORD="$(fetch_secret redis-password)"
+export R2_ACCOUNT_ID="$(fetch_secret r2-account-id)"
+export R2_API_TOKEN="$(fetch_secret r2-api-token)"
+
+if [ -z "${DATABASE_URL}" ] || [ -z "${REDIS_PASSWORD}" ]; then
+  echo "[entrypoint] FATAL: required secrets are empty" >&2
+  exit 1
+fi
 
 cleanup() {
   echo "[entrypoint] shutting down workers..."
@@ -25,18 +56,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "[entrypoint] starting redis-server..."
-# Extract password from REDIS_URL: redis://:PASSWORD@localhost:6379/0
-# This handle formats like redis://:pass@host:port/db
-REDIS_PWD=$(echo "${REDIS_URL:-}" | sed -n 's/.*:\(.*\)@.*/\1/p')
-
-if [ -n "$REDIS_PWD" ]; then
-  echo "[entrypoint] redis starting with password protection"
-  redis-server --requirepass "$REDIS_PWD" --bind 0.0.0.0 --daemonize yes
-else
-  echo "[entrypoint] redis starting without password (WARNING: local only recommended)"
-  redis-server --bind 0.0.0.0 --daemonize yes
-fi
+echo "[entrypoint] starting redis-server with password protection..."
+redis-server --requirepass "${REDIS_PASSWORD}" --bind 0.0.0.0 --daemonize yes
 
 echo "[entrypoint] starting worker-hot (queues: crawler,default,macro, with beat)..."
 celery -A crawler.celery_app worker \

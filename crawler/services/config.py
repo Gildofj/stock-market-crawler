@@ -36,13 +36,19 @@ class Settings(BaseSettings):
 
     # Redis Configuration
     REDIS_URL: str = _DEFAULT_REDIS_URL
+    REDIS_HOST: str | None = None
+    REDIS_PASSWORD: str | None = None
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
 
     @property
     def redis_url(self) -> str:
+        url = self.REDIS_URL
+        if url == _DEFAULT_REDIS_URL and self.REDIS_HOST and self.REDIS_PASSWORD:
+            url = f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         # Celery's redis backend refuses to start on a rediss:// URL unless
         # ssl_cert_reqs is present. Managed providers (like Upstash) ship
         # valid public CA certs, so CERT_REQUIRED is the right default.
-        url = self.REDIS_URL
         if url.startswith("rediss://") and "ssl_cert_reqs" not in url:
             separator = "&" if "?" in url else "?"
             return f"{url}{separator}ssl_cert_reqs=CERT_REQUIRED"

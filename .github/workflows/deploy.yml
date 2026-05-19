@@ -1,42 +1,5 @@
 name: Deploy
 
-# Images are built on GitHub Actions runners and pushed straight to Artifact
-# Registry — Cloud Build is intentionally NOT used (avoids per-build-minute
-# charges). Do NOT run `gcloud run deploy --source=...` or `gcloud builds
-# submit` from any local script: those silently spin up Cloud Build.
-#
-# Required GitHub Secrets:
-#   GCP_PROJECT_ID         - GCP project id
-#   GCP_SA_KEY             - Service account JSON key with roles:
-#                              roles/artifactregistry.writer
-#                              roles/run.admin
-#                              roles/iam.serviceAccountUser
-#                              roles/compute.instanceAdmin.v1
-#   DATABASE_URL           - Supabase Postgres URL (already set)
-#   REDIS_URL              - Redis URL (self-hosted or managed)
-#   API_KEY                - Shared secret required on every API request
-#                            (sent as X-API-Key header)
-#   R2_ACCOUNT_ID          - Cloudflare R2 Account ID
-#   R2_API_TOKEN           - Cloudflare R2 API Token (Bearer)
-#
-# Required GitHub Variables (Settings > Variables, non-sensitive):
-#   GCP_REGION             - e.g. us-central1
-#   GCP_ZONE               - e.g. us-central1-a
-#   AR_REPO                - Artifact Registry repository (e.g. crawler-images)
-#   CLOUD_RUN_SERVICE      - Cloud Run service name (e.g. stock-market-api)
-#   WORKER_VM_NAME         - Compute Engine VM name (e.g. crawler-worker-vm)
-#   R2_RI_PUBLIC_BASE_URL  - Public base URL for RI docs (e.g. https://pub-xxx.r2.dev)
-#
-# One-time setup on GCP:
-#   gcloud artifacts repositories create $AR_REPO \
-#     --repository-format=docker --location=$GCP_REGION
-#   The worker VM service account needs roles/artifactregistry.reader.
-#
-# Schema migrations are NOT run here — see migrations.yml, which fires only
-# on changes under alembic/ or crawler/models/ to save CI minutes.
-# When pushing schema + code together, migrations.yml typically finishes
-# before deploy.yml's build & push completes.
-
 on:
   push:
     branches: [main]
@@ -126,22 +89,15 @@ jobs:
       - uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy Cloud Run revision
-        env:
-          API_KEY: ${{ secrets.API_KEY }}
         run: |
           if [[ -z "${IMAGE_REF}" || "${IMAGE_REF}" == *":" ]]; then
             echo "::error::IMAGE_REF is empty or has no tag: '${IMAGE_REF}'"
-            exit 1
-          fi
-          if [[ -z "${API_KEY}" ]]; then
-            echo "::error::Secret API_KEY is empty — the API will refuse to start."
             exit 1
           fi
           gcloud run deploy "${{ vars.CLOUD_RUN_SERVICE }}" \
             --image="${IMAGE_REF}" \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --update-env-vars="API_KEY=${API_KEY},R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }},R2_API_TOKEN=${{ secrets.R2_API_TOKEN }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
             --quiet
 
   deploy-worker:
@@ -163,7 +119,7 @@ jobs:
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --container-image="${IMAGE}" \
-            --container-env="DATABASE_URL=${{ secrets.DATABASE_URL }},REDIS_URL=${{ secrets.REDIS_URL }},PYTHONPATH=/app,R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }},R2_API_TOKEN=${{ secrets.R2_API_TOKEN }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
+            --container-env="REDIS_HOST=localhost,PYTHONPATH=/app,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
             --container-command="/app/scripts/worker_entrypoint.sh" \
             --clear-container-args \
             --quiet
@@ -187,8 +143,6 @@ jobs:
     name: Update RI Cloud Run Job
     runs-on: ubuntu-latest
     needs: build-and-push
-    # The Job itself (resource shape, schedule, IAM) is managed by Terraform.
-    # This step only rotates the image tag, mirroring how deploy-api works.
     env:
       IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
       RI_JOB_NAME: lagoai-ri-crawl
@@ -208,9 +162,6 @@ jobs:
             --quiet
 
       - name: Smoke-execute Job (non-blocking)
-        # Kick off a fresh execution after image rotation. `--async` returns
-        # immediately so the workflow doesn't block on the 5-30 min crawl;
-        # failures surface in Cloud Logging and the next scheduled run.
         run: |
           gcloud run jobs execute "${RI_JOB_NAME}" \
             --region="${{ vars.GCP_REGION }}" \

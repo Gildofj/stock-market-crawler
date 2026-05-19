@@ -30,13 +30,16 @@ resource "google_compute_instance" "worker" {
         containers = [{
           name  = "celery-worker"
           image = var.image_name
+          # Secrets (DATABASE_URL, REDIS_PASSWORD, R2_ACCOUNT_ID, R2_API_TOKEN)
+          # are fetched by scripts/worker_entrypoint.sh from Google Secret
+          # Manager via the GCE metadata server, using this VM's service
+          # account (which has roles/secretmanager.secretAccessor via
+          # secrets.tf). GCE container declarations have no native
+          # secret_key_ref equivalent — the entrypoint shim is the bridge.
           env = [
-            { name = "DATABASE_URL", value = replace(var.database_url, "$", "$$") },
-            # Points to the local Redis started by the entrypoint (within the same container)
-            { name = "REDIS_URL", value = "redis://:${var.redis_password}@localhost:6379/0" },
+            { name = "REDIS_HOST", value = "localhost" },
             { name = "PYTHONPATH", value = "/app" },
-            { name = "R2_ACCOUNT_ID", value = var.r2_account_id },
-            { name = "R2_API_TOKEN", value = var.r2_api_token },
+            { name = "GCP_PROJECT", value = var.project_id },
             { name = "R2_BUCKET_RI_DOCS", value = var.r2_bucket_ri_docs },
             { name = "R2_BUCKET_PORTFOLIOS", value = var.r2_bucket_portfolios },
             { name = "R2_RI_PUBLIC_BASE_URL", value = var.r2_ri_public_base_url },
