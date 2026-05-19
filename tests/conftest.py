@@ -3,6 +3,8 @@ import os
 os.environ.setdefault("API_KEY", "test-api-key")
 
 import pytest
+from fastapi_cache import FastAPICache
+from fastapi_cache.backends.inmemory import InMemoryBackend
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,6 +14,29 @@ from crawler.services.etl_service import ETLService
 
 TEST_API_KEY = os.environ["API_KEY"]
 TEST_AUTH_HEADERS = {"X-API-Key": TEST_API_KEY}
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _init_fastapi_cache():
+    """TestClient does not run the FastAPI lifespan, so FastAPICache is
+    never initialized in tests. Endpoints decorated with `@cache` would
+    crash trying to reach a backend. Wire an in-memory backend once per
+    session — harmless for tests that don't use caching.
+    """
+    FastAPICache.init(InMemoryBackend(), prefix="test-cache")
+    yield
+    FastAPICache.reset()
+
+
+@pytest.fixture(autouse=True)
+def _clear_cache_between_tests():
+    """InMemoryBackend's `_store` is a class-level dict, so cached entries
+    leak across tests unless cleared. Reach in directly — `await
+    backend.clear()` would require an event loop in every sync test.
+    """
+    InMemoryBackend._store.clear()
+    yield
+    InMemoryBackend._store.clear()
 
 # Use a fast in-memory SQLite for core logic tests
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"

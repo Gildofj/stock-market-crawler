@@ -1,6 +1,7 @@
 import uuid
 
 from loguru import logger
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models.models import Company, CompanyReliability, Fundamental, StockPrice
@@ -140,6 +141,61 @@ class DataService:
             .filter(Company.symbol == symbol.upper())
             .first()
         )
+
+    def get_companies_by_symbols(self, symbols: list[str]) -> list[Company]:
+        """Single `.in_()` lookup for the batch portfolio snapshot endpoint."""
+        if not symbols:
+            return []
+        return (
+            self.db.query(Company)
+            .filter(Company.symbol.in_(symbols))
+            .all()
+        )
+
+    def get_latest_fundamentals_for_companies(
+        self, company_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, Fundamental]:
+        """Latest Fundamental per company in a single query.
+
+        Uses a `GROUP BY company_id` + `MAX(collected_at)` subquery joined
+        back to the row — dialect-safe for PostgreSQL (prod) and SQLite
+        (tests), unlike `DISTINCT ON` or window functions which would tie
+        us to Postgres.
+        """
+        if not company_ids:
+            return {}
+        latest_subq = (
+            self.db.query(
+                Fundamental.company_id.label("cid"),
+                func.max(Fundamental.collected_at).label("max_at"),
+            )
+            .filter(Fundamental.company_id.in_(company_ids))
+            .group_by(Fundamental.company_id)
+            .subquery()
+        )
+        rows = (
+            self.db.query(Fundamental)
+            .join(
+                latest_subq,
+                (Fundamental.company_id == latest_subq.c.cid)
+                & (Fundamental.collected_at == latest_subq.c.max_at),
+            )
+            .all()
+        )
+        return {row.company_id: row for row in rows}
+
+    def get_reliability_for_companies(
+        self, company_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, CompanyReliability]:
+        """Single `.in_()` lookup — relies on the unique(company_id) constraint."""
+        if not company_ids:
+            return {}
+        rows = (
+            self.db.query(CompanyReliability)
+            .filter(CompanyReliability.company_id.in_(company_ids))
+            .all()
+        )
+        return {row.company_id: row for row in rows}
 
     def get_reliability_ranking(
         self,

@@ -2,7 +2,9 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from crawler.models.schemas import LakeNewsSchema
 
 
 class CompanyBase(BaseModel):
@@ -89,3 +91,28 @@ class TickerDetail(BaseModel):
     company: CompanyRead
     latest_fundamental: FundamentalRead | None = None
     recent_prices: list[StockPriceRead] = []
+
+
+class PortfolioSnapshotItem(BaseModel):
+    """One entry in the batch portfolio snapshot.
+
+    `found=False` means the symbol was not present in the companies table.
+    All optional sections are returned as null so callers can render a
+    placeholder without re-parsing an error envelope.
+    """
+
+    symbol: str
+    found: bool
+    company: CompanyRead | None = None
+    fundamentals: FundamentalRead | None = None
+    reliability: ReliabilityResponse | None = None
+    news: list[LakeNewsSchema] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PortfolioSnapshotResponse(BaseModel):
+    items: list[PortfolioSnapshotItem]
+    requested: int
+    found: int
+    missing: list[str] = Field(default_factory=list)

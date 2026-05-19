@@ -16,6 +16,7 @@ from .routers import (
     investor_relations,
     lake,
     news,
+    portfolio,
     prices,
     reliability,
     sources,
@@ -93,6 +94,10 @@ tags_metadata = [
         "description": "Agnostic data lake (news, RI documents, AI insights).",
     },
     {
+        "name": "Portfolio",
+        "description": "Aggregated batch endpoints for dashboards and watchlists.",
+    },
+    {
         "name": "Transparency",
         "description": "Public, unauthenticated metadata about the deployment "
         "(data sources, attribution, takedown signals).",
@@ -139,6 +144,7 @@ app.include_router(reliability.router, prefix="/api/v1", dependencies=api_depend
 app.include_router(lake.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(news.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(investor_relations.router, prefix="/api/v1", dependencies=api_dependencies)
+app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
 
 # Transparency endpoint — intentionally public (no api_key, no premium gate).
 # Anyone can audit which sources are active in this deployment.

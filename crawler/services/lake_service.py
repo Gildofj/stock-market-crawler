@@ -96,6 +96,40 @@ class LakeService:
             .all()
         )
 
+    def get_news_by_tickers(
+        self, tickers: list[str], per_ticker_limit: int = 10
+    ) -> dict[str, list[LakeNews]]:
+        """Bulk news lookup for the portfolio snapshot endpoint.
+
+        Single `.in_()` query + Python-side bucketing keeps the round-trip
+        count at 1 and stays dialect-agnostic (no window functions, so it
+        runs identically on PostgreSQL and SQLite). One news row that is
+        tagged with multiple tickers in the request will appear in every
+        matching bucket — that is the correct behavior for dashboards.
+
+        The hard `limit` on the SQL side is a defensive overfetch cap that
+        prevents pathological responses if a single ticker has thousands of
+        recent news.
+        """
+        if not tickers:
+            return {}
+        tickers_u = [t.upper() for t in tickers]
+        rows = (
+            self.db.query(LakeNews)
+            .join(LakeNewsTicker)
+            .filter(LakeNewsTicker.ticker.in_(tickers_u))
+            .options(joinedload(LakeNews.tickers))
+            .order_by(LakeNews.published_at.desc().nullslast())
+            .limit(per_ticker_limit * len(tickers_u) * 3)
+            .all()
+        )
+        buckets: dict[str, list[LakeNews]] = {t: [] for t in tickers_u}
+        for news in rows:
+            for nt in news.tickers:
+                if nt.ticker in buckets and len(buckets[nt.ticker]) < per_ticker_limit:
+                    buckets[nt.ticker].append(news)
+        return buckets
+
     def upsert_ri_document(
         self,
         payload: LakeRIDocumentInternalSchema,
