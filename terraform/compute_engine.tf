@@ -31,8 +31,8 @@ resource "google_compute_instance" "worker" {
           name  = "celery-worker"
           image = var.image_name
           env = [
-            { name = "DATABASE_URL", value = var.database_url },
-            # Points to the local Redis started by the entrypoint
+            { name = "DATABASE_URL", value = replace(var.database_url, "$", "$$") },
+            # Points to the local Redis started by the entrypoint (within the same container)
             { name = "REDIS_URL", value = "redis://:${var.redis_password}@localhost:6379/0" },
             { name = "PYTHONPATH", value = "/app" },
             { name = "R2_ACCOUNT_ID", value = var.r2_account_id },

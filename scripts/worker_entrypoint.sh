@@ -32,10 +32,10 @@ REDIS_PWD=$(echo "${REDIS_URL:-}" | sed -n 's/.*:\(.*\)@.*/\1/p')
 
 if [ -n "$REDIS_PWD" ]; then
   echo "[entrypoint] redis starting with password protection"
-  redis-server --requirepass "$REDIS_PWD" --daemonize yes
+  redis-server --requirepass "$REDIS_PWD" --bind 0.0.0.0 --daemonize yes
 else
   echo "[entrypoint] redis starting without password (WARNING: local only recommended)"
-  redis-server --daemonize yes
+  redis-server --bind 0.0.0.0 --daemonize yes
 fi
 
 echo "[entrypoint] starting worker-hot (queues: crawler,default,macro, with beat)..."
