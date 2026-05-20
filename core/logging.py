@@ -26,6 +26,7 @@ import orjson
 from loguru import logger
 
 from core.config import settings
+from core.context import request_id_var, task_id_var, task_name_var
 
 _GCP_SEVERITY: dict[str, str] = {
     "TRACE": "DEBUG",
@@ -70,6 +71,17 @@ def _otel_patcher(record: Any) -> None:
     if trace_id:
         record["extra"]["trace_id"] = trace_id
         record["extra"]["span_id"] = span_id
+
+    rid = request_id_var.get()
+    if rid:
+        record["extra"]["request_id"] = rid
+
+    tid = task_id_var.get()
+    if tid:
+        record["extra"]["task_id"] = tid
+        tname = task_name_var.get()
+        if tname:
+            record["extra"]["task_name"] = tname
 
 
 def _gcp_sink(message: Any) -> None:

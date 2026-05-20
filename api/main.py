@@ -12,6 +12,7 @@ from loguru import logger
 from core.logging import setup_logging
 
 from .limiter import close_rate_limiter, init_rate_limiter
+from .middleware.correlation import CorrelationMiddleware
 from .routers import (
     companies,
     fundamentals,
@@ -139,7 +140,12 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 if os.getenv("ENV") == "production":
     app.add_middleware(CloudflareMiddleware)
 
-# 4. Registro de Rotas
+# 4. Correlation ID — registered LAST so it becomes the OUTERMOST middleware in
+# Starlette's wrap order, ensuring every request (including those rejected by
+# Cloudflare/CORS) gets a request_id bound into the logging context.
+app.add_middleware(CorrelationMiddleware)
+
+# 5. Registro de Rotas
 api_dependencies = [Depends(require_api_key)]
 app.include_router(companies.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(fundamentals.router, prefix="/api/v1", dependencies=api_dependencies)

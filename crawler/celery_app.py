@@ -20,6 +20,10 @@ from core.logging import setup_logging
 
 setup_logging()
 
+# Importing for side-effects: registers task_prerun/task_postrun handlers that
+# bridge Celery task metadata into core.context for structured-log correlation.
+from crawler import celery_signals  # noqa: E402, F401
+
 app = Celery(
     "stock_market_crawler",
     broker=settings.redis_url,
