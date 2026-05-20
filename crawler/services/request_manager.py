@@ -1,10 +1,10 @@
 import asyncio
-import json
 import random
 import time
 from typing import Any, Protocol, runtime_checkable
 
 import nodriver as uc
+import orjson
 from curl_cffi import requests
 from loguru import logger
 
@@ -49,8 +49,8 @@ class StealthResponse:
 
     def json(self) -> Any:
         try:
-            return json.loads(self.text)
-        except (json.JSONDecodeError, TypeError):
+            return orjson.loads(self.text)
+        except (orjson.JSONDecodeError, TypeError):
             logger.debug(f"Stealth: Failed to decode JSON from {self.url}")
             return {}
 

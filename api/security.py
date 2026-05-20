@@ -5,7 +5,7 @@ import time
 
 import httpx
 from fastapi import HTTPException, Request, Security, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import ORJSONResponse
 from fastapi.security import APIKeyHeader
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -82,7 +82,7 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
                     f"Blocked request from {client_ip}: Missing 'cf-connecting-ip' header. "
                     "This request did not pass through Cloudflare Proxy or headers were stripped."
                 )
-                return JSONResponse(
+                return ORJSONResponse(
                     status_code=403,
                     content={
                         "detail": (
