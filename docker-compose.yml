@@ -78,6 +78,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - ENV=development
+      - LOG_FORMAT=human
+      - DEPLOYMENT_ENV=development
     depends_on:
       db:
         condition: service_healthy
@@ -95,6 +97,8 @@ services:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
+      - LOG_FORMAT=human
+      - DEPLOYMENT_ENV=development
     depends_on:
       db:
         condition: service_healthy
@@ -112,6 +116,8 @@ services:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
       - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
+      - LOG_FORMAT=human
+      - DEPLOYMENT_ENV=development
     depends_on:
       db:
         condition: service_healthy

@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -97,6 +98,29 @@ class Settings(BaseSettings):
 
     # Crawler Settings
     LOG_LEVEL: str = "INFO"
+
+    # Observability / service identity
+    #
+    # SERVICE_NAME/VERSION/DEPLOYMENT_ENV are exposed as OpenTelemetry resource
+    # attributes and as ``serviceContext`` on every structured log line, so any
+    # log or trace in Cloud Logging / Cloud Trace can be filtered per service
+    # and per release. SERVICE_VERSION should be overridden in CI with the git
+    # SHA. GCP_PROJECT_ID, when set, lets the JSON log sink emit fully-qualified
+    # ``logging.googleapis.com/trace`` URIs so the Cloud Logging UI links each
+    # log entry to its trace; Cloud Run/GCE populate ``GOOGLE_CLOUD_PROJECT``
+    # automatically, which we surface here.
+    LOG_FORMAT: Literal["human", "gcp"] = "human"
+    SERVICE_NAME: str = "stock-market-crawler"
+    SERVICE_VERSION: str = "dev"
+    DEPLOYMENT_ENV: str = "development"
+    GCP_PROJECT_ID: str | None = None
+
+    @field_validator("GCP_PROJECT_ID", mode="before")
+    @classmethod
+    def _default_gcp_project(cls, value: str | None) -> str | None:
+        if value:
+            return value
+        return os.getenv("GOOGLE_CLOUD_PROJECT")
 
     # Optional operator contact email. When set, the crawler attaches an RFC 9110
     # `From:` header to every outbound request — the standard signal for "robot

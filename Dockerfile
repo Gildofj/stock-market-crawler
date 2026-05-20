@@ -30,6 +30,10 @@ RUN chmod +x /app/scripts/worker_entrypoint.sh
 # Place executables in the path
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Production default: emit JSON logs on stdout for Cloud Logging ingestion.
+# docker-compose overrides this to "human" for local dev.
+ENV LOG_FORMAT=gcp
+
 # Default command (serves the API)
 # Use 0.0.0.0 and PORT env var for Render compatibility
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -60,6 +60,10 @@ def main() -> None:
     """Cloud Run Job entrypoint. Reads days_back from $RI_DAYS_BACK (default 7)."""
     import os
 
+    from core.logging import setup_logging
+
+    setup_logging()
+
     days_back = int(os.environ.get("RI_DAYS_BACK", "7"))
     job_logger = logger.bind(task="lake.ri", runtime="cloud_run_job")
     job_logger.info(f"Starting RI crawl (Cloud Run Job, days_back={days_back})...")
