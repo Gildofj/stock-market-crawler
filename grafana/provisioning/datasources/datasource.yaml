@@ -21,3 +21,18 @@ datasources:
     access: proxy
     isDefault: false
     editable: true
+
+  - name: Tempo
+    type: tempo
+    url: http://tempo:3200
+    access: proxy
+    isDefault: false
+    editable: true
+    jsonData:
+      # Lets Grafana jump from a Loki log line (with trace_id in extra) directly
+      # into the matching Tempo trace via the "View trace" data-link button.
+      tracesToLogsV2:
+        datasourceUid: loki
+        tags: [{ key: 'service.name', value: 'service' }]
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'

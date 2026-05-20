@@ -94,10 +94,17 @@ jobs:
             echo "::error::IMAGE_REF is empty or has no tag: '${IMAGE_REF}'"
             exit 1
           fi
+          # OTEL_ENABLED is intentionally `false` at deploy time — flip it to
+          # `true` from the Cloud Run console after the first revision lands
+          # and you have verified JSON logs in Cloud Logging. Keeping it off by
+          # default means a botched OTel rollout never blocks a deploy.
+          # The `^@^` delimiter syntax lets us pass commas inside an env var
+          # value (the FastAPI excluded-URLs list).
           gcloud run deploy "${{ vars.CLOUD_RUN_SERVICE }}" \
             --image="${IMAGE_REF}" \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --update-env-vars="^@^LOG_FORMAT=gcp@DEPLOYMENT_ENV=production@SERVICE_VERSION=${{ github.sha }}@OTEL_ENABLED=false@OTEL_EXPORTER=gcp@OTEL_SAMPLE_RATIO=0.1@OTEL_PYTHON_FASTAPI_EXCLUDED_URLS=/health,/docs,/redoc,/openapi.json,/" \
             --quiet
 
   deploy-worker:
@@ -115,11 +122,15 @@ jobs:
 
       - name: Update COS container metadata
         run: |
+          # Observability envs mirror the API deploy: structured JSON logs are
+          # active immediately (LOG_FORMAT=gcp) so Cloud Logging gets correct
+          # severity from day one; OTel tracing is off by default and flipped
+          # on per-service once the operator is comfortable with quota usage.
           gcloud compute instances update-container "${{ vars.WORKER_VM_NAME }}" \
             --zone="${{ vars.GCP_ZONE }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --container-image="${IMAGE}" \
-            --container-env="REDIS_HOST=localhost,PYTHONPATH=/app,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }}" \
+            --container-env="REDIS_HOST=localhost,PYTHONPATH=/app,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }},LOG_FORMAT=gcp,DEPLOYMENT_ENV=production,SERVICE_VERSION=${{ github.sha }},OTEL_ENABLED=false,OTEL_EXPORTER=gcp,OTEL_SAMPLE_RATIO=0.1" \
             --container-command="/app/scripts/worker_entrypoint.sh" \
             --clear-container-args \
             --quiet
@@ -159,6 +170,7 @@ jobs:
             --image="${IMAGE}" \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --update-env-vars="LOG_FORMAT=gcp,DEPLOYMENT_ENV=production,SERVICE_VERSION=${{ github.sha }},OTEL_ENABLED=false,OTEL_EXPORTER=gcp,OTEL_SAMPLE_RATIO=0.1" \
             --quiet
 
       - name: Smoke-execute Job (non-blocking)

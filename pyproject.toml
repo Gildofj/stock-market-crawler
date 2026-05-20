@@ -39,6 +39,22 @@ dependencies = [
     "orjson>=3.11.9",
 ]
 
+[project.optional-dependencies]
+# Installed in Docker via `uv sync --frozen --no-dev --extra observability`.
+# Kept optional so local dev that only needs the API/crawler doesn't have to
+# pull the full OpenTelemetry tree (~30 transitive deps).
+observability = [
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
+    "opentelemetry-instrumentation-celery>=0.48b0",
+    "opentelemetry-instrumentation-redis>=0.48b0",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.27",
+    "opentelemetry-exporter-gcp-trace>=1.7",
+]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 asyncio_mode = "auto"

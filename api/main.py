@@ -10,6 +10,7 @@ from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
 
 from core.logging import setup_logging
+from core.telemetry import setup_tracing
 
 from .limiter import close_rate_limiter, init_rate_limiter
 from .middleware.correlation import CorrelationMiddleware
@@ -27,6 +28,7 @@ from .routers import (
 from .security import CloudflareMiddleware, require_api_key
 
 setup_logging()
+setup_tracing("api")
 
 if not os.getenv("API_KEY"):
     raise RuntimeError(

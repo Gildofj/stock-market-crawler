@@ -17,11 +17,14 @@ from kombu import Queue
 
 from core.config import settings
 from core.logging import setup_logging
+from core.telemetry import setup_tracing
 
 setup_logging()
+setup_tracing("celery-worker")
 
-# Importing for side-effects: registers task_prerun/task_postrun handlers that
-# bridge Celery task metadata into core.context for structured-log correlation.
+# Importing for side-effects: registers task_prerun/task_postrun handlers and
+# the worker_process_init handler that re-runs setup_tracing() in each prefork
+# child (BatchSpanProcessor's daemon thread does not survive fork).
 from crawler import celery_signals  # noqa: E402, F401
 
 app = Celery(

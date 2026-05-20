@@ -61,14 +61,21 @@ def main() -> None:
     import os
 
     from core.logging import setup_logging
+    from core.telemetry import setup_tracing, shutdown_tracing
 
     setup_logging()
+    setup_tracing("ri-job")
 
     days_back = int(os.environ.get("RI_DAYS_BACK", "7"))
     job_logger = logger.bind(task="lake.ri", runtime="cloud_run_job")
     job_logger.info(f"Starting RI crawl (Cloud Run Job, days_back={days_back})...")
-    asyncio.run(_run_ri_crawl(days_back=days_back))
-    job_logger.info("RI crawl completed.")
+    try:
+        asyncio.run(_run_ri_crawl(days_back=days_back))
+        job_logger.info("RI crawl completed.")
+    finally:
+        # Cloud Run Jobs send SIGTERM on completion. Flush pending spans
+        # synchronously so the trace isn't truncated at container shutdown.
+        shutdown_tracing()
 
 
 if __name__ == "__main__":

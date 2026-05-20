@@ -18,7 +18,10 @@ COPY pyproject.toml uv.lock ./
 
 # Install dependencies using uv
 # --frozen ensures we use the exact versions from uv.lock
-RUN uv sync --frozen --no-install-project --no-dev
+# --extra observability pulls the OpenTelemetry SDK + instrumentations needed
+# for Cloud Trace export in production. Kept as an extra so local dev that
+# only wants the API/crawler does not have to download the full OTel tree.
+RUN uv sync --frozen --no-install-project --no-dev --extra observability
 
 # Copy the rest of the application code
 COPY . .

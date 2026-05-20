@@ -67,6 +67,18 @@ services:
     depends_on:
       - loki
 
+  tempo:
+    image: grafana/tempo:latest
+    container_name: stock_market_crawler_tempo
+    restart: unless-stopped
+    command: -config.file=/etc/tempo/tempo.yaml
+    ports:
+      - "127.0.0.1:3200:3200"  # Tempo HTTP API (Grafana datasource)
+      - "127.0.0.1:4317:4317"  # OTLP gRPC receiver
+    volumes:
+      - ./grafana/tempo/tempo.yaml:/etc/tempo/tempo.yaml
+      - tempo_data:/var/tempo
+
   api:
     build: .
     container_name: stock_market_crawler_api
@@ -80,6 +92,10 @@ services:
       - ENV=development
       - LOG_FORMAT=human
       - DEPLOYMENT_ENV=development
+      - OTEL_ENABLED=true
+      - OTEL_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
     depends_on:
       db:
         condition: service_healthy
@@ -99,6 +115,10 @@ services:
       - PYTHONPATH=/app
       - LOG_FORMAT=human
       - DEPLOYMENT_ENV=development
+      - OTEL_ENABLED=true
+      - OTEL_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
     depends_on:
       db:
         condition: service_healthy
@@ -118,6 +138,10 @@ services:
       - PYTHONPATH=/app
       - LOG_FORMAT=human
       - DEPLOYMENT_ENV=development
+      - OTEL_ENABLED=true
+      - OTEL_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
     depends_on:
       db:
         condition: service_healthy
@@ -131,4 +155,6 @@ volumes:
   grafana_data:
     driver: local
   loki_data:
+    driver: local
+  tempo_data:
     driver: local

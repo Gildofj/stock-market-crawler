@@ -115,6 +115,21 @@ class Settings(BaseSettings):
     DEPLOYMENT_ENV: str = "development"
     GCP_PROJECT_ID: str | None = None
 
+    # OpenTelemetry tracing — disabled by default so the SDK is only loaded
+    # when the ``observability`` extra is installed. Exporter choice:
+    # * ``console`` — print spans to stdout (dev debugging, no backend)
+    # * ``otlp``    — push to OTEL_EXPORTER_OTLP_ENDPOINT (Tempo in dev compose)
+    # * ``gcp``     — push to Google Cloud Trace via Application Default Creds
+    OTEL_ENABLED: bool = False
+    OTEL_EXPORTER: Literal["console", "otlp", "gcp"] = "console"
+    # Trace sampling ratio; ``ParentBased(TraceIdRatioBased(ratio))``. 1.0 in
+    # dev to capture everything; 0.05–0.10 in prod to stay well within the
+    # 2.5M-span/month Cloud Trace free tier.
+    OTEL_SAMPLE_RATIO: float = 1.0
+    # Disable the Redis instrumentor when the Celery broker is on Redis — the
+    # polling traffic would otherwise dominate span volume.
+    OTEL_INSTRUMENT_REDIS: bool = False
+
     @field_validator("GCP_PROJECT_ID", mode="before")
     @classmethod
     def _default_gcp_project(cls, value: str | None) -> str | None:
