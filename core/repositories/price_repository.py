@@ -10,9 +10,9 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.exceptions import DatabaseError
 from core.models.models import StockPrice
 from core.models.schemas import StockPriceSchema
-from core.services.exceptions import DatabaseError
 
 
 class PriceRepository:

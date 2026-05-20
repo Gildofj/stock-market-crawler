@@ -38,14 +38,14 @@ class CompanyRepository:
         """Every symbol persisted — used by spiders that need to detect
         mentions of known tickers in free text."""
         result = await self.db.execute(select(Company.symbol))
-        return {row for row in result.scalars().all()}
+        return set(result.scalars().all())
 
     async def get_existing_symbols(self, symbols: list[str]) -> set[str]:
         """Subset of ``symbols`` already present — single round-trip."""
         if not symbols:
             return set()
         result = await self.db.execute(select(Company.symbol).filter(Company.symbol.in_(symbols)))
-        return {row for row in result.scalars().all()}
+        return set(result.scalars().all())
 
     async def list_paginated(self, skip: int = 0, limit: int = 1000) -> list[Company]:
         result = await self.db.execute(select(Company).offset(skip).limit(limit))

@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.exceptions import DatabaseError
 from core.models.models import Company, CompanyReliability, Fundamental
-from core.services.exceptions import DatabaseError
 from core.services.reliability_config import (
     CRITERION_WEIGHTS,
     CYCLICAL_SECTOR_KEYWORDS,

@@ -8,7 +8,6 @@ attract the same database-protection risk as their indicators.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -16,6 +15,7 @@ from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
 from core.repositories import CompanyRepository
+
 from .request_manager import RequestManager
 
 

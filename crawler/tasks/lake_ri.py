@@ -9,6 +9,7 @@ Runs in two contexts:
 """
 
 import asyncio
+
 from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
@@ -62,8 +63,8 @@ def main() -> None:
     days_back = int(os.environ.get("RI_DAYS_BACK", "7"))
     job_logger = logger.bind(task="lake.ri", runtime="cloud_run_job")
     job_logger.info(f"Starting RI crawl (Cloud Run Job, days_back={days_back})...")
-    persisted = asyncio.run(_run_ri_crawl(days_back=days_back))
-    job_logger.info(f"RI crawl completed ({persisted} docs).")
+    asyncio.run(_run_ri_crawl(days_back=days_back))
+    job_logger.info("RI crawl completed.")
 
 
 if __name__ == "__main__":

@@ -38,7 +38,9 @@ class MacroSpider:
 
         try:
             # 1. Fetch SELIC
-            selic_response = await self.request_manager.get_async(selic_url, headers=headers, timeout=20)
+            selic_response = await self.request_manager.get_async(
+                selic_url, headers=headers, timeout=20
+            )
             if selic_response.status_code == 404:
                 logger.warning(f"No SELIC data found for the period {start_date} to {end_date}.")
             else:
@@ -49,7 +51,9 @@ class MacroSpider:
                     logger.info(f"Latest SELIC Rate: {latest_selic}%")
 
             # 2. Fetch IPCA
-            ipca_response = await self.request_manager.get_async(ipca_url, headers=headers, timeout=20)
+            ipca_response = await self.request_manager.get_async(
+                ipca_url, headers=headers, timeout=20
+            )
             if ipca_response.status_code == 404:
                 logger.warning(f"No IPCA data found for the period {start_date} to {end_date}.")
             else:

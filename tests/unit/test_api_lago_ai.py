@@ -81,8 +81,12 @@ async def test_get_investor_relations(client, mock_repos, mocker):
         )
     ]
 
-    mock_company_repo.get.return_value = mocker.AsyncMock(return_value=mock_company)()
-    mock_lake_service.get_ri_documents_by_ticker.return_value = mocker.AsyncMock(return_value=mock_ri)()
+    mock_company_repo.get.return_value = mock_company
+    mock_lake_service.get_ri_documents_by_ticker.return_value = mock_ri
+
+    # Ensure they are AsyncMocks
+    mock_company_repo.get = mocker.AsyncMock(return_value=mock_company)
+    mock_lake_service.get_ri_documents_by_ticker = mocker.AsyncMock(return_value=mock_ri)
 
     response = client.get(
         f"/api/v1/investor-relations/{company_id}", headers={"X-API-Key": "test"}

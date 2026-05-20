@@ -7,13 +7,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from core.exceptions import DatabaseError
 from core.models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
 from core.models.schemas import (
     LakeInsightSchema,
     LakeNewsSchema,
     LakeRIDocumentInternalSchema,
 )
-from core.services.exceptions import DatabaseError
 from core.services.source_registry import SourceNotFoundError, get_source_registry
 
 
@@ -154,8 +154,7 @@ class LakeService:
         result = await self.db.execute(stmt)
         existing = result.scalars().first()
 
-        source_id = _resolve_source_id(source_slug)
-
+        source_id = await _resolve_source_id(source_slug)
         if existing:
             existing.title = payload.title
             existing.text_excerpt = payload.text_excerpt

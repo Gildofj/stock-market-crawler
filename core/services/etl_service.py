@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.exceptions import DatabaseError
 from core.models.models import Fundamental, MLFeature, StockPrice
-from core.services.exceptions import DatabaseError
 
 
 class ETLService:

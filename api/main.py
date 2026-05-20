@@ -5,7 +5,6 @@ import redis.asyncio as redis
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import ORJSONResponse
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 from loguru import logger
@@ -46,7 +45,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    default_response_class=ORJSONResponse,
     title="Stock Market Crawler API",
     description="""
     High-performance API for serving Brazilian financial market data.

@@ -47,7 +47,7 @@ async def _execute(db: AsyncSession, sql: str, *, dry_run: bool, label: str) -> 
             return 0
         logger.info(f"{label}: would update ~{result} rows.")
         return int(result)
-    
+
     result = await db.execute(text(sql))
     rowcount = result.rowcount or 0
     logger.info(f"{label}: updated {rowcount} rows.")

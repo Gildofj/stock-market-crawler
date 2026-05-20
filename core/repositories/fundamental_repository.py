@@ -9,9 +9,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.exceptions import DatabaseError
 from core.models.models import Fundamental
 from core.models.schemas import FundamentalSchema
-from core.services.exceptions import DatabaseError
 
 
 class FundamentalRepository:
