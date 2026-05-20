@@ -9,8 +9,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from crawler.models.models import Base
-from crawler.services.data_service import DataService
+from crawler.repositories import (
+    CompanyRepository,
+    FundamentalRepository,
+    PriceRepository,
+    ReliabilityRepository,
+)
 from crawler.services.etl_service import ETLService
+from crawler.services.lake_service import LakeService
 
 TEST_API_KEY = os.environ["API_KEY"]
 TEST_AUTH_HEADERS = {"X-API-Key": TEST_API_KEY}
@@ -75,10 +81,30 @@ def db_session(engine, tables):
 
 
 @pytest.fixture
-def data_service(db_session):
-    return DataService(db_session)
+def company_repo(db_session):
+    return CompanyRepository(db_session)
+
+
+@pytest.fixture
+def price_repo(db_session):
+    return PriceRepository(db_session)
+
+
+@pytest.fixture
+def fundamental_repo(db_session):
+    return FundamentalRepository(db_session)
+
+
+@pytest.fixture
+def reliability_repo(db_session):
+    return ReliabilityRepository(db_session)
 
 
 @pytest.fixture
 def etl_service(db_session):
     return ETLService(db_session)
+
+
+@pytest.fixture
+def lake_service(db_session):
+    return LakeService(db_session)

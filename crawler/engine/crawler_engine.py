@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from ..models.contract import CrawlResult
 from ..models.schemas import CompanySchema, FundamentalSchema
-from ..services.data_service import DataService
+from ..repositories import (
+    CompanyRepository,
+    FundamentalRepository,
+    PriceRepository,
+)
 from ..services.financial_calculator import bazin_fair_value, graham_fair_value
 from ..services.reconciliation_service import ReconciliationService
 from ..services.request_manager import RequestManager
@@ -35,7 +39,9 @@ class CrawlerEngine:
         request_manager: RequestManager | None = None,
         spiders: dict | None = None,
     ):
-        self.data_service = DataService(db)
+        self.company_repo = CompanyRepository(db)
+        self.price_repo = PriceRepository(db)
+        self.fundamental_repo = FundamentalRepository(db)
         self.reconciliation_service = ReconciliationService(db)
         self.request_manager = request_manager or RequestManager()
 
@@ -136,11 +142,11 @@ class CrawlerEngine:
             website=result.website,
             is_active=result.is_active,
         )
-        company = self.data_service.get_or_create_company(company_schema)
+        company = self.company_repo.get_or_create(company_schema)
         company_id = uuid.UUID(str(company.id))
 
         if result.prices:
-            self.data_service.save_prices(company_id, result.prices)
+            self.price_repo.save_bulk(company_id, result.prices)
 
         fundamental_schema = FundamentalSchema(
             p_l=result.p_l,
@@ -160,7 +166,7 @@ class CrawlerEngine:
             valuation_bazin=result.valuation_bazin,
             quality_score=result.quality_score,
         )
-        self.data_service.save_fundamentals(company_id, fundamental_schema)
+        self.fundamental_repo.save(company_id, fundamental_schema)
 
         # Reconciliation rows — observational only. Must never break the
         # crawl: any failure is logged and swallowed.

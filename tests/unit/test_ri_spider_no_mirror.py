@@ -50,7 +50,7 @@ def test_spider_does_not_import_storage_module():
 
 def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
     """Setting enabled=False on the cvm row should short-circuit crawl_recent."""
-    from crawler.services.data_service import DataService
+    from crawler.repositories import CompanyRepository
     from crawler.services.lake_service import LakeService
 
     # Flip the cached registry record to disabled.
@@ -64,7 +64,7 @@ def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
     )
 
     spider = RISpider(
-        data_service=DataService(db_session),
+        company_repo=CompanyRepository(db_session),
         lake_service=LakeService(db_session),
         request_manager=None,
     )

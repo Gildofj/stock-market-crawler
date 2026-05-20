@@ -40,6 +40,9 @@ dependencies = [
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "integration: tests that hit a real database (requires Postgres on :5433)",
+]
 
 [tool.ruff]
 line-length = 100

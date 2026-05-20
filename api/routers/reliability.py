@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache
 
-from api.deps import DBDep
+from api.deps import ReliabilityRepoDep
 from api.limiter import DefaultRateLimit
 from api.schemas import ReliabilityResponse
-from crawler.services.data_service import DataService
 
 router = APIRouter(
     prefix="/reliability",
@@ -13,24 +13,24 @@ router = APIRouter(
 
 
 @router.get("/", response_model=list[ReliabilityResponse])
+@cache(expire=1800, namespace="reliability:ranking")
 async def get_reliability_ranking(
-    db: DBDep,
+    repo: ReliabilityRepoDep,
     limit: int = Query(100, gt=0, le=500),
     grade: str | None = Query(None, description="Filter by grade: AAA, AA, A, B, C, D"),
 ):
     """Returns companies ranked by reliability score (descending). Optionally filter by grade."""
-    data_service = DataService(db)
-    return data_service.get_reliability_ranking(limit=limit, grade_filter=grade)
+    return repo.get_ranking(limit=limit, grade_filter=grade)
 
 
 @router.get("/{symbol}", response_model=ReliabilityResponse)
-async def get_company_reliability(symbol: str, db: DBDep):
+@cache(expire=1800, namespace="reliability:detail")
+async def get_company_reliability(symbol: str, repo: ReliabilityRepoDep):
     """Returns the reliability score and grade for a specific company by ticker symbol."""
-    data_service = DataService(db)
-    record = data_service.get_reliability_by_symbol(symbol)
+    record = repo.get_by_symbol(symbol)
     if not record:
         raise HTTPException(
             status_code=404,
-            detail=f"No reliability data found for {symbol.upper()}",
+            detail=f"Reliability não encontrada para {symbol.upper()}",
         )
     return record

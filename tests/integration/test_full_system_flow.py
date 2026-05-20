@@ -14,6 +14,7 @@ from crawler.models.schemas import StockPriceSchema
 from crawler.services.etl_service import ETLService
 
 
+@pytest.mark.integration
 def test_crawler_to_etl_full_flow(db_session, mocker):
     """End-to-end pipeline with CVM-derived fundamentals (mocked).
 
@@ -103,7 +104,7 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
 
     base_date = datetime(2023, 1, 3)
     for i in range(65):
-        engine.data_service.save_prices(
+        engine.price_repo.save_bulk(
             company.id,
             [
                 StockPriceSchema(

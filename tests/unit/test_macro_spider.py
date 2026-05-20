@@ -2,8 +2,7 @@ from crawler.spiders.macro_spider import MacroSpider
 
 
 def test_macro_spider_404_handling(mocker):
-    # Mock DataService and RequestManager
-    mock_ds = mocker.Mock()
+    # Mock RequestManager
     mock_rm = mocker.Mock()
 
     # Mock responses
@@ -13,7 +12,7 @@ def test_macro_spider_404_handling(mocker):
     # We want both SELIC and IPCA to return 404 to test the warning logging
     mock_rm.get.return_value = mock_resp_404
 
-    spider = MacroSpider(data_service=mock_ds, request_manager=mock_rm)
+    spider = MacroSpider(request_manager=mock_rm)
 
     # This should not raise an exception even if it gets 404s
     spider.crawl_macro_indicators()
@@ -23,8 +22,7 @@ def test_macro_spider_404_handling(mocker):
 
 
 def test_macro_spider_success(mocker):
-    # Mock DataService and RequestManager
-    mock_ds = mocker.Mock()
+    # Mock RequestManager
     mock_rm = mocker.Mock()
 
     # Mock responses
@@ -35,7 +33,7 @@ def test_macro_spider_success(mocker):
 
     mock_rm.get.return_value = mock_resp_200
 
-    spider = MacroSpider(data_service=mock_ds, request_manager=mock_rm)
+    spider = MacroSpider(request_manager=mock_rm)
 
     # Should complete without error
     spider.crawl_macro_indicators()

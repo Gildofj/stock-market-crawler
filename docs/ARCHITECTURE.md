@@ -90,7 +90,7 @@ GitHub Actions matrix [0..9] @ 02:00 UTC
             CrawlerEngine._calculate_advanced_metrics()
                                                ← Graham, Bazin, Quality Score
             ↓
-            CrawlerEngine._save_to_db()        ← via DataService
+            CrawlerEngine._save_to_db()        ← via Repositories
                                                  (bulk insert prices,
                                                   upsert company, save fundamentals)
         ↓

@@ -12,7 +12,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
 from crawler.celery_app import app
-from crawler.services.data_service import DataService
+from crawler.repositories import CompanyRepository
 from crawler.services.database import session_local
 from crawler.services.lake_service import LakeService
 from crawler.spiders.ri_spider import RISpider
@@ -23,9 +23,9 @@ def _run_ri_crawl(days_back: int = 30) -> int:
     """Pure crawl logic, callable from Celery or standalone."""
     db = session_local()
     try:
-        data_service = DataService(db)
+        company_repo = CompanyRepository(db)
         lake_service = LakeService(db)
-        spider = RISpider(data_service, lake_service, request_manager)
+        spider = RISpider(company_repo, lake_service, request_manager)
         return spider.crawl_recent(days_back=days_back)
     finally:
         db.close()

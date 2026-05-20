@@ -3,11 +3,11 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache
 from pydantic import BaseModel, ConfigDict
 
-from api.deps import DBDep
+from api.deps import CompanyRepoDep, LakeServiceDep
 from api.limiter import DefaultRateLimit
-from crawler.models.models import Company, LakeRIDocument
 
 router = APIRouter(
     prefix="/investor-relations",
@@ -24,22 +24,23 @@ class InvestorRelationLink(BaseModel):
     published_at: date | None = None
 
 @router.get("/{company_id}", response_model=list[InvestorRelationLink])
+@cache(expire=1800, namespace="ri:by_company")
 async def get_investor_relations_by_company_id(
     company_id: uuid.UUID,
-    db: DBDep,
+    repo: CompanyRepoDep,
+    lake: LakeServiceDep,
     limit: Annotated[int, Query(gt=0, le=100)] = 10,
-):
-    company = db.query(Company).filter(Company.id == company_id).first()
+) -> list[InvestorRelationLink]:
+    """
+    Retrieves the latest Investor Relations documents (ITR, DFP, IPE) for a company.
+
+    Includes documents from CVM (Brazilian SEC) with categories and original PDF links.
+    """
+    company = repo.get(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    ri_rows = (
-        db.query(LakeRIDocument)
-        .filter(LakeRIDocument.ticker == company.symbol)
-        .order_by(LakeRIDocument.reference_date.desc())
-        .limit(limit)
-        .all()
-    )
+    ri_rows = lake.get_ri_documents_by_ticker(company.symbol, limit=limit)
 
     return [
         InvestorRelationLink(

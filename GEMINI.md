@@ -6,7 +6,7 @@ Este arquivo define as regras de arquitetura, padrões e orquestração de IA pa
 1. **Agnostic Data Lake**: Este projeto é um reservatório agnóstico de dados financeiros e inteligência de mercado (LagoAI). Ele **não** gerencia usuários, planos ou portfolios. Essas responsabilidades pertencem ao serviço `rendaraq`.
 2. **Crawler Engine**: Segue um padrão similar ao Scrapy, com `spiders` isoladas, um `engine` central e `services` para persistência e processamento.
 2. **API (FastAPI)**: Camada de exposição de dados. Deve manter separação clara entre roteadores, schemas (Pydantic) e lógica de dependência.
-3. **Data Flow**: Spiders -> Services (DataService/ETL) -> Database (PostgreSQL via SQLAlchemy/Alembic).
+3. **Data Flow**: Spiders -> Repositories/Services -> Database (PostgreSQL via SQLAlchemy/Alembic).
 4. **Testing**: TDD é mandatório. Testes unitários para lógica de spiders/serviços e integração para fluxos de banco de dados.
 
 ## 🤖 Agentes Especializados do Projeto

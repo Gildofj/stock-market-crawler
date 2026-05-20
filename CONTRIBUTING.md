@@ -178,7 +178,7 @@ BREAKING CHANGE: /companies route was removed. Use /tickers.
 | **Style** | `ruff format` (line length 100, `py312` target). |
 | **Lint** | `ruff check` must pass. Selected rules: `E, F, I, N, W, B, C4, UP`. |
 | **Types** | Strict typing. All function signatures must have type hints. Pydantic V2 models, never `dict[str, Any]` at boundaries. `any` is a failure. |
-| **Imports** | Absolute imports only (`from crawler.services.data_service import DataService`). Top-of-file — no inline imports. |
+| **Imports** | Absolute imports only (`from crawler.repositories.company_repository import CompanyRepository`). Top-of-file — no inline imports. |
 | **Logging** | `loguru` only. No `print()` in production code. |
 | **i18n** | Never hardcode user-facing strings; use the established helpers. |
 | **Comments** | Self-documenting code over comments. Only comment **why**, never **what**. |

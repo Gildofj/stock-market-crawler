@@ -1,6 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache
 
-from api.deps import DBDep
+from api.deps import (
+    CompanyRepoDep,
+    FundamentalRepoDep,
+    LakeServiceDep,
+)
 from api.limiter import DefaultRateLimit, StrictRateLimit
 from crawler.models.schemas import (
     FundamentalSchema,
@@ -8,8 +13,6 @@ from crawler.models.schemas import (
     LakeNewsSchema,
     LakeRIDocumentSchema,
 )
-from crawler.services.data_service import DataService
-from crawler.services.lake_service import LakeService
 
 router = APIRouter(
     prefix="/lake",
@@ -36,23 +39,24 @@ def _news_to_schema(news_rows) -> list[LakeNewsSchema]:
 
 
 @router.get("/{symbol}", summary="Aggregated lake snapshot for a ticker")
+@cache(expire=600, namespace="lake:snapshot")
 async def get_lake_snapshot(
     symbol: str,
-    db: DBDep,
+    repo: CompanyRepoDep,
+    fundamental_repo: FundamentalRepoDep,
+    lake: LakeServiceDep,
 ):
     """Returns news, RI documents, fundamentals and cached AI insight for a ticker."""
     symbol_u = symbol.upper()
-    lake_service = LakeService(db)
-    data_service = DataService(db)
 
-    company = data_service.get_company_by_symbol(symbol_u)
+    company = repo.get_by_symbol(symbol_u)
     if not company:
-        raise HTTPException(status_code=404, detail=f"Company {symbol_u} not found")
+        raise HTTPException(status_code=404, detail=f"Empresa {symbol_u} não encontrada")
 
-    news = lake_service.get_news_by_ticker(symbol_u, limit=10)
-    ri_docs = lake_service.get_ri_documents_by_ticker(symbol_u, limit=3)
-    fundamentals = data_service.get_latest_fundamentals(company.id)
-    cache = lake_service.get_insight_cache(symbol_u)
+    news = lake.get_news_by_ticker(symbol_u, limit=10)
+    ri_docs = lake.get_ri_documents_by_ticker(symbol_u, limit=3)
+    fundamentals = fundamental_repo.get_latest(company.id)
+    cache_row = lake.get_insight_cache(symbol_u)
 
     return {
         "ticker": symbol_u,
@@ -64,7 +68,7 @@ async def get_lake_snapshot(
         "fundamentals": FundamentalSchema.model_validate(fundamentals)
         if fundamentals
         else None,
-        "insight": LakeInsightSchema.model_validate(cache) if cache else None,
+        "insight": LakeInsightSchema.model_validate(cache_row) if cache_row else None,
     }
 
 
@@ -73,14 +77,14 @@ async def get_lake_snapshot(
     response_model=list[LakeNewsSchema],
     summary="News feed for a ticker",
 )
+@cache(expire=600, namespace="lake:news")
 async def get_lake_news(
     symbol: str,
-    db: DBDep,
+    lake: LakeServiceDep,
     limit: int = Query(20, gt=0, le=100),
     offset: int = Query(0, ge=0),
 ):
-    lake_service = LakeService(db)
-    rows = lake_service.get_news_by_ticker(symbol.upper(), limit=limit, offset=offset)
+    rows = lake.get_news_by_ticker(symbol.upper(), limit=limit, offset=offset)
     return _news_to_schema(rows)
 
 
@@ -89,13 +93,13 @@ async def get_lake_news(
     response_model=list[LakeRIDocumentSchema],
     summary="Latest RI documents for a ticker",
 )
+@cache(expire=600, namespace="lake:ri")
 async def get_lake_ri(
     symbol: str,
-    db: DBDep,
+    lake: LakeServiceDep,
     limit: int = Query(5, gt=0, le=20),
 ):
-    lake_service = LakeService(db)
-    return lake_service.get_ri_documents_by_ticker(symbol.upper(), limit=limit)
+    return lake.get_ri_documents_by_ticker(symbol.upper(), limit=limit)
 
 
 @router.post(
@@ -107,7 +111,7 @@ async def get_lake_ri(
 async def upsert_lake_insight(
     symbol: str,
     payload: LakeInsightSchema,
-    db: DBDep,
+    lake: LakeServiceDep,
     ttl_hours: int = Query(6, gt=0, le=72),
 ):
     """Allows the AI Gateway to push a fresh insight payload into the cache.
@@ -115,9 +119,8 @@ async def upsert_lake_insight(
     Protected by the API key only (no premium gating) so trusted backend
     services can refresh the cache.
     """
-    lake_service = LakeService(db)
     payload_with_ticker = payload.model_copy(update={"ticker": symbol.upper()})
-    cache = lake_service.upsert_insight_cache(
+    cache_row = lake.upsert_insight_cache(
         symbol.upper(), payload_with_ticker, ttl_hours=ttl_hours
     )
-    return LakeInsightSchema.model_validate(cache)
+    return LakeInsightSchema.model_validate(cache_row)

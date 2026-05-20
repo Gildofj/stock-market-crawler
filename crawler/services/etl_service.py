@@ -4,9 +4,11 @@ from typing import Any
 
 import pandas as pd
 from loguru import logger
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..models.models import Fundamental, MLFeature, StockPrice
+from .exceptions import DatabaseError
 
 
 class ETLService:
@@ -104,9 +106,10 @@ class ETLService:
         try:
             self.db.commit()
             logger.info(f"Features saved for company_id: {company_id}")
-        except Exception as e:
+        except SQLAlchemyError as exc:
             self.db.rollback()
-            logger.error(f"Failed to save features for company {company_id}: {e}")
+            logger.error(f"Save features failed for company {company_id}: {exc}")
+            raise DatabaseError("Failed to save ML features") from exc
 
     def _to_decimal(self, val: Any) -> Any:
         """Helper to convert to Decimal for SQLAlchemy persistence, handling pandas nulls."""

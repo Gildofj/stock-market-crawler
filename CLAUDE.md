@@ -30,7 +30,7 @@ Adopt the agent from `.agents/agents/` based on the active file or task:
 | Feature end-to-end (multi-arquivo) | Start with `data-master`, then chain | `add-new-feature` |
 
 ## 🎨 Style Guidelines
-- Absolute imports: `from crawler.services.data_service import DataService`.
+- Absolute imports: `from crawler.repositories.company_repository import CompanyRepository`.
 - Self-documenting code. Mandatory type hints on all function signatures.
 - No `print()` in production — use `loguru` logger.
 - No `any` types — strict Pydantic V2 models.

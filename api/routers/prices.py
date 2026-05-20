@@ -3,11 +3,11 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi_cache.decorator import cache
 from pydantic import BaseModel, ConfigDict
 
-from api.deps import DBDep
+from api.deps import PriceRepoDep
 from api.limiter import DefaultRateLimit
-from crawler.models.models import StockPrice
 from crawler.models.schemas import StockPriceSchema
 
 router = APIRouter(
@@ -28,8 +28,9 @@ class QuoteSchema(BaseModel):
     market_state: str = "CLOSED"
 
 @router.get("/quotes", response_model=list[QuoteSchema])
+@cache(expire=300, namespace="prices:quotes_batch")
 async def get_quotes_batch(
-    db: DBDep,
+    repo: PriceRepoDep,
     company_ids: str = Query(..., alias="companyIds"),
 ):
     try:
@@ -39,13 +40,7 @@ async def get_quotes_batch(
 
     quotes = []
     for cid in ids:
-        prices = (
-            db.query(StockPrice)
-            .filter(StockPrice.company_id == cid)
-            .order_by(StockPrice.time.desc())
-            .limit(2)
-            .all()
-        )
+        prices = repo.get_history(cid, limit=2)
         if prices:
             current = prices[0]
             prev = prices[1] if len(prices) > 1 else current
@@ -64,14 +59,9 @@ async def get_quotes_batch(
     return quotes
 
 @router.get("/quote/{company_id}", response_model=QuoteSchema)
-async def get_quote(company_id: uuid.UUID, db: DBDep):
-    prices = (
-        db.query(StockPrice)
-        .filter(StockPrice.company_id == company_id)
-        .order_by(StockPrice.time.desc())
-        .limit(2)
-        .all()
-    )
+@cache(expire=300, namespace="prices:quote")
+async def get_quote(company_id: uuid.UUID, repo: PriceRepoDep):
+    prices = repo.get_history(company_id, limit=2)
 
     if not prices:
         raise HTTPException(status_code=404, detail="Quote not found")
@@ -91,18 +81,13 @@ async def get_quote(company_id: uuid.UUID, db: DBDep):
     )
 
 @router.get("/{company_id}", response_model=list[StockPriceSchema])
+@cache(expire=300, namespace="prices:history")
 async def get_stock_prices(
     company_id: uuid.UUID,
-    db: DBDep,
+    repo: PriceRepoDep,
     limit: Annotated[int, Query(gt=0, le=1000)] = 100,
 ):
-    prices = (
-        db.query(StockPrice)
-        .filter(StockPrice.company_id == company_id)
-        .order_by(StockPrice.time.desc())
-        .limit(limit)
-        .all()
-    )
+    prices = repo.get_history(company_id, limit=limit)
 
     if not prices:
         raise HTTPException(status_code=404, detail="Prices not found")

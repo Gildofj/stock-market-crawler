@@ -7,7 +7,7 @@ import feedparser
 from loguru import logger
 
 from ..models.schemas import LakeNewsSchema
-from ..services.data_service import DataService
+from ..repositories import CompanyRepository
 from ..services.lake_service import LakeService
 from ..services.source_registry import get_source_registry
 
@@ -26,18 +26,18 @@ class NewsSpider:
 
     def __init__(
         self,
-        data_service: DataService,
+        company_repo: CompanyRepository,
         lake_service: LakeService,
         known_tickers: set[str] | None = None,
     ):
-        self.data_service = data_service
+        self.company_repo = company_repo
         self.lake_service = lake_service
         self._known_tickers = known_tickers
 
     def _resolve_known_tickers(self) -> set[str]:
         if self._known_tickers is not None:
             return self._known_tickers
-        symbols = self.data_service.get_all_known_symbols()
+        symbols = self.company_repo.get_all_symbols()
         self._known_tickers = symbols
         return symbols
 

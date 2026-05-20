@@ -1,7 +1,6 @@
 from loguru import logger
 
 from crawler.celery_app import app
-from crawler.services.data_service import DataService
 from crawler.services.database import session_local
 from crawler.spiders.macro_spider import MacroSpider
 from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
@@ -23,8 +22,7 @@ def crawl_macro_data_task(self):
 
     db = session_local()
     try:
-        data_service = DataService(db)
-        macro_spider = MacroSpider(data_service, request_manager)
+        macro_spider = MacroSpider(request_manager)
         macro_spider.crawl_macro_indicators()
         task_logger.info("Macro data collection completed.")
     finally:

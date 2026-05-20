@@ -1,7 +1,7 @@
 from loguru import logger
 
 from crawler.celery_app import app
-from crawler.services.data_service import DataService
+from crawler.repositories import CompanyRepository
 from crawler.services.database import session_local
 from crawler.services.lake_service import LakeService
 from crawler.spiders.news_spider import NewsSpider
@@ -24,9 +24,9 @@ def crawl_news_task(self):
 
     db = session_local()
     try:
-        data_service = DataService(db)
+        company_repo = CompanyRepository(db)
         lake_service = LakeService(db)
-        spider = NewsSpider(data_service, lake_service)
+        spider = NewsSpider(company_repo, lake_service)
         persisted = spider.crawl_all()
         task_logger.info(f"News collection completed ({persisted} items).")
     finally:

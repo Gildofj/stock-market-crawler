@@ -7,8 +7,8 @@ import pdfplumber
 from loguru import logger
 
 from ..models.schemas import LakeRIDocumentInternalSchema
+from ..repositories import CompanyRepository
 from ..services.cnpj_map import resolve_ticker, watched_cnpjs
-from ..services.data_service import DataService
 from ..services.lake_service import LakeService
 from ..services.request_manager import RequestManager
 from ..services.source_registry import get_source_registry
@@ -33,11 +33,11 @@ class RISpider:
 
     def __init__(
         self,
-        data_service: DataService,
+        company_repo: CompanyRepository,
         lake_service: LakeService,
         request_manager: RequestManager | None = None,
     ):
-        self.data_service = data_service
+        self.company_repo = company_repo
         self.lake_service = lake_service
         self.request_manager = request_manager or RequestManager()
 
@@ -171,7 +171,7 @@ class RISpider:
                 r2_public_url=None,
             )
 
-            company = self.data_service.get_company_by_symbol(ticker)
+            company = self.company_repo.get_by_symbol(ticker)
             company_id = company.id if company else None
 
             try:

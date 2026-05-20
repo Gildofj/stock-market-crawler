@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from loguru import logger
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
@@ -10,6 +11,7 @@ from ..models.schemas import (
     LakeNewsSchema,
     LakeRIDocumentInternalSchema,
 )
+from .exceptions import DatabaseError
 from .source_registry import SourceNotFoundError, get_source_registry
 
 
@@ -48,8 +50,13 @@ class LakeService:
             if source_id is not None and existing.source_id is None:
                 existing.source_id = source_id
             self._sync_tickers(existing, payload.tickers)
-            self.db.commit()
-            return existing
+            try:
+                self.db.commit()
+                return existing
+            except SQLAlchemyError as exc:
+                self.db.rollback()
+                logger.error(f"Update news failed for {payload.url}: {exc}")
+                raise DatabaseError("Failed to update news") from exc
 
         news = LakeNews(
             source=payload.source,
@@ -68,10 +75,10 @@ class LakeService:
             self.db.commit()
             self.db.refresh(news)
             return news
-        except Exception as e:
+        except SQLAlchemyError as exc:
             self.db.rollback()
-            logger.error(f"Failed to insert news {payload.url}: {e}")
-            raise
+            logger.error(f"Insert news failed for {payload.url}: {exc}")
+            raise DatabaseError("Failed to insert news") from exc
 
     def _sync_tickers(self, news: LakeNews, tickers: list[str]) -> None:
         current = {row.ticker for row in news.tickers}
@@ -159,8 +166,13 @@ class LakeService:
                 existing.r2_public_url = payload.r2_public_url
             if company_id is not None:
                 existing.company_id = company_id
-            self.db.commit()
-            return existing
+            try:
+                self.db.commit()
+                return existing
+            except SQLAlchemyError as exc:
+                self.db.rollback()
+                logger.error(f"Update RI doc failed for {payload.doc_id}: {exc}")
+                raise DatabaseError("Failed to update RI document") from exc
 
         document = LakeRIDocument(
             doc_id=payload.doc_id,
@@ -180,10 +192,10 @@ class LakeService:
             self.db.commit()
             self.db.refresh(document)
             return document
-        except Exception as e:
+        except SQLAlchemyError as exc:
             self.db.rollback()
-            logger.error(f"Failed to insert RI doc {payload.doc_id}: {e}")
-            raise
+            logger.error(f"Insert RI doc failed for {payload.doc_id}: {exc}")
+            raise DatabaseError("Failed to insert RI document") from exc
 
     def get_ri_documents_by_ticker(
         self, ticker: str, limit: int = 3
@@ -225,8 +237,13 @@ class LakeService:
             existing.dy_adjusted = payload.dy_adjusted
             existing.pl_adjusted = payload.pl_adjusted
             existing.expires_at = expires_at
-            self.db.commit()
-            return existing
+            try:
+                self.db.commit()
+                return existing
+            except SQLAlchemyError as exc:
+                self.db.rollback()
+                logger.error(f"Update insight failed for {ticker}: {exc}")
+                raise DatabaseError("Failed to update insight cache") from exc
 
         cache = LakeInsightCache(
             ticker=ticker,
@@ -237,6 +254,11 @@ class LakeService:
             expires_at=expires_at,
         )
         self.db.add(cache)
-        self.db.commit()
-        self.db.refresh(cache)
-        return cache
+        try:
+            self.db.commit()
+            self.db.refresh(cache)
+            return cache
+        except SQLAlchemyError as exc:
+            self.db.rollback()
+            logger.error(f"Insert insight failed for {ticker}: {exc}")
+            raise DatabaseError("Failed to insert insight cache") from exc

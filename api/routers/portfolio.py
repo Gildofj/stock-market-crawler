@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi_cache.decorator import cache
 
-from api.deps import DBDep
+from api.deps import (
+    CompanyRepoDep,
+    FundamentalRepoDep,
+    LakeServiceDep,
+    ReliabilityRepoDep,
+)
 from api.limiter import DefaultRateLimit
 from api.schemas import (
     CompanyRead,
@@ -12,8 +17,6 @@ from api.schemas import (
 )
 from crawler.models.models import LakeNews
 from crawler.models.schemas import LakeNewsSchema
-from crawler.services.data_service import DataService
-from crawler.services.lake_service import LakeService
 
 MAX_SYMBOLS_PER_REQUEST = 50
 
@@ -61,13 +64,28 @@ def _news_row_to_schema(row: LakeNews) -> LakeNewsSchema:
 )
 @cache(expire=120, namespace="portfolio:snapshot")
 async def get_portfolio_snapshot(
-    db: DBDep,
+    company_repo: CompanyRepoDep,
+    fundamental_repo: FundamentalRepoDep,
+    reliability_repo: ReliabilityRepoDep,
+    lake: LakeServiceDep,
     symbols: str = Query(
         ..., description="Comma-separated tickers (max 50). Case-insensitive."
     ),
     news_per_symbol: int = Query(10, gt=0, le=20),
 ) -> PortfolioSnapshotResponse:
     """Returns company + fundamentals + reliability + top-N news per symbol.
+
+    This endpoint aggregates data from multiple domains to provide a complete
+    view for a user's portfolio or watchlist.
+
+    Indicators included:
+    - **P/L**: Price-to-Earnings ratio.
+    - **DY**: Dividend Yield (%).
+    - **ROE**: Return on Equity (%).
+    - **ROIC**: Return on Invested Capital (%).
+    - **EV/EBITDA**: Enterprise Value to EBITDA ratio.
+    - **Reliability Score**: Composite score (0-100) based on profit consistency and debt.
+    - **News**: Most recent market intelligence tagged with the symbol.
 
     Replaces the dashboard N×4 round-trip pattern with one request that
     issues 4 bulk SQL queries (independent of the symbol count).
@@ -83,18 +101,15 @@ async def get_portfolio_snapshot(
             detail=f"max {MAX_SYMBOLS_PER_REQUEST} symbols per request",
         )
 
-    data = DataService(db)
-    lake = LakeService(db)
-
-    companies = data.get_companies_by_symbols(parsed)
+    companies = company_repo.get_many_by_symbols(parsed)
     if not companies:
         raise HTTPException(
             status_code=400, detail="no known symbols in request"
         )
 
     company_ids = [c.id for c in companies]
-    fundamentals_by_id = data.get_latest_fundamentals_for_companies(company_ids)
-    reliability_by_id = data.get_reliability_for_companies(company_ids)
+    fundamentals_by_id = fundamental_repo.get_latest_for_companies(company_ids)
+    reliability_by_id = reliability_repo.get_for_companies(company_ids)
     news_by_ticker = lake.get_news_by_tickers(parsed, news_per_symbol)
 
     companies_by_symbol = {c.symbol: c for c in companies}

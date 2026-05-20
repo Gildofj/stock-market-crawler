@@ -14,19 +14,19 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
-from ..services.data_service import DataService
+from ..repositories import CompanyRepository
 from ..services.request_manager import RequestManager
 
 
 class LogoService:
     """Resolves a logo URL for a company directly from its own site."""
 
-    def __init__(self, data_service: DataService) -> None:
-        self.data_service = data_service
+    def __init__(self, company_repo: CompanyRepository) -> None:
+        self.company_repo = company_repo
         self.request_manager = RequestManager()
 
     def update_logo_if_missing(self, symbol: str) -> str | None:
-        company = self.data_service.get_company_by_symbol(symbol)
+        company = self.company_repo.get_by_symbol(symbol)
         if company is None:
             return None
         if company.logo_url:
@@ -38,7 +38,7 @@ class LogoService:
 
         logo_url = self._extract_logo_from_site(str(website))
         if logo_url:
-            self.data_service.update_company_info(symbol, {"logo_url": logo_url})
+            self.company_repo.update_info(symbol, {"logo_url": logo_url})
             logger.info(f"Logo for {symbol} resolved from official site.")
         return logo_url
 

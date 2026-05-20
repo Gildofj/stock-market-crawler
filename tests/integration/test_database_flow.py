@@ -1,16 +1,19 @@
 from datetime import datetime
 
+import pytest
+
 from crawler.models.models import StockPrice
 from crawler.models.schemas import CompanySchema, StockPriceSchema
 
 
-def test_data_service_end_to_end(data_service, db_session):
+@pytest.mark.integration
+def test_repository_flow(company_repo, price_repo, db_session):
     """
     Test using the high-performance db_session fixture from conftest.py
     """
     # 1. Create Company
     company_in = CompanySchema(symbol="TEST3", name="Test Corp")
-    company = data_service.get_or_create_company(company_in)
+    company = company_repo.get_or_create(company_in)
     assert company.id is not None
 
     # 2. Save Prices
@@ -23,7 +26,7 @@ def test_data_service_end_to_end(data_service, db_session):
         adj_close=10.5,
         volume=1000,
     )
-    data_service.save_prices(company.id, [price_in])
+    price_repo.save_bulk(company.id, [price_in])
 
     # Verify persistence within the transaction
     saved_price = db_session.query(StockPrice).filter_by(company_id=company.id).first()

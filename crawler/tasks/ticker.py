@@ -31,7 +31,7 @@ def crawl_ticker_task(self, symbol: str):
 
         engine.run_for_ticker(symbol)
 
-        company = engine.data_service.get_company_by_symbol(symbol)
+        company = engine.company_repo.get_by_symbol(symbol)
         if company:
             etl_service.generate_features(company.id)
             reliability_service.compute_and_save(company.id)

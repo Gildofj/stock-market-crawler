@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 
 from loguru import logger
 
-from ..services.data_service import DataService
 from ..services.request_manager import RequestManager
 from ..services.source_registry import get_source_registry
 
@@ -17,10 +16,7 @@ class MacroSpider:
     SELIC_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json"
     IPCA_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json"
 
-    def __init__(
-        self, data_service: DataService, request_manager: RequestManager | None = None
-    ):
-        self.data_service = data_service
+    def __init__(self, request_manager: RequestManager | None = None) -> None:
         self.request_manager = request_manager or RequestManager()
 
     def crawl_macro_indicators(self):

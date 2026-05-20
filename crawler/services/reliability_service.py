@@ -2,9 +2,11 @@ import uuid
 
 import yfinance as yf
 from loguru import logger
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..models.models import Company, CompanyReliability, Fundamental
+from .exceptions import DatabaseError
 from .reliability_config import (
     CRITERION_WEIGHTS,
     CYCLICAL_SECTOR_KEYWORDS,
@@ -266,7 +268,7 @@ class ReliabilityService:
                 f"grade={fields.get('reliability_grade')} for company_id={company_id}"
             )
             return record
-        except Exception as exc:
+        except SQLAlchemyError as exc:
             self.db.rollback()
             logger.error(f"ReliabilityService: failed to save for {company_id}: {exc}")
-            return None
+            raise DatabaseError("Failed to persist reliability score") from exc
