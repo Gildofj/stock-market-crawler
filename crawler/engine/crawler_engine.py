@@ -1,8 +1,7 @@
-import asyncio
 import uuid
 
 from loguru import logger
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.models.schemas import CompanySchema, FundamentalSchema
 from core.repositories import (
@@ -30,13 +29,13 @@ class CrawlerEngine:
     2. ``CVMSpider`` — raw standardized statements from CVM Dados Abertos.
        Indicators (P/L, P/VP, ROE, ROIC, EV/EBITDA, margins, debt ratios,
        Graham, Bazin) are computed locally from these line items using
-       :mod:`crawler.services.financial_calculator`, so we never depend on
+       :mod:`core.services.financial_calculator`, so we never depend on
        proprietary methodologies maintained by third-party platforms.
     """
 
     def __init__(
         self,
-        db: Session,
+        db: AsyncSession,
         request_manager: RequestManager | None = None,
         spiders: dict | None = None,
     ):
@@ -60,28 +59,25 @@ class CrawlerEngine:
         for symbol in symbols:
             result = results_dict.get(symbol) or CrawlResult(symbol=symbol)
 
-            await self.cvm_spider.enrich_async(result)
+            await self.cvm_spider.enrich(result)
             self._calculate_advanced_metrics(result)
 
-            await asyncio.to_thread(self._save_to_db, result)
+            await self._save_to_db(result)
             final_results.append(result)
 
         return final_results
 
     async def run_for_ticker_async(self, symbol: str) -> CrawlResult:
         logger.info(f"Engine: Starting async enrichment chain for {symbol}")
-        result = await self.b3_spider.crawl_ticker_async(symbol)
-        await self.cvm_spider.enrich_async(result)
+        result = await self.b3_spider.crawl_ticker(symbol)
+        await self.cvm_spider.enrich(result)
         self._calculate_advanced_metrics(result)
-        await asyncio.to_thread(self._save_to_db, result)
+        await self._save_to_db(result)
         return result
 
-    def run_for_ticker(self, symbol: str) -> CrawlResult:
+    async def run_for_ticker(self, symbol: str) -> CrawlResult:
         logger.info(f"Engine: Starting enrichment chain for {symbol}")
-        result = self.b3_spider.crawl_ticker(symbol)
-        self.cvm_spider.enrich(result)
-        self._calculate_advanced_metrics(result)
-        self._save_to_db(result)
+        result = await self.run_for_ticker_async(symbol)
         logger.success(f"Engine: completed enrichment for {symbol}")
         return result
 
@@ -132,7 +128,7 @@ class CrawlerEngine:
         if metrics_count > 0:
             result.quality_score = score
 
-    def _save_to_db(self, result: CrawlResult) -> None:
+    async def _save_to_db(self, result: CrawlResult) -> None:
         company_schema = CompanySchema(
             symbol=result.symbol,
             name=result.name or result.symbol,
@@ -143,11 +139,11 @@ class CrawlerEngine:
             website=result.website,
             is_active=result.is_active,
         )
-        company = self.company_repo.get_or_create(company_schema)
+        company = await self.company_repo.get_or_create(company_schema)
         company_id = uuid.UUID(str(company.id))
 
         if result.prices:
-            self.price_repo.save_bulk(company_id, result.prices)
+            await self.price_repo.save_bulk(company_id, result.prices)
 
         fundamental_schema = FundamentalSchema(
             p_l=result.p_l,
@@ -167,12 +163,12 @@ class CrawlerEngine:
             valuation_bazin=result.valuation_bazin,
             quality_score=result.quality_score,
         )
-        self.fundamental_repo.save(company_id, fundamental_schema)
+        await self.fundamental_repo.save(company_id, fundamental_schema)
 
         # Reconciliation rows — observational only. Must never break the
         # crawl: any failure is logged and swallowed.
         try:
-            self.reconciliation_service.emit(company_id, result)
+            await self.reconciliation_service.emit(company_id, result)
         except Exception as exc:
             logger.warning(f"reconciliation failed for {result.symbol}: {exc}")
 

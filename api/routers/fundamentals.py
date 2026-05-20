@@ -20,7 +20,7 @@ async def get_latest_fundamentals(company_id: uuid.UUID, repo: FundamentalRepoDe
     """
     Retrieves the most recent fundamental indicators for a company by its internal ID.
     """
-    fundamentals = repo.get_latest(company_id)
+    fundamentals = await repo.get_latest(company_id)
 
     if not fundamentals:
         raise HTTPException(status_code=404, detail="No fundamental data found for this company")

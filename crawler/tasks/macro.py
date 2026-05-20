@@ -1,3 +1,5 @@
+import asyncio
+
 from loguru import logger
 
 from core.database import session_local
@@ -20,10 +22,16 @@ def crawl_macro_data_task(self):
     task_logger = logger.bind(task="macro", task_id=self.request.id)
     task_logger.info("Starting macro data collection...")
 
-    db = session_local()
-    try:
-        macro_spider = MacroSpider(request_manager)
-        macro_spider.crawl_macro_indicators()
-        task_logger.info("Macro data collection completed.")
-    finally:
-        db.close()
+    async def _run():
+        db = session_local()
+        try:
+            # MacroSpider is currently sync but its constructor or methods might
+            # interact with the database (which is now async).
+            macro_spider = MacroSpider(request_manager)
+            macro_spider.crawl_macro_indicators()
+            task_logger.info("Macro data collection completed.")
+        finally:
+            await db.close()
+
+    asyncio.run(_run())
+

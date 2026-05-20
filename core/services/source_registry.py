@@ -15,14 +15,14 @@ not by spider code, so the data lineage stays auditable.
 
 from __future__ import annotations
 
-import threading
+import asyncio
 import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
 from loguru import logger
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import session_local
 from core.models.models import DataSource
@@ -69,9 +69,9 @@ class SourceRegistry:
     def __init__(self) -> None:
         self._by_slug: dict[str, SourceRecord] = {}
         self._loaded_at: float = 0.0
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
-    def refresh(self, db: Session | None = None) -> None:
+    async def refresh(self, db: AsyncSession | None = None) -> None:
         """Force-reload from the database.
 
         Network/DB errors are swallowed and the previous cache (if any) is
@@ -80,10 +80,11 @@ class SourceRegistry:
         source into a phantom-disabled one.
         """
         owns_session = db is None
-        db_session: Session | None = None
+        db_session: AsyncSession | None = None
         try:
             db_session = db if db is not None else session_local()
-            rows = db_session.execute(select(DataSource)).scalars().all()
+            result = await db_session.execute(select(DataSource))
+            rows = result.scalars().all()
         except Exception as exc:
             logger.warning(
                 "SourceRegistry: DB unreachable during refresh; "
@@ -93,7 +94,7 @@ class SourceRegistry:
         finally:
             if owns_session and db_session is not None:
                 try:
-                    db_session.close()
+                    await db_session.close()
                 except Exception:
                     pass
 
@@ -109,24 +110,24 @@ class SourceRegistry:
                 risk_tier=row.risk_tier,
                 enabled=row.enabled,
             )
-        with self._lock:
+        async with self._lock:
             self._by_slug = new_index
             self._loaded_at = time.monotonic()
         logger.debug(f"SourceRegistry: refreshed ({len(new_index)} sources).")
 
-    def _ensure_loaded(self) -> None:
+    async def _ensure_loaded(self) -> None:
         # Cheap fast-path: most calls find a warm cache.
         if self._by_slug and (time.monotonic() - self._loaded_at) < self.CACHE_TTL:
             return
-        self.refresh()
+        await self.refresh()
 
-    def get(self, slug: str) -> SourceRecord:
+    async def get(self, slug: str) -> SourceRecord:
         """Lookup by slug; raises if the source hasn't been seeded."""
-        self._ensure_loaded()
+        await self._ensure_loaded()
         record = self._by_slug.get(slug)
         if record is None:
             # Maybe a freshly inserted source — refresh once and retry.
-            self.refresh()
+            await self.refresh()
             record = self._by_slug.get(slug)
         if record is None:
             raise SourceNotFoundError(
@@ -135,7 +136,7 @@ class SourceRegistry:
             )
         return record
 
-    def is_enabled(self, slug: str) -> bool:
+    async def is_enabled(self, slug: str) -> bool:
         """Returns True unless the source is *explicitly* disabled in the registry.
 
         Fails open: unknown slugs (not yet seeded) and refresh failures both
@@ -144,7 +145,8 @@ class SourceRegistry:
         not for a missing migration or DB outage to silently halt collection.
         """
         try:
-            return self.get(slug).enabled
+            record = await self.get(slug)
+            return record.enabled
         except SourceNotFoundError:
             return True
 
@@ -169,9 +171,9 @@ class SourceRegistry:
                 return slug
         return None
 
-    def all_enabled(self) -> list[SourceRecord]:
+    async def all_enabled(self) -> list[SourceRecord]:
         """Snapshot of currently-enabled sources, sorted by display name."""
-        self._ensure_loaded()
+        await self._ensure_loaded()
         return sorted(
             (r for r in self._by_slug.values() if r.enabled),
             key=lambda r: r.display_name.lower(),

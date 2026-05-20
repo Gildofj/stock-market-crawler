@@ -48,7 +48,8 @@ def test_spider_does_not_import_storage_module():
     )
 
 
-def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
+@pytest.mark.asyncio
+async def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
     """Setting enabled=False on the cvm row should short-circuit crawl_recent."""
     from core.repositories import CompanyRepository
     from core.services.lake_service import LakeService
@@ -69,11 +70,14 @@ def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
         request_manager=None,
     )
     # Force the spider to not need a real network call when disabled.
+    async def _empty_df(*args, **kwargs):
+        return pd.DataFrame()
+
     monkeypatch.setattr(
         spider,
         "_fetch_index_csv",
-        lambda *_a, **_kw: pd.DataFrame(),  # pragma: no cover (should not run)
+        _empty_df,
     )
 
-    persisted = spider.crawl_recent(days_back=1)
+    persisted = await spider.crawl_recent(days_back=1)
     assert persisted == 0

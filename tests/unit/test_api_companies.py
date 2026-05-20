@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.main import app
 from core.database import get_db as get_crawler_db
@@ -11,22 +11,23 @@ client = TestClient(app, headers=TEST_AUTH_HEADERS)
 
 
 @pytest.fixture
-def override_db(db_session: Session):
-    def _override_db():
+def override_db(db_session: AsyncSession):
+    async def _override_db():
         yield db_session
 
     app.dependency_overrides[get_crawler_db] = _override_db
-    yield
+    yield db_session
     app.dependency_overrides.clear()
 
 
-def test_search_companies(db_session: Session, override_db):
+@pytest.mark.asyncio
+async def test_search_companies(db_session: AsyncSession, override_db):
     # Seed data
     c1 = Company(symbol="PETR4", name="Petrobras PN", sector="Energy")
     c2 = Company(symbol="VALE3", name="Vale ON", sector="Mining")
     c3 = Company(symbol="ITUB4", name="Itaú Unibanco PN", sector="Financial")
     db_session.add_all([c1, c2, c3])
-    db_session.commit()
+    await db_session.commit()
 
     # Test search by symbol (exact)
     response = client.get("/api/v1/companies/search?q=PETR4")
@@ -62,7 +63,8 @@ def test_search_companies(db_session: Session, override_db):
     assert len(data) == 0
 
 
-def test_search_min_length(override_db):
+@pytest.mark.asyncio
+async def test_search_min_length(override_db):
     # Test min length constraint (q must be at least 1 char, which is handled by Query)
     # If q is empty, FastAPI should return 422 Unprocessable Entity
     response = client.get("/api/v1/companies/search?q=")

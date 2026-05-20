@@ -1,3 +1,4 @@
+import asyncio
 import io
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -41,46 +42,50 @@ class RISpider:
         self.lake_service = lake_service
         self.request_manager = request_manager or RequestManager()
 
-    def _fetch_index_csv(self, year: int) -> pd.DataFrame | None:
+    async def _fetch_index_csv(self, year: int) -> pd.DataFrame | None:
         url = self.IPE_URL_TEMPLATE.format(year=year)
         try:
-            response = self.request_manager.get(url, timeout=60)
+            response = await self.request_manager.get_async(url, timeout=60)
             response.raise_for_status()
         except Exception as e:
             logger.warning(f"RISpider: failed to fetch IPE index for {year}: {e}")
             return None
         try:
-            return pd.read_csv(
-                io.BytesIO(response.content), sep=";", encoding="latin-1"
+            # pandas.read_csv is sync, but small network-bound overhead here
+            return await asyncio.to_thread(
+                lambda: pd.read_csv(io.BytesIO(response.content), sep=";", encoding="latin-1")
             )
         except Exception as e:
             logger.error(f"RISpider: could not parse IPE CSV for {year}: {e}")
             return None
 
-    def _fetch_pdf_bytes(self, pdf_url: str) -> bytes | None:
+    async def _fetch_pdf_bytes(self, pdf_url: str) -> bytes | None:
         try:
-            response = self.request_manager.get(pdf_url, timeout=90)
+            response = await self.request_manager.get_async(pdf_url, timeout=90)
             response.raise_for_status()
         except Exception as e:
             logger.warning(f"RISpider: failed to download PDF {pdf_url}: {e}")
             return None
         return response.content
 
-    def _extract_pdf_text(self, pdf_bytes: bytes, pdf_url: str | None = None) -> str | None:
-        try:
-            buffer = io.BytesIO(pdf_bytes)
-            with pdfplumber.open(buffer) as pdf:
-                chunks: list[str] = []
-                for page in pdf.pages:
-                    text = page.extract_text() or ""
-                    chunks.append(text)
-                    if sum(len(c) for c in chunks) >= self.MAX_TEXT_CHARS:
-                        break
-            full = "\n".join(chunks).strip()
-            return full[: self.MAX_TEXT_CHARS] if full else None
-        except Exception as e:
-            logger.warning(f"RISpider: pdfplumber failed for {pdf_url or '<unknown>'}: {e}")
-            return None
+    async def _extract_pdf_text(self, pdf_bytes: bytes, pdf_url: str | None = None) -> str | None:
+        def _extract():
+            try:
+                buffer = io.BytesIO(pdf_bytes)
+                with pdfplumber.open(buffer) as pdf:
+                    chunks: list[str] = []
+                    for page in pdf.pages:
+                        text = page.extract_text() or ""
+                        chunks.append(text)
+                        if sum(len(c) for c in chunks) >= self.MAX_TEXT_CHARS:
+                            break
+                full = "\n".join(chunks).strip()
+                return full[: self.MAX_TEXT_CHARS] if full else None
+            except Exception as exc:
+                logger.warning(f"RISpider: pdfplumber failed for {pdf_url or '<unknown>'}: {exc}")
+                return None
+
+        return await asyncio.to_thread(_extract)
 
     @staticmethod
     def _coerce_date(value: Any) -> date | None:
@@ -100,16 +105,16 @@ class RISpider:
                 return str(row[column])
         return None
 
-    def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
+    async def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
         # Operator kill-switch: disabling 'cvm' in data_sources halts new
         # collection without a deploy. Existing rows are unaffected.
-        if not get_source_registry().is_enabled("cvm"):
+        if not await get_source_registry().is_enabled("cvm"):
             logger.info("RISpider: 'cvm' source disabled — skipping crawl.")
             return 0
 
         cutoff = datetime.utcnow().date() - timedelta(days=days_back)
         target_year = year or datetime.utcnow().year
-        df = self._fetch_index_csv(target_year)
+        df = await self._fetch_index_csv(target_year)
         if df is None or df.empty:
             return 0
 
@@ -154,9 +159,9 @@ class RISpider:
             # reference we keep.
             text: str | None = None
             if pdf_url:
-                pdf_bytes = self._fetch_pdf_bytes(pdf_url)
+                pdf_bytes = await self._fetch_pdf_bytes(pdf_url)
                 if pdf_bytes:
-                    text = self._extract_pdf_text(pdf_bytes, pdf_url)
+                    text = await self._extract_pdf_text(pdf_bytes, pdf_url)
 
             ref_value = row.get("Data_Referencia") or (row.get(date_col) if date_col else None)
 
@@ -171,11 +176,11 @@ class RISpider:
                 r2_public_url=None,
             )
 
-            company = self.company_repo.get_by_symbol(ticker)
+            company = await self.company_repo.get_by_symbol(ticker)
             company_id = company.id if company else None
 
             try:
-                self.lake_service.upsert_ri_document(
+                await self.lake_service.upsert_ri_document(
                     payload, company_id=company_id, r2_key=None
                 )
                 persisted += 1

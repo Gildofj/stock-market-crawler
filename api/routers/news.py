@@ -42,11 +42,11 @@ async def get_news_by_company_id(
     - **Sentiment**: AI-classified sentiment (Bullish, Bearish, Neutral).
     - **Published At**: UTC timestamp of publication.
     """
-    company = repo.get(company_id)
+    company = await repo.get(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    news_rows = lake.get_news_by_ticker(company.symbol, limit=limit)
+    news_rows = await lake.get_news_by_ticker(company.symbol, limit=limit)
 
     return [
         NewsItemSchema(

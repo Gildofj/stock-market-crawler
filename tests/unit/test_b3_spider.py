@@ -66,7 +66,8 @@ def _patch_ticker(mocker, info: dict, history: pd.DataFrame, shares=None, shares
     return ticker
 
 
-def test_b3_spider_does_not_write_fundamentals(mocker, _info_dict, _history_df):
+@pytest.mark.asyncio
+async def test_b3_spider_does_not_write_fundamentals(mocker, _info_dict, _history_df):
     """B3 spider must not populate any numeric indicator on the result —
     those come from CVMSpider. Numeric .info fields are captured into
     `yahoo_info_indicators` for reconciliation only.
@@ -75,7 +76,7 @@ def test_b3_spider_does_not_write_fundamentals(mocker, _info_dict, _history_df):
         mocker, info=_info_dict, history=_history_df, shares=pd.Series([1_000_000.0])
     )
 
-    result = B3Spider().crawl_ticker("FLOW3")
+    result = await B3Spider().crawl_ticker("FLOW3")
 
     # Metadata: populated
     assert result.name == "Flow Corp SA"
@@ -104,7 +105,8 @@ def test_b3_spider_does_not_write_fundamentals(mocker, _info_dict, _history_df):
     assert result.eps is None
 
 
-def test_b3_spider_captures_info_snapshot(mocker, _info_dict, _history_df):
+@pytest.mark.asyncio
+async def test_b3_spider_captures_info_snapshot(mocker, _info_dict, _history_df):
     """All numeric fields present in .info must round-trip into the snapshot
     untouched (no normalisation at this layer — the reconciliation service
     handles unit conversion).
@@ -113,7 +115,7 @@ def test_b3_spider_captures_info_snapshot(mocker, _info_dict, _history_df):
         mocker, info=_info_dict, history=_history_df, shares=pd.Series([1_000_000.0])
     )
 
-    result = B3Spider().crawl_ticker("FLOW3")
+    result = await B3Spider().crawl_ticker("FLOW3")
 
     snapshot = result.yahoo_info_indicators
     assert snapshot is not None
@@ -126,20 +128,22 @@ def test_b3_spider_captures_info_snapshot(mocker, _info_dict, _history_df):
     assert "longName" not in snapshot
 
 
-def test_b3_spider_missing_info_fields(mocker, _history_df):
+@pytest.mark.asyncio
+async def test_b3_spider_missing_info_fields(mocker, _history_df):
     """An info dict with no numeric fields should produce an empty snapshot
     (represented as None to stay consistent with the field type).
     """
     info = {"longName": "Bare Corp"}
     _patch_ticker(mocker, info=info, history=_history_df, shares=pd.Series([500.0]))
 
-    result = B3Spider().crawl_ticker("BARE3")
+    result = await B3Spider().crawl_ticker("BARE3")
 
     assert result.yahoo_info_indicators is None
     assert result.shares_outstanding == 500.0
 
 
-def test_b3_spider_handles_get_shares_full_failure(mocker, _info_dict, _history_df):
+@pytest.mark.asyncio
+async def test_b3_spider_handles_get_shares_full_failure(mocker, _info_dict, _history_df):
     """get_shares_full() raising must not break the crawl; shares_outstanding
     stays None and the rest of the snapshot still lands.
     """
@@ -150,25 +154,27 @@ def test_b3_spider_handles_get_shares_full_failure(mocker, _info_dict, _history_
         shares_exc=RuntimeError("yfinance is down"),
     )
 
-    result = B3Spider().crawl_ticker("FLOW3")
+    result = await B3Spider().crawl_ticker("FLOW3")
 
     assert result.shares_outstanding is None
     assert result.yahoo_info_indicators is not None
     assert len(result.prices) == 2  # history still populated
 
 
-def test_b3_spider_handles_empty_shares_series(mocker, _info_dict, _history_df):
+@pytest.mark.asyncio
+async def test_b3_spider_handles_empty_shares_series(mocker, _info_dict, _history_df):
     """An empty shares Series is a soft miss, not a fatal error."""
     _patch_ticker(
         mocker, info=_info_dict, history=_history_df, shares=pd.Series([], dtype=float)
     )
 
-    result = B3Spider().crawl_ticker("FLOW3")
+    result = await B3Spider().crawl_ticker("FLOW3")
 
     assert result.shares_outstanding is None
 
 
-def test_b3_spider_returns_empty_result_for_delisted(mocker, _info_dict):
+@pytest.mark.asyncio
+async def test_b3_spider_returns_empty_result_for_delisted(mocker, _info_dict):
     """An empty history (delisted / unknown ticker) short-circuits before
     any .info read."""
     _patch_ticker(
@@ -178,7 +184,7 @@ def test_b3_spider_returns_empty_result_for_delisted(mocker, _info_dict):
         shares=pd.Series([1.0]),
     )
 
-    result = B3Spider().crawl_ticker("DEAD3")
+    result = await B3Spider().crawl_ticker("DEAD3")
 
     assert result.prices == []
     assert result.yahoo_info_indicators is None
@@ -186,7 +192,8 @@ def test_b3_spider_returns_empty_result_for_delisted(mocker, _info_dict):
     assert result.name is None
 
 
-def test_b3_spider_marks_zero_volume_inactive(mocker, _info_dict):
+@pytest.mark.asyncio
+async def test_b3_spider_marks_zero_volume_inactive(mocker, _info_dict):
     """Five trading days of zero volume → is_active flipped to 0."""
     idx = pd.to_datetime(
         ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]
@@ -204,6 +211,6 @@ def test_b3_spider_marks_zero_volume_inactive(mocker, _info_dict):
     )
     _patch_ticker(mocker, info=_info_dict, history=df, shares=pd.Series([1.0]))
 
-    result = B3Spider().crawl_ticker("DULL3")
+    result = await B3Spider().crawl_ticker("DULL3")
 
     assert result.is_active == 0

@@ -7,7 +7,8 @@ from crawler.engine.crawler_engine import CrawlerEngine
 from crawler.models.contract import CrawlResult
 
 
-def test_calculate_advanced_metrics(mocker):
+@pytest.mark.asyncio
+async def test_calculate_advanced_metrics(mocker):
     # Mock dependencies
     mock_db = mocker.Mock()
     engine = CrawlerEngine(db=mock_db)
@@ -39,7 +40,8 @@ def test_calculate_advanced_metrics(mocker):
     assert result.quality_score == 100
 
 
-def test_calculate_advanced_metrics_partial(mocker):
+@pytest.mark.asyncio
+async def test_calculate_advanced_metrics_partial(mocker):
     # Mock dependencies
     mock_db = mocker.Mock()
     engine = CrawlerEngine(db=mock_db)

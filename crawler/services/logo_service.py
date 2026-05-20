@@ -8,6 +8,7 @@ attract the same database-protection risk as their indicators.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from urllib.parse import urljoin, urlparse
 
@@ -15,7 +16,6 @@ from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
 from core.repositories import CompanyRepository
-
 from .request_manager import RequestManager
 
 
@@ -26,8 +26,8 @@ class LogoService:
         self.company_repo = company_repo
         self.request_manager = RequestManager()
 
-    def update_logo_if_missing(self, symbol: str) -> str | None:
-        company = self.company_repo.get_by_symbol(symbol)
+    async def update_logo_if_missing(self, symbol: str) -> str | None:
+        company = await self.company_repo.get_by_symbol(symbol)
         if company is None:
             return None
         if company.logo_url:
@@ -37,21 +37,22 @@ class LogoService:
         if not website:
             return None
 
-        logo_url = self._extract_logo_from_site(str(website))
+        logo_url = await self._extract_logo_from_site(str(website))
         if logo_url:
-            self.company_repo.update_info(symbol, {"logo_url": logo_url})
+            await self.company_repo.update_info(symbol, {"logo_url": logo_url})
             logger.info(f"Logo for {symbol} resolved from official site.")
         return logo_url
 
-    def _extract_logo_from_site(self, site_url: str) -> str | None:
+    async def _extract_logo_from_site(self, site_url: str) -> str | None:
         try:
-            response = self.request_manager.get(site_url, timeout=10)
+            response = await self.request_manager.get_async(site_url, timeout=10)
         except Exception as exc:
             logger.debug(f"LogoService: failed to fetch {site_url}: {exc}")
             return None
         if response.status_code != 200:
             return None
 
+        # BeautifulSoup is CPU-bound, but we'll run it in-loop for now or to_thread
         soup = BeautifulSoup(response.text, "lxml")
 
         icon = soup.find("link", rel=lambda value: bool(value and "icon" in str(value).lower()))

@@ -40,7 +40,7 @@ async def get_quotes_batch(
 
     quotes = []
     for cid in ids:
-        prices = repo.get_history(cid, limit=2)
+        prices = await repo.get_history(cid, limit=2)
         if prices:
             current = prices[0]
             prev = prices[1] if len(prices) > 1 else current
@@ -61,7 +61,7 @@ async def get_quotes_batch(
 @router.get("/quote/{company_id}", response_model=QuoteSchema)
 @cache(expire=300, namespace="prices:quote")
 async def get_quote(company_id: uuid.UUID, repo: PriceRepoDep):
-    prices = repo.get_history(company_id, limit=2)
+    prices = await repo.get_history(company_id, limit=2)
 
     if not prices:
         raise HTTPException(status_code=404, detail="Quote not found")
@@ -87,7 +87,7 @@ async def get_stock_prices(
     repo: PriceRepoDep,
     limit: Annotated[int, Query(gt=0, le=1000)] = 100,
 ):
-    prices = repo.get_history(company_id, limit=limit)
+    prices = await repo.get_history(company_id, limit=limit)
 
     if not prices:
         raise HTTPException(status_code=404, detail="Prices not found")

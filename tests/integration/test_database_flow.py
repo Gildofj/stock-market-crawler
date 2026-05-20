@@ -7,13 +7,14 @@ from core.models.schemas import CompanySchema, StockPriceSchema
 
 
 @pytest.mark.integration
-def test_repository_flow(company_repo, price_repo, db_session):
+@pytest.mark.asyncio
+async def test_repository_flow(company_repo, price_repo, db_session):
     """
     Test using the high-performance db_session fixture from conftest.py
     """
     # 1. Create Company
     company_in = CompanySchema(symbol="TEST3", name="Test Corp")
-    company = company_repo.get_or_create(company_in)
+    company = await company_repo.get_or_create(company_in)
     assert company.id is not None
 
     # 2. Save Prices
@@ -26,8 +27,10 @@ def test_repository_flow(company_repo, price_repo, db_session):
         adj_close=10.5,
         volume=1000,
     )
-    price_repo.save_bulk(company.id, [price_in])
+    await price_repo.save_bulk(company.id, [price_in])
 
     # Verify persistence within the transaction
-    saved_price = db_session.query(StockPrice).filter_by(company_id=company.id).first()
+    from sqlalchemy import select
+    result = await db_session.execute(select(StockPrice).filter_by(company_id=company.id))
+    saved_price = result.scalars().first()
     assert saved_price.close == 10.5

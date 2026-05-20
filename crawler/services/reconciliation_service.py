@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.models.models import LakeIndicatorReconciliation
 
@@ -25,15 +26,16 @@ from ..models.contract import CrawlResult
 
 
 class _SessionLike(Protocol):
-    """Minimal SQLAlchemy Session surface needed by the service.
+    """Minimal AsyncSession surface needed by the service.
 
     Declaring the dependency as a Protocol lets unit tests pass a lightweight
     fake without subclassing the real Session — and keeps the import surface
     of this module narrow (no engine, no autoflush plumbing).
     """
 
-    def bulk_save_objects(self, objects: Iterable[object]) -> None: ...
-    def commit(self) -> None: ...
+    async def commit(self) -> None: ...
+    def add_all(self, instances: Iterable[object]) -> None: ...
+
 
 # Relative deviation (|yahoo - cvm| / |cvm|) above which we flag the row as
 # an outlier and log a warning. 20% is generous enough to absorb timing
@@ -86,10 +88,10 @@ class ReconciliationService:
 
     SOURCE_SLUG = "yfinance_info"
 
-    def __init__(self, db: _SessionLike) -> None:
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    def emit(self, company_id: uuid.UUID, result: CrawlResult) -> int:
+    async def emit(self, company_id: uuid.UUID, result: CrawlResult) -> int:
         """Emit reconciliation rows for every indicator the upstream reported.
 
         Returns the number of rows inserted. Failures are logged but never
@@ -133,9 +135,14 @@ class ReconciliationService:
 
         if not rows:
             return 0
-        self.db.bulk_save_objects(rows)
-        self.db.commit()
-        return len(rows)
+        self.db.add_all(rows)
+        try:
+            await self.db.commit()
+            return len(rows)
+        except Exception as exc:
+            # Observational only - don't break the caller.
+            logger.warning(f"Reconciliation persistence failed for {result.symbol}: {exc}")
+            return 0
 
     @staticmethod
     def _delta(

@@ -4,7 +4,7 @@ This spider is the replacement for every proprietary fundamentals scraper
 that previously fed the ``Fundamental`` table. It reads the standardized
 statements that every B3-listed company files with the CVM (DFP for annual,
 ITR for quarterly), maps the universal account codes to line items, and
-defers every formula to :mod:`crawler.services.financial_calculator`.
+defers every formula to :mod:`core.services.financial_calculator`.
 
 The line-item extraction is keyword + account-code resilient: CVM standard
 codes are stable (e.g. ``3.01`` is always Revenue), but companies in
@@ -29,9 +29,9 @@ import pandas as pd
 from loguru import logger
 
 from core.services.financial_calculator import RawFinancials, cagr, compute_all
+from crawler.services.cvm_dataset_service import CVMDatasetService, CVMYearData, Statement
 
 from ..models.contract import CrawlResult
-from ..services.cvm_dataset_service import CVMDatasetService, CVMYearData, Statement
 from .base_spider import BaseSpider
 
 
@@ -100,19 +100,13 @@ class CVMSpider(BaseSpider):
     # BaseSpider contract
     # ------------------------------------------------------------------
 
-    def crawl_ticker(self, symbol: str) -> CrawlResult:
+    async def crawl_ticker(self, symbol: str) -> CrawlResult:
         result = CrawlResult(symbol=symbol)
-        self._populate_fundamentals(result)
+        await asyncio.to_thread(self._populate_fundamentals, result)
         return result
 
-    async def crawl_ticker_async(self, symbol: str) -> CrawlResult:
-        return await asyncio.to_thread(self.crawl_ticker, symbol)
-
-    def enrich(self, result: CrawlResult) -> None:
+    async def enrich(self, result: CrawlResult) -> None:
         """Compute fundamentals in-place using the spider's already-populated price data."""
-        self._populate_fundamentals(result)
-
-    async def enrich_async(self, result: CrawlResult) -> None:
         await asyncio.to_thread(self._populate_fundamentals, result)
 
     # ------------------------------------------------------------------

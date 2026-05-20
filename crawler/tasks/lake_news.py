@@ -1,3 +1,5 @@
+import asyncio
+
 from loguru import logger
 
 from core.database import session_local
@@ -22,12 +24,16 @@ def crawl_news_task(self):
     task_logger = logger.bind(task="lake.news", task_id=self.request.id)
     task_logger.info("Starting news collection (LagoAI data lake)...")
 
-    db = session_local()
-    try:
-        company_repo = CompanyRepository(db)
-        lake_service = LakeService(db)
-        spider = NewsSpider(company_repo, lake_service)
-        persisted = spider.crawl_all()
-        task_logger.info(f"News collection completed ({persisted} items).")
-    finally:
-        db.close()
+    async def _run():
+        db = session_local()
+        try:
+            company_repo = CompanyRepository(db)
+            lake_service = LakeService(db)
+            spider = NewsSpider(company_repo, lake_service)
+            persisted = await spider.crawl_all()
+            task_logger.info(f"News collection completed ({persisted} items).")
+        finally:
+            await db.close()
+
+    asyncio.run(_run())
+

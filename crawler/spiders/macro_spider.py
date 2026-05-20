@@ -19,8 +19,8 @@ class MacroSpider:
     def __init__(self, request_manager: RequestManager | None = None) -> None:
         self.request_manager = request_manager or RequestManager()
 
-    def crawl_macro_indicators(self):
-        if not get_source_registry().is_enabled("bcb"):
+    async def crawl_macro_indicators(self):
+        if not await get_source_registry().is_enabled("bcb"):
             logger.info("MacroSpider: 'bcb' source disabled — skipping crawl.")
             return
         logger.info("Fetching macroeconomic indicators from BCB...")
@@ -38,7 +38,7 @@ class MacroSpider:
 
         try:
             # 1. Fetch SELIC
-            selic_response = self.request_manager.get(selic_url, headers=headers, timeout=20)
+            selic_response = await self.request_manager.get_async(selic_url, headers=headers, timeout=20)
             if selic_response.status_code == 404:
                 logger.warning(f"No SELIC data found for the period {start_date} to {end_date}.")
             else:
@@ -49,7 +49,7 @@ class MacroSpider:
                     logger.info(f"Latest SELIC Rate: {latest_selic}%")
 
             # 2. Fetch IPCA
-            ipca_response = self.request_manager.get(ipca_url, headers=headers, timeout=20)
+            ipca_response = await self.request_manager.get_async(ipca_url, headers=headers, timeout=20)
             if ipca_response.status_code == 404:
                 logger.warning(f"No IPCA data found for the period {start_date} to {end_date}.")
             else:

@@ -49,14 +49,14 @@ async def get_lake_snapshot(
     """Returns news, RI documents, fundamentals and cached AI insight for a ticker."""
     symbol_u = symbol.upper()
 
-    company = repo.get_by_symbol(symbol_u)
+    company = await repo.get_by_symbol(symbol_u)
     if not company:
         raise HTTPException(status_code=404, detail=f"Empresa {symbol_u} não encontrada")
 
-    news = lake.get_news_by_ticker(symbol_u, limit=10)
-    ri_docs = lake.get_ri_documents_by_ticker(symbol_u, limit=3)
-    fundamentals = fundamental_repo.get_latest(company.id)
-    cache_row = lake.get_insight_cache(symbol_u)
+    news = await lake.get_news_by_ticker(symbol_u, limit=10)
+    ri_docs = await lake.get_ri_documents_by_ticker(symbol_u, limit=3)
+    fundamentals = await fundamental_repo.get_latest(company.id)
+    cache_row = await lake.get_insight_cache(symbol_u)
 
     return {
         "ticker": symbol_u,
@@ -84,7 +84,7 @@ async def get_lake_news(
     limit: int = Query(20, gt=0, le=100),
     offset: int = Query(0, ge=0),
 ):
-    rows = lake.get_news_by_ticker(symbol.upper(), limit=limit, offset=offset)
+    rows = await lake.get_news_by_ticker(symbol.upper(), limit=limit, offset=offset)
     return _news_to_schema(rows)
 
 
@@ -99,7 +99,7 @@ async def get_lake_ri(
     lake: LakeServiceDep,
     limit: int = Query(5, gt=0, le=20),
 ):
-    return lake.get_ri_documents_by_ticker(symbol.upper(), limit=limit)
+    return await lake.get_ri_documents_by_ticker(symbol.upper(), limit=limit)
 
 
 @router.post(
@@ -120,7 +120,7 @@ async def upsert_lake_insight(
     services can refresh the cache.
     """
     payload_with_ticker = payload.model_copy(update={"ticker": symbol.upper()})
-    cache_row = lake.upsert_insight_cache(
+    cache_row = await lake.upsert_insight_cache(
         symbol.upper(), payload_with_ticker, ttl_hours=ttl_hours
     )
     return LakeInsightSchema.model_validate(cache_row)

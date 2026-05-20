@@ -6,6 +6,7 @@ without hitting the live CVM endpoints.
 from datetime import datetime
 
 import pandas as pd
+import pytest
 
 from core.models.schemas import StockPriceSchema
 from crawler.models.contract import CrawlResult
@@ -89,11 +90,12 @@ def _result_with_price() -> CrawlResult:
     )
 
 
-def test_cvm_spider_populates_universal_indicators():
+@pytest.mark.asyncio
+async def test_cvm_spider_populates_universal_indicators():
     spider = _spider()
     result = _result_with_price()
 
-    spider.enrich(result)
+    await spider.enrich(result)
 
     # EPS = 150 / 100 = 1.5; P/L = 20 / 1.5
     assert result.eps == 1.5
@@ -112,7 +114,8 @@ def test_cvm_spider_populates_universal_indicators():
     assert result.market_cap == 2_000.0
 
 
-def test_cvm_spider_computes_dy_from_dfc_dividends():
+@pytest.mark.asyncio
+async def test_cvm_spider_computes_dy_from_dfc_dividends():
     """DY must be derived from the DFC 6.03.01 line and the current price.
 
     Fixture: dividends paid = abs(-60) = 60; shares = 100; price = 20.
@@ -121,20 +124,22 @@ def test_cvm_spider_computes_dy_from_dfc_dividends():
     spider = _spider()
     result = _result_with_price()
 
-    spider.enrich(result)
+    await spider.enrich(result)
 
     assert result.dy == 3.0
 
 
-def test_cvm_spider_skips_when_mapping_missing():
+@pytest.mark.asyncio
+async def test_cvm_spider_skips_when_mapping_missing():
     spider = CVMSpider(ticker_to_cvm_code={})
     result = _result_with_price()
-    spider.enrich(result)
+    await spider.enrich(result)
     assert result.p_l is None
     assert result.roe is None
 
 
-def test_cvm_spider_overrides_preexisting_values():
+@pytest.mark.asyncio
+async def test_cvm_spider_overrides_preexisting_values():
     """CVM is now the authoritative source — values pre-populated by any
     upstream spider (e.g. by an earlier yfinance read) must be overwritten
     with the clean-room calculation.
@@ -142,7 +147,7 @@ def test_cvm_spider_overrides_preexisting_values():
     spider = _spider()
     result = _result_with_price()
     result.p_l = 99.0  # pretend a stale value was left over
-    spider.enrich(result)
+    await spider.enrich(result)
     # CVM-derived value: price/EPS = 20/1.5 ≈ 13.33; definitely not 99.
     assert result.p_l is not None and result.p_l != 99.0
     assert result.p_l < 20.0

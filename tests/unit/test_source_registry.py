@@ -1,5 +1,7 @@
 """SourceRegistry behavior: lookups, URL heuristics, and fail-open policy."""
 
+import pytest
+
 from core.services.source_registry import (
     SourceNotFoundError,
     SourceRecord,
@@ -37,39 +39,47 @@ def _seeded_registry() -> SourceRegistry:
     return registry
 
 
-def test_get_returns_seeded_record():
+@pytest.mark.asyncio
+async def test_get_returns_seeded_record():
     registry = _seeded_registry()
-    record = registry.get("cvm")
+    record = await registry.get("cvm")
     assert record.display_name == "CVM"
     assert record.enabled is True
 
 
-def test_get_raises_for_unknown_slug(monkeypatch):
+@pytest.mark.asyncio
+async def test_get_raises_for_unknown_slug(monkeypatch):
     registry = _seeded_registry()
     # Block refresh from masking the miss by also blanking _by_slug after.
-    monkeypatch.setattr(registry, "refresh", lambda *a, **kw: None)
+    async def _no_refresh(*a, **kw):
+        return None
+    monkeypatch.setattr(registry, "refresh", _no_refresh)
     try:
-        registry.get("does-not-exist")
+        await registry.get("does-not-exist")
     except SourceNotFoundError:
         pass
     else:
         raise AssertionError("Expected SourceNotFoundError for unknown slug.")
 
 
-def test_is_enabled_respects_kill_switch():
+@pytest.mark.asyncio
+async def test_is_enabled_respects_kill_switch():
     registry = _seeded_registry()
-    assert registry.is_enabled("cvm") is True
-    assert registry.is_enabled("infomoney") is False, (
+    assert await registry.is_enabled("cvm") is True
+    assert await registry.is_enabled("infomoney") is False, (
         "Operator disabled InfoMoney via SQL — registry must reflect that."
     )
 
 
-def test_is_enabled_fails_open_for_unknown(monkeypatch):
+@pytest.mark.asyncio
+async def test_is_enabled_fails_open_for_unknown(monkeypatch):
     """Unknown slug ≠ disabled. Fail-open avoids stopping collection on a
     missing migration or typo. Explicit operator action is required to halt."""
     registry = _seeded_registry()
-    monkeypatch.setattr(registry, "refresh", lambda *a, **kw: None)
-    assert registry.is_enabled("not-seeded-yet") is True
+    async def _no_refresh(*a, **kw):
+        return None
+    monkeypatch.setattr(registry, "refresh", _no_refresh)
+    assert await registry.is_enabled("not-seeded-yet") is True
 
 
 def test_slug_for_url_recognizes_known_hosts():
@@ -81,13 +91,14 @@ def test_slug_for_url_recognizes_known_hosts():
     assert registry.slug_for_url("") is None
 
 
-def test_all_enabled_sorts_by_display_name():
+@pytest.mark.asyncio
+async def test_all_enabled_sorts_by_display_name():
     registry = _seeded_registry()
     # Re-enable infomoney to test ordering with multiple entries.
     registry._by_slug["infomoney"] = SourceRecord(
         **{**registry._by_slug["infomoney"].__dict__, "enabled": True}
     )
-    enabled = registry.all_enabled()
+    enabled = await registry.all_enabled()
     assert [r.slug for r in enabled] == ["cvm", "infomoney"], (
         "all_enabled must sort by display_name alphabetically."
     )

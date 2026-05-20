@@ -70,8 +70,8 @@ class B3Spider(BaseSpider):
             logger.error(f"B3 Batch Spider error: {e}")
             return {s: CrawlResult(symbol=s) for s in symbols}
 
-    def crawl_ticker(self, symbol: str) -> CrawlResult:
-        """Synchronously crawls a ticker from B3 (yfinance)."""
+    async def crawl_ticker(self, symbol: str) -> CrawlResult:
+        """Asynchronously crawls a ticker from B3 (yfinance)."""
         period = os.getenv("YF_HISTORY_PERIOD", "1y")
 
         # B3 symbols in yfinance need .SA suffix
@@ -83,7 +83,7 @@ class B3Spider(BaseSpider):
 
         try:
             # Fast fail if no data (e.g. 404 Not Found or delisted)
-            history = ticker.history(period=period)
+            history = await asyncio.to_thread(ticker.history, period=period)
 
             if history.empty:
                 logger.warning(
@@ -102,7 +102,7 @@ class B3Spider(BaseSpider):
 
             # 1. Company metadata (best-effort: Ticker.info is an undocumented
             # dict — only textual fields are read here, never numeric ones).
-            info: dict[str, Any] = ticker.info
+            info: dict[str, Any] = await asyncio.to_thread(lambda: ticker.info)
 
             # Priority: longName -> shortName -> symbol
             display_name = str(info.get("longName") or info.get("shortName") or symbol)
@@ -138,7 +138,7 @@ class B3Spider(BaseSpider):
             # line items into per-share metrics. Falls back to None on failure;
             # the calculator already handles missing shares gracefully.
             try:
-                shares_series = ticker.get_shares_full()
+                shares_series = await asyncio.to_thread(ticker.get_shares_full)
                 if shares_series is not None and not shares_series.empty:
                     result.shares_outstanding = float(shares_series.iloc[-1])
             except Exception as exc:
@@ -176,11 +176,6 @@ class B3Spider(BaseSpider):
             if value is not None:
                 snapshot[key] = value
         return snapshot or None
-
-    async def crawl_ticker_async(self, symbol: str) -> CrawlResult:
-        """Asynchronously crawls a ticker from B3 (yfinance)."""
-        # yfinance is synchronous, so we run it in a thread pool
-        return await asyncio.to_thread(self.crawl_ticker, symbol)
 
     def _to_float(self, val: Any) -> float | None:
         """Safely converts a value to float."""

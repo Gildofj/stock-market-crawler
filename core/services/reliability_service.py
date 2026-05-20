@@ -2,8 +2,9 @@ import uuid
 
 import yfinance as yf
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.models.models import Company, CompanyReliability, Fundamental
 from core.services.exceptions import DatabaseError
@@ -26,19 +27,22 @@ class ReliabilityService:
       4. Perennial sector     — 15% (keyword classification of companies.sector)
     """
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
-    def compute_and_save(self, company_id: uuid.UUID) -> CompanyReliability | None:
+    async def compute_and_save(self, company_id: uuid.UUID) -> CompanyReliability | None:
         """
         Main entry point. Orchestrates scoring and upserts one row per company.
         Must be called after the crawl has already persisted fresh Fundamental data.
         """
-        company = self.db.query(Company).filter(Company.id == company_id).first()
+        stmt_company = select(Company).filter(Company.id == company_id)
+        result_company = await self.db.execute(stmt_company)
+        company = result_company.scalars().first()
+
         if not company:
             logger.warning(f"ReliabilityService: company {company_id} not found")
             return None
@@ -47,12 +51,12 @@ class ReliabilityService:
         logger.info(f"ReliabilityService: computing reliability for {symbol}")
 
         profitable_years, max_years = self._fetch_profit_history(symbol)
-        debt_compliant, debt_total = self._query_debt_history(company_id)
+        debt_compliant, debt_total = await self._query_debt_history(company_id)
         tag_along_pct = self._derive_tag_along(str(company.segment) if company.segment else None)
         is_perennial = self._classify_sector(str(company.sector) if company.sector else None)
 
-        profit_score = self._score_profit_consistency(profitable_years, max_years, company_id)
-        debt_score = self._score_debt_control(debt_compliant, debt_total, company_id)
+        profit_score = await self._score_profit_consistency(profitable_years, max_years, company_id)
+        debt_score = await self._score_debt_control(debt_compliant, debt_total, company_id)
         tag_score = self._score_tag_along(tag_along_pct)
         perennial_score = self._score_perennial(is_perennial)
 
@@ -64,7 +68,7 @@ class ReliabilityService:
         )
         reliability_grade = self._score_to_grade(reliability_score)
 
-        return self._upsert(
+        return await self._upsert(
             company_id=company_id,
             profit_consistency_score=profit_score,
             debt_control_score=debt_score,
@@ -115,19 +119,21 @@ class ReliabilityService:
             logger.warning(f"ReliabilityService: yfinance income_stmt failed for {symbol}: {exc}")
             return 0, 0
 
-    def _query_debt_history(self, company_id: uuid.UUID) -> tuple[int, int]:
+    async def _query_debt_history(self, company_id: uuid.UUID) -> tuple[int, int]:
         """
         Returns (compliant_count, total_count) across all fundamentals snapshots.
         Compliant = liquid_debt_ebitda <= 2.0. Null values are excluded from both counts.
         Financial companies (banks) often have null/inapplicable ratios — they are
         handled by _score_debt_control returning a neutral score when current is None.
         """
-        records = (
-            self.db.query(Fundamental.liquid_debt_ebitda)
+        stmt = (
+            select(Fundamental.liquid_debt_ebitda)
             .filter(Fundamental.company_id == company_id)
             .filter(Fundamental.liquid_debt_ebitda.isnot(None))
-            .all()
         )
+        result = await self.db.execute(stmt)
+        records = result.all()
+
         total = len(records)
         if total == 0:
             return 0, 0
@@ -163,7 +169,7 @@ class ReliabilityService:
     # Scoring algorithms
     # ------------------------------------------------------------------
 
-    def _score_profit_consistency(
+    async def _score_profit_consistency(
         self,
         profitable_years: int,
         max_years: int,
@@ -178,18 +184,21 @@ class ReliabilityService:
 
         base = round((profitable_years / max_years) * 80)
 
-        latest = (
-            self.db.query(Fundamental.cagr_profit_5y)
+        stmt = (
+            select(Fundamental.cagr_profit_5y)
             .filter(Fundamental.company_id == company_id)
             .filter(Fundamental.cagr_profit_5y.isnot(None))
             .order_by(Fundamental.collected_at.desc())
-            .first()
+            .limit(1)
         )
-        bonus = 20 if (latest and float(latest.cagr_profit_5y) > 0) else 0
+        result = await self.db.execute(stmt)
+        latest_cagr = result.scalars().first()
+
+        bonus = 20 if (latest_cagr and float(latest_cagr) > 0) else 0
 
         return min(base + bonus, 100)
 
-    def _score_debt_control(
+    async def _score_debt_control(
         self,
         compliant_snapshots: int,
         total_snapshots: int,
@@ -200,17 +209,19 @@ class ReliabilityService:
         Consistency bonus: (compliant/total) * 20 pts when we have ≥2 historical snapshots
         Returns 50 (neutral) when ratio is null — avoids penalising financial companies.
         """
-        current = (
-            self.db.query(Fundamental.liquid_debt_ebitda)
+        stmt = (
+            select(Fundamental.liquid_debt_ebitda)
             .filter(Fundamental.company_id == company_id)
             .order_by(Fundamental.collected_at.desc())
-            .first()
+            .limit(1)
         )
+        result = await self.db.execute(stmt)
+        current_ratio = result.scalars().first()
 
-        if current is None or current.liquid_debt_ebitda is None:
+        if current_ratio is None:
             return 50
 
-        ratio = float(current.liquid_debt_ebitda)
+        ratio = float(current_ratio)
         if ratio <= 2.0:
             base = 80
         elif ratio <= 3.5:
@@ -246,12 +257,10 @@ class ReliabilityService:
     # Persistence
     # ------------------------------------------------------------------
 
-    def _upsert(self, company_id: uuid.UUID, **fields: object) -> CompanyReliability | None:
-        record = (
-            self.db.query(CompanyReliability)
-            .filter(CompanyReliability.company_id == company_id)
-            .first()
-        )
+    async def _upsert(self, company_id: uuid.UUID, **fields: object) -> CompanyReliability | None:
+        stmt = select(CompanyReliability).filter(CompanyReliability.company_id == company_id)
+        result = await self.db.execute(stmt)
+        record = result.scalars().first()
 
         if record:
             for key, value in fields.items():
@@ -261,14 +270,14 @@ class ReliabilityService:
             self.db.add(record)
 
         try:
-            self.db.commit()
-            self.db.refresh(record)
+            await self.db.commit()
+            await self.db.refresh(record)
             logger.success(
                 f"ReliabilityService: saved score={fields.get('reliability_score')} "
                 f"grade={fields.get('reliability_grade')} for company_id={company_id}"
             )
             return record
         except SQLAlchemyError as exc:
-            self.db.rollback()
+            await self.db.rollback()
             logger.error(f"ReliabilityService: failed to save for {company_id}: {exc}")
             raise DatabaseError("Failed to persist reliability score") from exc

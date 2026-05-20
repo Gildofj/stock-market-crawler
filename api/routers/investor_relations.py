@@ -36,11 +36,11 @@ async def get_investor_relations_by_company_id(
 
     Includes documents from CVM (Brazilian SEC) with categories and original PDF links.
     """
-    company = repo.get(company_id)
+    company = await repo.get(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    ri_rows = lake.get_ri_documents_by_ticker(company.symbol, limit=limit)
+    ri_rows = await lake.get_ri_documents_by_ticker(company.symbol, limit=limit)
 
     return [
         InvestorRelationLink(

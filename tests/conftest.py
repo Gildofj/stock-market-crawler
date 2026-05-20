@@ -5,8 +5,7 @@ os.environ.setdefault("API_KEY", "test-api-key")
 import pytest
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.inmemory import InMemoryBackend
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.models.models import Base
 from core.repositories import (
@@ -24,11 +23,6 @@ TEST_AUTH_HEADERS = {"X-API-Key": TEST_API_KEY}
 
 @pytest.fixture(autouse=True, scope="session")
 def _init_fastapi_cache():
-    """TestClient does not run the FastAPI lifespan, so FastAPICache is
-    never initialized in tests. Endpoints decorated with `@cache` would
-    crash trying to reach a backend. Wire an in-memory backend once per
-    session — harmless for tests that don't use caching.
-    """
     FastAPICache.init(InMemoryBackend(), prefix="test-cache")
     yield
     FastAPICache.reset()
@@ -45,39 +39,31 @@ def _clear_cache_between_tests():
     InMemoryBackend._store.clear()
 
 # Use a fast in-memory SQLite for core logic tests
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture(scope="session")
 def engine():
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
-    Base.metadata.create_all(bind=engine)
+    engine = create_async_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
     return engine
 
 
-@pytest.fixture(scope="session")
-def tables(engine):
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
 @pytest.fixture
-def db_session(engine, tables):
+async def db_session(engine):
     """
-    Creates a new database session for a test, with a transaction that is rolled back.
-    This is the fastest way to run database tests as it avoids disk I/O and re-seeding.
+    Creates a new database async session for a test.
     """
-    connection = engine.connect()
-    transaction = connection.begin()
-    session_factory = sessionmaker(bind=connection)
-    session = session_factory()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
-    yield session
+    session_factory = async_sessionmaker(
+        bind=engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with session_factory() as session:
+        yield session
 
-    session.close()
-    transaction.rollback()
-    connection.close()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture

@@ -1,3 +1,4 @@
+import asyncio
 from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
@@ -23,21 +24,24 @@ def crawl_ticker_task(self, symbol: str):
     task_logger = logger.bind(ticker=symbol, task_id=self.request.id)
     task_logger.info(f"Starting optimized crawl for {symbol}")
 
-    db = session_local()
-    try:
-        engine = CrawlerEngine(db, request_manager)
-        etl_service = ETLService(db)
-        reliability_service = ReliabilityService(db)
+    async def _run():
+        db = session_local()
+        try:
+            engine = CrawlerEngine(db, request_manager)
+            etl_service = ETLService(db)
+            reliability_service = ReliabilityService(db)
 
-        engine.run_for_ticker(symbol)
+            await engine.run_for_ticker(symbol)
 
-        company = engine.company_repo.get_by_symbol(symbol)
-        if company:
-            etl_service.generate_features(company.id)
-            reliability_service.compute_and_save(company.id)
-            task_logger.info(f"Ticker {symbol} completed successfully.")
-    except SoftTimeLimitExceeded:
-        task_logger.warning(f"Soft time limit hit for {symbol}; aborting.")
-        raise
-    finally:
-        db.close()
+            company = await engine.company_repo.get_by_symbol(symbol)
+            if company:
+                await etl_service.generate_features(company.id)
+                await reliability_service.compute_and_save(company.id)
+                task_logger.info(f"Ticker {symbol} completed successfully.")
+        except SoftTimeLimitExceeded:
+            task_logger.warning(f"Soft time limit hit for {symbol}; aborting.")
+            raise
+        finally:
+            await db.close()
+
+    asyncio.run(_run())

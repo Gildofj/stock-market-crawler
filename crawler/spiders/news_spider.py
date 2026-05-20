@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import re
 from datetime import UTC, datetime
@@ -34,10 +35,10 @@ class NewsSpider:
         self.lake_service = lake_service
         self._known_tickers = known_tickers
 
-    def _resolve_known_tickers(self) -> set[str]:
+    async def _resolve_known_tickers(self) -> set[str]:
         if self._known_tickers is not None:
             return self._known_tickers
-        symbols = self.company_repo.get_all_symbols()
+        symbols = await self.company_repo.get_all_symbols()
         self._known_tickers = symbols
         return symbols
 
@@ -61,8 +62,8 @@ class NewsSpider:
         candidates = {t for t in candidates if t.isalnum() and 4 <= len(t) <= 6}
         return sorted(candidates & known_tickers)
 
-    def crawl_all(self) -> int:
-        known = self._resolve_known_tickers()
+    async def crawl_all(self) -> int:
+        known = await self._resolve_known_tickers()
         if not known:
             logger.warning("NewsSpider: no known tickers — skipping all feeds.")
             return 0
@@ -72,11 +73,12 @@ class NewsSpider:
         for source, url in self.FEEDS.items():
             # Operator kill-switch: an UPDATE on data_sources.enabled stops the
             # spider from re-collecting from this feed within ~30s (cache TTL).
-            if not registry.is_enabled(source):
+            if not await registry.is_enabled(source):
                 logger.info(f"NewsSpider: skipping disabled source: {source}")
                 continue
             try:
-                feed = feedparser.parse(url)
+                # feedparser is sync, but we only do few network calls here
+                feed = await asyncio.to_thread(feedparser.parse, url)
             except Exception as e:
                 logger.error(f"NewsSpider: failed to parse feed {source}: {e}")
                 continue
@@ -109,7 +111,7 @@ class NewsSpider:
                     tickers=tickers,
                 )
                 try:
-                    self.lake_service.upsert_news(payload)
+                    await self.lake_service.upsert_news(payload)
                     persisted += 1
                 except Exception as e:
                     logger.error(f"NewsSpider: upsert failed for {link}: {e}")

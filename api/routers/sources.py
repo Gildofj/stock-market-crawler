@@ -60,5 +60,5 @@ async def list_sources() -> list[PublicDataSourceSchema]:
             license_label=record.license_label,
             risk_tier=record.risk_tier,
         )
-        for record in registry.all_enabled()
+        for record in await registry.all_enabled()
     ]

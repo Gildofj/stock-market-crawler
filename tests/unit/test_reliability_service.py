@@ -1,5 +1,4 @@
 import uuid
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -9,6 +8,11 @@ from core.services.reliability_service import ReliabilityService
 @pytest.fixture
 def service(mocker):
     mock_db = mocker.Mock()
+    # Mock AsyncSession methods
+    mock_db.execute = mocker.AsyncMock()
+    mock_db.commit = mocker.AsyncMock()
+    mock_db.rollback = mocker.AsyncMock()
+    mock_db.refresh = mocker.AsyncMock()
     return ReliabilityService(db=mock_db)
 
 
@@ -131,123 +135,98 @@ def test_score_to_grade_thresholds(service, score, expected_grade):
 # --- Score: profit consistency ---
 
 
-def test_score_profit_no_data(service, mocker):
-    mocker.patch.object(
-        service.db,
-        "query",
-        return_value=MagicMock(
-            filter=MagicMock(
-                return_value=MagicMock(
-                    filter=MagicMock(
-                        return_value=MagicMock(
-                            order_by=MagicMock(
-                                return_value=MagicMock(first=MagicMock(return_value=None))
-                            )
-                        )
-                    )
-                )
-            )
-        ),
-    )
-    result = service._score_profit_consistency(0, 0, uuid.uuid4())
+@pytest.mark.asyncio
+async def test_score_profit_no_data(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = None
+    service.db.execute.return_value = mock_result
+
+    result = await service._score_profit_consistency(0, 0, uuid.uuid4())
     assert result == 0
 
 
-def test_score_profit_all_profitable_positive_cagr(service, mocker):
-    cagr_mock = MagicMock()
-    cagr_mock.cagr_profit_5y = 12.5
-    query_chain = MagicMock()
-    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = (
-        cagr_mock
-    )
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_profit_all_profitable_positive_cagr(service, mocker):
+    mock_result = mocker.Mock()
+    # scalars().first() returns the column value (float)
+    mock_result.scalars.return_value.first.return_value = 12.5
+    service.db.execute.return_value = mock_result
 
-    result = service._score_profit_consistency(4, 4, uuid.uuid4())
+    result = await service._score_profit_consistency(4, 4, uuid.uuid4())
     assert result == 100  # base=80 + bonus=20
 
 
-def test_score_profit_all_profitable_negative_cagr(service, mocker):
-    cagr_mock = MagicMock()
-    cagr_mock.cagr_profit_5y = -2.0
-    query_chain = MagicMock()
-    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = (
-        cagr_mock
-    )
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_profit_all_profitable_negative_cagr(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = -2.0
+    service.db.execute.return_value = mock_result
 
-    result = service._score_profit_consistency(4, 4, uuid.uuid4())
+    result = await service._score_profit_consistency(4, 4, uuid.uuid4())
     assert result == 80  # base=80, no bonus
 
 
-def test_score_profit_partial_years(service, mocker):
-    cagr_mock = MagicMock()
-    cagr_mock.cagr_profit_5y = 5.0
-    query_chain = MagicMock()
-    query_chain.filter.return_value.filter.return_value.order_by.return_value.first.return_value = (
-        cagr_mock
-    )
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_profit_partial_years(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = 5.0
+    service.db.execute.return_value = mock_result
 
-    result = service._score_profit_consistency(3, 4, uuid.uuid4())
+    result = await service._score_profit_consistency(3, 4, uuid.uuid4())
     assert result == min(round((3 / 4) * 80) + 20, 100)
 
 
 # --- Score: debt control ---
 
 
-def test_score_debt_compliant_no_history(service):
-    debt_mock = MagicMock()
-    debt_mock.liquid_debt_ebitda = 1.5
-    query_chain = MagicMock()
-    query_chain.filter.return_value.order_by.return_value.first.return_value = debt_mock
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_debt_compliant_no_history(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = 1.5
+    service.db.execute.return_value = mock_result
 
-    result = service._score_debt_control(0, 0, uuid.uuid4())
+    result = await service._score_debt_control(0, 0, uuid.uuid4())
     assert result == 80  # base=80, no history bonus
 
 
-def test_score_debt_high(service):
-    debt_mock = MagicMock()
-    debt_mock.liquid_debt_ebitda = 4.0
-    query_chain = MagicMock()
-    query_chain.filter.return_value.order_by.return_value.first.return_value = debt_mock
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_debt_high(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = 4.0
+    service.db.execute.return_value = mock_result
 
-    result = service._score_debt_control(0, 0, uuid.uuid4())
+    result = await service._score_debt_control(0, 0, uuid.uuid4())
     assert result == 0
 
 
-def test_score_debt_moderate(service):
-    debt_mock = MagicMock()
-    debt_mock.liquid_debt_ebitda = 3.0
-    query_chain = MagicMock()
-    query_chain.filter.return_value.order_by.return_value.first.return_value = debt_mock
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_debt_moderate(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = 3.0
+    service.db.execute.return_value = mock_result
 
-    result = service._score_debt_control(0, 1, uuid.uuid4())
+    result = await service._score_debt_control(0, 1, uuid.uuid4())
     assert result == 40
 
 
-def test_score_debt_with_history_bonus(service):
-    debt_mock = MagicMock()
-    debt_mock.liquid_debt_ebitda = 1.5
-    query_chain = MagicMock()
-    query_chain.filter.return_value.order_by.return_value.first.return_value = debt_mock
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_debt_with_history_bonus(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = 1.5
+    service.db.execute.return_value = mock_result
 
     # 3 out of 4 snapshots compliant → bonus = round(3/4 * 20) = 15
-    result = service._score_debt_control(3, 4, uuid.uuid4())
+    result = await service._score_debt_control(3, 4, uuid.uuid4())
     assert result == 95  # 80 + 15
 
 
-def test_score_debt_null_returns_neutral(service):
-    debt_mock = MagicMock()
-    debt_mock.liquid_debt_ebitda = None
-    query_chain = MagicMock()
-    query_chain.filter.return_value.order_by.return_value.first.return_value = debt_mock
-    service.db.query = MagicMock(return_value=query_chain)
+@pytest.mark.asyncio
+async def test_score_debt_null_returns_neutral(service, mocker):
+    mock_result = mocker.Mock()
+    mock_result.scalars.return_value.first.return_value = None
+    service.db.execute.return_value = mock_result
 
-    result = service._score_debt_control(0, 0, uuid.uuid4())
+    result = await service._score_debt_control(0, 0, uuid.uuid4())
     assert result == 50
 
 

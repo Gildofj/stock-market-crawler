@@ -33,7 +33,8 @@ def mock_repos(mocker):
     yield mock_company_repo, mock_lake_service, mock_price_repo
 
 
-def test_get_news_by_company_id(client, mock_repos):
+@pytest.mark.asyncio
+async def test_get_news_by_company_id(client, mock_repos, mocker):
     mock_company_repo, mock_lake_service, _ = mock_repos
     company_id = uuid.uuid4()
     mock_company = Company(id=company_id, symbol="PETR4")
@@ -51,8 +52,8 @@ def test_get_news_by_company_id(client, mock_repos):
     # Simulate tickers relation
     mock_news[0].tickers = [LakeNewsTicker(ticker="PETR4")]
 
-    mock_company_repo.get.return_value = mock_company
-    mock_lake_service.get_news_by_ticker.return_value = mock_news
+    mock_company_repo.get.return_value = mocker.AsyncMock(return_value=mock_company)()
+    mock_lake_service.get_news_by_ticker.return_value = mocker.AsyncMock(return_value=mock_news)()
 
     response = client.get(f"/api/v1/news/{company_id}", headers={"X-API-Key": "test"})
     assert response.status_code == 200
@@ -62,7 +63,8 @@ def test_get_news_by_company_id(client, mock_repos):
     assert data[0]["source"] == "InfoMoney"
 
 
-def test_get_investor_relations(client, mock_repos):
+@pytest.mark.asyncio
+async def test_get_investor_relations(client, mock_repos, mocker):
     mock_company_repo, mock_lake_service, _ = mock_repos
     company_id = uuid.uuid4()
     mock_company = Company(id=company_id, symbol="VALE3")
@@ -79,8 +81,8 @@ def test_get_investor_relations(client, mock_repos):
         )
     ]
 
-    mock_company_repo.get.return_value = mock_company
-    mock_lake_service.get_ri_documents_by_ticker.return_value = mock_ri
+    mock_company_repo.get.return_value = mocker.AsyncMock(return_value=mock_company)()
+    mock_lake_service.get_ri_documents_by_ticker.return_value = mocker.AsyncMock(return_value=mock_ri)()
 
     response = client.get(
         f"/api/v1/investor-relations/{company_id}", headers={"X-API-Key": "test"}
@@ -92,7 +94,8 @@ def test_get_investor_relations(client, mock_repos):
     assert data[0]["kind"] == "cvm"
 
 
-def test_get_quote(client, mock_repos):
+@pytest.mark.asyncio
+async def test_get_quote(client, mock_repos, mocker):
     _, _, mock_price_repo = mock_repos
     company_id = uuid.uuid4()
 
@@ -101,7 +104,7 @@ def test_get_quote(client, mock_repos):
         StockPrice(time=datetime(2023, 10, 19), close=34.0, company_id=company_id)
     ]
 
-    mock_price_repo.get_history.return_value = mock_prices
+    mock_price_repo.get_history.return_value = mocker.AsyncMock(return_value=mock_prices)()
 
     response = client.get(f"/api/v1/prices/quote/{company_id}", headers={"X-API-Key": "test"})
     assert response.status_code == 200

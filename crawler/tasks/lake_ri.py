@@ -8,6 +8,7 @@ Runs in two contexts:
   beat coupling, dedicated RAM per execution so pdfplumber spikes can't OOM the VM.
 """
 
+import asyncio
 from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
@@ -47,7 +48,7 @@ def crawl_ri_task(self, days_back: int = 30):
     task_logger = logger.bind(task="lake.ri", task_id=self.request.id)
     task_logger.info(f"Starting RI document collection (days_back={days_back})...")
     try:
-        persisted = _run_ri_crawl(days_back=days_back)
+        persisted = asyncio.run(_run_ri_crawl(days_back=days_back))
         task_logger.info(f"RI document collection completed ({persisted} docs).")
     except SoftTimeLimitExceeded:
         task_logger.warning("Soft time limit hit during RI crawl; aborting.")
@@ -61,7 +62,7 @@ def main() -> None:
     days_back = int(os.environ.get("RI_DAYS_BACK", "7"))
     job_logger = logger.bind(task="lake.ri", runtime="cloud_run_job")
     job_logger.info(f"Starting RI crawl (Cloud Run Job, days_back={days_back})...")
-    persisted = _run_ri_crawl(days_back=days_back)
+    persisted = asyncio.run(_run_ri_crawl(days_back=days_back))
     job_logger.info(f"RI crawl completed ({persisted} docs).")
 
 
