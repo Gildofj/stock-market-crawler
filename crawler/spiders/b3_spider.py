@@ -99,7 +99,8 @@ class B3Spider(BaseSpider):
                 )
                 result.is_active = 0
 
-            # 1. Company Metadata
+            # 1. Company metadata (best-effort: Ticker.info is an undocumented
+            # dict — only textual fields are read here, never numeric ones).
             info: dict[str, Any] = ticker.info
 
             # Priority: longName -> shortName -> symbol
@@ -131,29 +132,49 @@ class B3Spider(BaseSpider):
                     )
                 )
 
-            # 3. Fundamentals
-            result.p_l = self._to_float(info.get("forwardPE") or info.get("trailingPE"))
-            result.p_vp = self._to_float(info.get("priceToBook"))
-            result.ev_ebitda = self._to_float(info.get("enterpriseToEbitda"))
+            # 3. Shares outstanding via the documented Ticker.get_shares_full()
+            # API. Needed by the CVM-based calculator to convert absolute BRL
+            # line items into per-share metrics. Falls back to None on failure;
+            # the calculator already handles missing shares gracefully.
+            try:
+                shares_series = ticker.get_shares_full()
+                if shares_series is not None and not shares_series.empty:
+                    result.shares_outstanding = float(shares_series.iloc[-1])
+            except Exception as exc:
+                logger.warning(f"shares_outstanding unavailable for {symbol}: {exc}")
 
-            roe_val = self._to_float(info.get("returnOnEquity"))
-            result.roe = roe_val * 100 if roe_val is not None else None
-
-            dy_val = self._to_float(info.get("dividendYield"))
-            result.dy = dy_val * 100 if dy_val is not None else 0.0
-
-            margin_val = self._to_float(info.get("profitMargins"))
-            result.net_margin = margin_val * 100 if margin_val is not None else None
-
-            result.liquid_debt_ebitda = self._to_float(info.get("debtToEbitda"))
-            result.debt_to_equity = self._to_float(info.get("debtToEquity"))
-            result.market_cap = self._to_float(info.get("marketCap"))
-            result.eps = self._to_float(info.get("trailingEps"))
+            # 4. Snapshot of quantitative .info fields — read for reconciliation
+            # only. The CVMSpider (clean-room, CVM Dados Abertos) is the source
+            # of truth that lands in `fundamentals`. This snapshot is consumed
+            # by ReconciliationService and written to lake_indicator_reconciliation.
+            result.yahoo_info_indicators = self._collect_info_snapshot(info)
 
         except Exception as e:
             logger.error(f"B3 Spider error for {symbol}: {e}")
 
         return result
+
+    _INFO_INDICATOR_KEYS: tuple[str, ...] = (
+        "forwardPE",
+        "trailingPE",
+        "priceToBook",
+        "enterpriseToEbitda",
+        "returnOnEquity",
+        "dividendYield",
+        "profitMargins",
+        "debtToEbitda",
+        "debtToEquity",
+        "marketCap",
+        "trailingEps",
+    )
+
+    def _collect_info_snapshot(self, info: dict[str, Any]) -> dict[str, float] | None:
+        snapshot: dict[str, float] = {}
+        for key in self._INFO_INDICATOR_KEYS:
+            value = self._to_float(info.get(key))
+            if value is not None:
+                snapshot[key] = value
+        return snapshot or None
 
     async def crawl_ticker_async(self, symbol: str) -> CrawlResult:
         """Asynchronously crawls a ticker from B3 (yfinance)."""

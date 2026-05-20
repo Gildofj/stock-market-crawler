@@ -157,3 +157,29 @@ class LakeInsightSchema(BaseModel):
     pl_adjusted: float | None = Field(default=None, description="AI-adjusted P/L")
     updated_at: datetime | None = Field(default=None, description="Last update timestamp")
     expires_at: datetime | None = Field(default=None, description="Cache expiration timestamp")
+
+
+class LakeIndicatorReconciliationSchema(BaseModel):
+    """Schema for one reconciliation event between an upstream feed (e.g.
+    yfinance) and the CVM-derived clean-room calculation. Append-only.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, from_attributes=True)
+
+    id: uuid.UUID | None = Field(default=None)
+    company_id: uuid.UUID = Field(..., description="FK to companies.id")
+    ticker: str = Field(..., description="Ticker symbol")
+    indicator: str = Field(..., description="Canonical project indicator name (dy, p_l, roe, ...)")
+    source_slug: str = Field(default="yfinance_info", description="Upstream feed identifier")
+    source_field: str | None = Field(default=None, description="Upstream field name")
+    source_value_raw: float | None = Field(
+        default=None, description="Raw value from the upstream feed, un-normalised"
+    )
+    source_value_normalised: float | None = Field(
+        default=None, description="Upstream value converted to project convention units"
+    )
+    cvm_value: float | None = Field(default=None, description="CVM-derived clean-room value")
+    delta_abs: float | None = Field(default=None, description="source_normalised - cvm_value")
+    delta_pct: float | None = Field(default=None, description="delta_abs / |cvm_value|")
+    is_outlier: bool = Field(default=False, description="|delta_pct| exceeded threshold")
+    collected_at: datetime | None = Field(default=None, description="When this row was emitted")

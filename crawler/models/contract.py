@@ -37,6 +37,9 @@ class CrawlResult(BaseModel):
     debt_to_equity: float | None = Field(None, description="Total Debt / Total Equity ratio")
     market_cap: float | None = Field(None, description="Total market capitalization")
     eps: float | None = Field(None, description="Earnings Per Share")
+    shares_outstanding: float | None = Field(
+        None, description="Total shares outstanding (from yfinance get_shares_full)"
+    )
 
     # Valuation & Scores
     valuation_graham: float | None = Field(None, description="Graham Fair Value Price")
@@ -46,6 +49,17 @@ class CrawlResult(BaseModel):
     # Historical Prices
     prices: list[StockPriceSchema] = Field(
         default_factory=list, description="List of historical price data points"
+    )
+
+    # Reconciliation snapshot — raw numeric values read from yfinance Ticker.info.
+    # NOT persisted to `fundamentals`; consumed by ReconciliationService to emit
+    # rows into `lake_indicator_reconciliation` for QA / ML calibration.
+    yahoo_info_indicators: dict[str, float] | None = Field(
+        None,
+        description=(
+            "Raw numeric snapshot from yfinance Ticker.info (undocumented fields). "
+            "Reconciliation only — never written to the fundamentals table."
+        ),
     )
 
     def __init__(self, **data):
@@ -80,7 +94,9 @@ class CrawlResult(BaseModel):
         Args:
             other: The source CrawlResult to copy data from.
         """
-        exclude = {"symbol", "prices"}
+        # `yahoo_info_indicators` is a per-spider observation, not a fact to be
+        # merged — each spider owns its own snapshot.
+        exclude = {"symbol", "prices", "yahoo_info_indicators"}
         for field, value in other.model_dump(exclude=exclude).items():
             current_val = getattr(self, field)
 

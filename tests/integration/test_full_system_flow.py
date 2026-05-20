@@ -4,7 +4,12 @@ import pytest
 
 from crawler.engine.crawler_engine import CrawlerEngine
 from crawler.models.contract import CrawlResult
-from crawler.models.models import Company, Fundamental, MLFeature
+from crawler.models.models import (
+    Company,
+    Fundamental,
+    LakeIndicatorReconciliation,
+    MLFeature,
+)
 from crawler.models.schemas import StockPriceSchema
 from crawler.services.etl_service import ETLService
 
@@ -12,9 +17,10 @@ from crawler.services.etl_service import ETLService
 def test_crawler_to_etl_full_flow(db_session, mocker):
     """End-to-end pipeline with CVM-derived fundamentals (mocked).
 
-    The B3 spider supplies prices + market_cap (yfinance), and the CVM
-    spider supplies the universal indicators that the engine calculates
-    locally from the dataset. No proprietary scraper is involved.
+    The B3 spider supplies prices + shares + a snapshot of yfinance's
+    Ticker.info numeric fields. The CVM spider is the authoritative source
+    for every indicator computed from CVM Dados Abertos. The reconciliation
+    service emits one row per indicator into the data lake.
     """
     engine = CrawlerEngine(db=db_session)
 
@@ -24,7 +30,12 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
         return_value=CrawlResult(
             symbol="FLOW3",
             name="Flow Corp",
-            market_cap=2_200_000_000,
+            shares_outstanding=22_000_000,
+            yahoo_info_indicators={
+                "dividendYield": 0.05,
+                "forwardPE": 10.0,
+                "priceToBook": 2.0,
+            },
             prices=[
                 {
                     "time": datetime(2023, 1, 1),
@@ -76,6 +87,17 @@ def test_crawler_to_etl_full_flow(db_session, mocker):
     fundamental = db_session.query(Fundamental).filter_by(company_id=company.id).first()
     assert float(fundamental.valuation_graham) == pytest.approx(111.24, rel=1e-3)
     assert fundamental.quality_score == 70
+
+    # Reconciliation rows: one per upstream indicator that was reported.
+    # Fixture supplies forwardPE, priceToBook and dividendYield → 3 rows.
+    reconciliations = (
+        db_session.query(LakeIndicatorReconciliation)
+        .filter_by(company_id=company.id)
+        .all()
+    )
+    assert len(reconciliations) == 3
+    indicators = {row.indicator for row in reconciliations}
+    assert indicators == {"p_l", "p_vp", "dy"}
 
     etl = ETLService(db=db_session)
 

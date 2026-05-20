@@ -315,3 +315,45 @@ class LakeInsightCache(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class LakeIndicatorReconciliation(Base):
+    """Per-indicator reconciliation row: third-party reported value vs the
+    CVM-derived clean-room calculation. Append-only, long-format (one row per
+    ticker × indicator × run). Powers QA dashboards and provides a training
+    signal for ML calibration models that learn the upstream feed's drift.
+    """
+
+    __tablename__ = "lake_indicator_reconciliation"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), index=True
+    )
+    ticker: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    # Canonical indicator name in the project (e.g. 'dy', 'p_l', 'roe').
+    indicator: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    # 'yfinance_info' for now; future feeds will use their own slug so ML can
+    # learn drift per source independently.
+    source_slug: Mapped[str] = mapped_column(String(40), nullable=False, default="yfinance_info")
+    # Upstream source field name (e.g. 'dividendYield', 'forwardPE'). Lets ML
+    # distinguish between forwardPE vs trailingPE inputs for p_l.
+    source_field: Mapped[str | None] = mapped_column(String(60))
+    # Exactly what the upstream feed returned, untouched. Wide precision so
+    # decimal yields, BRL market caps and ratios all fit without rounding.
+    source_value_raw: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    # Source value normalised to the project's convention (percent for
+    # rate-like indicators, ratio for ratio-like, BRL absolute for cap/EPS).
+    source_value_normalised: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    # CVM-derived clean-room value that landed in `fundamentals`.
+    cvm_value: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    delta_abs: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    delta_pct: Mapped[float | None] = mapped_column(Numeric(10, 4))
+    # Convenience flag for ML filtering — true when |delta_pct| crosses the
+    # service threshold (see ReconciliationService.OUTLIER_THRESHOLD_PCT).
+    is_outlier: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    collected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+    company: Mapped["Company"] = relationship("Company")

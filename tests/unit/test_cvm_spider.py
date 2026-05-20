@@ -54,7 +54,12 @@ def _synthetic_year() -> CVMYearData:
         ]
     )
     dfc = pd.DataFrame(
-        [_statement("6.01.01", "Depreciação e Amortização", 50.0)],
+        [
+            _statement("6.01.01", "Depreciação e Amortização", 50.0),
+            # DFC reports dividends as cash outflows (negative). The spider
+            # must take abs() before feeding the calculator.
+            _statement("6.03.01", "Dividendos Pagos", -60.0),
+        ],
     )
     return CVMYearData(
         year=2024,
@@ -74,9 +79,12 @@ def _spider() -> CVMSpider:
 
 
 def _result_with_price() -> CrawlResult:
+    # market_cap is no longer supplied by the B3 spider; shares_outstanding
+    # carries the same information (and is read from a documented yfinance
+    # API). With shares=100 and price=20, market_cap is derived as 2_000.
     return CrawlResult(
         symbol="FLOW3",
-        market_cap=2_000.0,
+        shares_outstanding=100.0,
         prices=[StockPriceSchema(time=REF_DATE, close=20.0, volume=1000)],
     )
 
@@ -87,7 +95,6 @@ def test_cvm_spider_populates_universal_indicators():
 
     spider.enrich(result)
 
-    # shares = market_cap / price = 100
     # EPS = 150 / 100 = 1.5; P/L = 20 / 1.5
     assert result.eps == 1.5
     assert result.p_l is not None and result.p_l > 0
@@ -101,6 +108,22 @@ def test_cvm_spider_populates_universal_indicators():
     assert result.liquid_debt_ebitda == 0.5
     # Debt/Equity = 300/1000 = 0.3
     assert result.debt_to_equity == 0.3
+    # Market cap = price * shares = 20 * 100 = 2000
+    assert result.market_cap == 2_000.0
+
+
+def test_cvm_spider_computes_dy_from_dfc_dividends():
+    """DY must be derived from the DFC 6.03.01 line and the current price.
+
+    Fixture: dividends paid = abs(-60) = 60; shares = 100; price = 20.
+    DPS = 60/100 = 0.6 → DY = 0.6/20 * 100 = 3.0%.
+    """
+    spider = _spider()
+    result = _result_with_price()
+
+    spider.enrich(result)
+
+    assert result.dy == 3.0
 
 
 def test_cvm_spider_skips_when_mapping_missing():
@@ -111,10 +134,15 @@ def test_cvm_spider_skips_when_mapping_missing():
     assert result.roe is None
 
 
-def test_cvm_spider_does_not_clobber_preexisting_values():
+def test_cvm_spider_overrides_preexisting_values():
+    """CVM is now the authoritative source — values pre-populated by any
+    upstream spider (e.g. by an earlier yfinance read) must be overwritten
+    with the clean-room calculation.
+    """
     spider = _spider()
     result = _result_with_price()
-    result.p_l = 99.0  # pre-populated by an earlier stage
+    result.p_l = 99.0  # pretend a stale value was left over
     spider.enrich(result)
-    assert result.p_l == 99.0  # untouched
-    assert result.roe is not None  # other fields still computed
+    # CVM-derived value: price/EPS = 20/1.5 ≈ 13.33; definitely not 99.
+    assert result.p_l is not None and result.p_l != 99.0
+    assert result.p_l < 20.0

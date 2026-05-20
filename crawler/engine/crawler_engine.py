@@ -8,6 +8,7 @@ from ..models.contract import CrawlResult
 from ..models.schemas import CompanySchema, FundamentalSchema
 from ..services.data_service import DataService
 from ..services.financial_calculator import bazin_fair_value, graham_fair_value
+from ..services.reconciliation_service import ReconciliationService
 from ..services.request_manager import RequestManager
 from ..spiders.b3_spider import B3Spider
 from ..spiders.cvm_spider import CVMSpider
@@ -35,6 +36,7 @@ class CrawlerEngine:
         spiders: dict | None = None,
     ):
         self.data_service = DataService(db)
+        self.reconciliation_service = ReconciliationService(db)
         self.request_manager = request_manager or RequestManager()
 
         spiders = spiders or {}
@@ -159,4 +161,12 @@ class CrawlerEngine:
             quality_score=result.quality_score,
         )
         self.data_service.save_fundamentals(company_id, fundamental_schema)
+
+        # Reconciliation rows — observational only. Must never break the
+        # crawl: any failure is logged and swallowed.
+        try:
+            self.reconciliation_service.emit(company_id, result)
+        except Exception as exc:
+            logger.warning(f"reconciliation failed for {result.symbol}: {exc}")
+
         logger.debug(f"Engine: Persistence completed for {result.symbol}")

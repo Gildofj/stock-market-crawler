@@ -72,6 +72,15 @@ _EQUITY = _AccountSpec("BPP", "2.03", ("patrimonio liquido",))
 # not published explicitly — most non-financial CVM filers report only EBIT).
 _DEPRECIATION = _AccountSpec("DFC_MI", "6.01.01", ("depreciacao", "amortizacao"))
 
+# DFC_MI line for dividends and JCP paid to shareholders. Standard code
+# 6.03.01 (Distribuição de dividendos). Banks/insurers occasionally file
+# under 6.02.x — the fallback regex catches those plus JCP variants.
+_DIVIDENDS_PAID = _AccountSpec(
+    "DFC_MI",
+    "6.03.01",
+    ("dividendos pagos", "juros sobre capital proprio pagos", "jcp pagos"),
+)
+
 
 class CVMSpider(BaseSpider):
     """Spider that derives fundamentals from raw CVM Dados Abertos statements."""
@@ -124,27 +133,25 @@ class CVMSpider(BaseSpider):
 
         indicators = compute_all(raw)
 
-        result.p_l = indicators.p_l if result.p_l is None else result.p_l
-        result.p_vp = indicators.p_vp if result.p_vp is None else result.p_vp
-        result.ev_ebitda = indicators.ev_ebitda if result.ev_ebitda is None else result.ev_ebitda
-        result.roe = indicators.roe if result.roe is None else result.roe
-        result.roic = indicators.roic if result.roic is None else result.roic
-        result.net_margin = (
-            indicators.net_margin if result.net_margin is None else result.net_margin
-        )
-        result.dy = indicators.dy if (result.dy is None or result.dy == 0.0) else result.dy
-        result.liquid_debt_ebitda = (
-            indicators.net_debt_ebitda
-            if result.liquid_debt_ebitda is None
-            else result.liquid_debt_ebitda
-        )
-        result.debt_to_equity = (
-            indicators.debt_to_equity if result.debt_to_equity is None else result.debt_to_equity
-        )
-        result.market_cap = (
-            indicators.market_cap if result.market_cap is None else result.market_cap
-        )
-        result.eps = indicators.eps if result.eps is None else result.eps
+        # CVM is the authoritative source for every numeric indicator. The B3
+        # spider no longer writes these fields — it only feeds prices + shares.
+        # Whatever yfinance reports lives separately in
+        # `result.yahoo_info_indicators` and is later persisted by the
+        # ReconciliationService for QA / ML drift modelling.
+        result.p_l = indicators.p_l
+        result.p_vp = indicators.p_vp
+        result.ev_ebitda = indicators.ev_ebitda
+        result.roe = indicators.roe
+        result.roic = indicators.roic
+        result.net_margin = indicators.net_margin
+        # ``0.0`` preserves the historical semantics of "no dividends paid"
+        # (distinct from "data missing"); downstream consumers rely on this
+        # zero value, e.g. crawler_engine._calculate_advanced_metrics.
+        result.dy = indicators.dy if indicators.dy is not None else 0.0
+        result.liquid_debt_ebitda = indicators.net_debt_ebitda
+        result.debt_to_equity = indicators.debt_to_equity
+        result.market_cap = indicators.market_cap
+        result.eps = indicators.eps
 
         # Growth metrics derived from a multi-year DFP window. Falling back to
         # None when CVM history is shorter than the requested window keeps
@@ -226,11 +233,20 @@ class CVMSpider(BaseSpider):
             return None
 
         latest_price = result.prices[-1].close if result.prices else None
-        shares_outstanding = self._infer_shares(result)
+        # Prefer the documented yfinance get_shares_full() value supplied by
+        # the B3 spider; fall back to inferring from market_cap when shares
+        # are unavailable (e.g. yfinance outage).
+        shares_outstanding = result.shares_outstanding or self._infer_shares(result)
 
         ebit = self._extract(dfp, cvm_code, _EBIT, annual_row)
         depreciation = self._extract(dfp, cvm_code, _DEPRECIATION, annual_row)
         ebitda = (ebit + depreciation) if (ebit is not None and depreciation is not None) else None
+
+        dividends_raw = self._extract(dfp, cvm_code, _DIVIDENDS_PAID, annual_row)
+        # DFC reports dividends as cash outflows (negative); the calculator
+        # expects positive magnitude. TODO: aggregate the four most recent
+        # ITRs for a true TTM window; using the latest DFP annual for now.
+        dividends_paid_annual = abs(dividends_raw) if dividends_raw is not None else None
 
         return RawFinancials(
             revenue=self._extract(dfp, cvm_code, _REVENUE, annual_row),
@@ -248,7 +264,7 @@ class CVMSpider(BaseSpider):
             short_term_debt=self._extract(dfp, cvm_code, _SHORT_TERM_DEBT, annual_row),
             long_term_debt=self._extract(dfp, cvm_code, _LONG_TERM_DEBT, annual_row),
             equity=self._extract(dfp, cvm_code, _EQUITY, annual_row),
-            dividends_paid_ttm=None,  # populated by yfinance via the B3 spider
+            dividends_paid_ttm=dividends_paid_annual,
             current_price=latest_price,
             shares_outstanding=shares_outstanding,
         )
