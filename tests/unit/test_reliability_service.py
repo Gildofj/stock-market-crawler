@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from crawler.services.reliability_service import ReliabilityService
+from core.services.reliability_service import ReliabilityService
 
 
 @pytest.fixture
@@ -256,7 +256,7 @@ def test_score_debt_null_returns_neutral(service):
 
 def test_compute_composite_weighted():
     """Validates the composite formula independently of DB calls."""
-    from crawler.services.reliability_config import CRITERION_WEIGHTS
+    from core.services.reliability_config import CRITERION_WEIGHTS
 
     profit, debt, tag, perennial = 80, 80, 100, 100
     expected = round(

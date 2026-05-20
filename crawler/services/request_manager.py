@@ -97,7 +97,7 @@ class RequestManager:
         """Generates realistic headers for a request."""
         from urllib.parse import urlparse
 
-        from crawler.services.config import settings
+        from core.config import settings
 
         domain = urlparse(url).netloc
 

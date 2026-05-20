@@ -2,8 +2,8 @@ from datetime import datetime
 
 import pytest
 
-from crawler.models.models import StockPrice
-from crawler.models.schemas import CompanySchema, StockPriceSchema
+from core.models.models import StockPrice
+from core.models.schemas import CompanySchema, StockPriceSchema
 
 
 @pytest.mark.integration

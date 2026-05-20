@@ -10,7 +10,7 @@ drop out of this response within ~30 seconds (registry cache TTL).
 from fastapi import APIRouter
 from pydantic import BaseModel, ConfigDict, Field
 
-from crawler.services.source_registry import get_source_registry
+from core.services.source_registry import get_source_registry
 
 
 class PublicDataSourceSchema(BaseModel):

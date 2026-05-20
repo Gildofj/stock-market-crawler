@@ -6,12 +6,12 @@ import pandas as pd
 import pdfplumber
 from loguru import logger
 
-from ..models.schemas import LakeRIDocumentInternalSchema
-from ..repositories import CompanyRepository
-from ..services.cnpj_map import resolve_ticker, watched_cnpjs
-from ..services.lake_service import LakeService
-from ..services.request_manager import RequestManager
-from ..services.source_registry import get_source_registry
+from core.models.schemas import LakeRIDocumentInternalSchema
+from core.repositories import CompanyRepository
+from core.services.cnpj_map import resolve_ticker, watched_cnpjs
+from core.services.lake_service import LakeService
+from core.services.source_registry import get_source_registry
+from crawler.services.request_manager import RequestManager
 
 
 class RISpider:

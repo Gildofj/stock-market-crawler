@@ -8,15 +8,15 @@ from fastapi_cache.backends.inmemory import InMemoryBackend
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from crawler.models.models import Base
-from crawler.repositories import (
+from core.models.models import Base
+from core.repositories import (
     CompanyRepository,
     FundamentalRepository,
     PriceRepository,
     ReliabilityRepository,
 )
-from crawler.services.etl_service import ETLService
-from crawler.services.lake_service import LakeService
+from core.services.etl_service import ETLService
+from core.services.lake_service import LakeService
 
 TEST_API_KEY = os.environ["API_KEY"]
 TEST_AUTH_HEADERS = {"X-API-Key": TEST_API_KEY}

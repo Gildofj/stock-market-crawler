@@ -3,17 +3,17 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from crawler.models.models import Base
-
-# Import your settings and Base
-from crawler.services.config import settings
+from core.config import settings
+from core.models.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Overwrite the sqlalchemy.url with the one from our settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Overwrite the sqlalchemy.url with the one from our settings.
+# Strip +asyncpg for Alembic (which uses sync engine in this setup).
+sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

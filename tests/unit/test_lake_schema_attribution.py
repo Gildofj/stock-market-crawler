@@ -6,7 +6,7 @@ not the extracted text body nor the legacy R2 mirror URL. If a future
 refactor accidentally re-adds either, this test fails before deploy.
 """
 
-from crawler.models.schemas import (
+from core.models.schemas import (
     LakeRIDocumentInternalSchema,
     LakeRIDocumentSchema,
     SourceAttributionSchema,

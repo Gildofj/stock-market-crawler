@@ -24,8 +24,8 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from crawler.models.models import DataSource
-from crawler.services.database import session_local
+from core.database import session_local
+from core.models.models import DataSource
 
 
 class SourceNotFoundError(KeyError):

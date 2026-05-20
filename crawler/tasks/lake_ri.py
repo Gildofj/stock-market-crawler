@@ -11,10 +11,10 @@ Runs in two contexts:
 from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
+from core.database import session_local
+from core.repositories import CompanyRepository
+from core.services.lake_service import LakeService
 from crawler.celery_app import app
-from crawler.repositories import CompanyRepository
-from crawler.services.database import session_local
-from crawler.services.lake_service import LakeService
 from crawler.spiders.ri_spider import RISpider
 from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
 

@@ -5,41 +5,43 @@ from __future__ import annotations
 import uuid
 
 from loguru import logger
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.models import Fundamental
-from ..models.schemas import FundamentalSchema
-from ..services.exceptions import DatabaseError
+from core.models.models import Fundamental
+from core.models.schemas import FundamentalSchema
+from core.services.exceptions import DatabaseError
 
 
 class FundamentalRepository:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    def save(self, company_id: uuid.UUID, payload: FundamentalSchema) -> Fundamental:
+    async def save(self, company_id: uuid.UUID, payload: FundamentalSchema) -> Fundamental:
         """Persist a fresh fundamentals snapshot. Each call is a new row
         (history is append-only, ordered by ``collected_at``)."""
         fundamental = Fundamental(company_id=company_id, **payload.model_dump())
         self.db.add(fundamental)
         try:
-            self.db.commit()
+            await self.db.commit()
             return fundamental
         except SQLAlchemyError as exc:
-            self.db.rollback()
+            await self.db.rollback()
             logger.error(f"Save fundamentals failed for company_id {company_id}: {exc}")
             raise DatabaseError("Failed to persist fundamentals") from exc
 
-    def get_latest(self, company_id: uuid.UUID) -> Fundamental | None:
-        return (
-            self.db.query(Fundamental)
+    async def get_latest(self, company_id: uuid.UUID) -> Fundamental | None:
+        stmt = (
+            select(Fundamental)
             .filter(Fundamental.company_id == company_id)
             .order_by(Fundamental.collected_at.desc())
-            .first()
+            .limit(1)
         )
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
-    def get_latest_for_companies(
+    async def get_latest_for_companies(
         self, company_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, Fundamental]:
         """Most recent ``Fundamental`` per company in a single query.
@@ -51,8 +53,8 @@ class FundamentalRepository:
         if not company_ids:
             return {}
 
-        latest = (
-            self.db.query(
+        latest_sub = (
+            select(
                 Fundamental.company_id.label("cid"),
                 func.max(Fundamental.collected_at).label("max_at"),
             )
@@ -61,13 +63,15 @@ class FundamentalRepository:
             .subquery()
         )
 
-        rows = (
-            self.db.query(Fundamental)
+        stmt = (
+            select(Fundamental)
             .join(
-                latest,
-                (Fundamental.company_id == latest.c.cid)
-                & (Fundamental.collected_at == latest.c.max_at),
+                latest_sub,
+                (Fundamental.company_id == latest_sub.c.cid)
+                & (Fundamental.collected_at == latest_sub.c.max_at),
             )
-            .all()
         )
+
+        result = await self.db.execute(stmt)
+        rows = result.scalars().all()
         return {row.company_id: row for row in rows}

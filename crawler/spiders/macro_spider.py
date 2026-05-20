@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 
 from loguru import logger
 
-from ..services.request_manager import RequestManager
-from ..services.source_registry import get_source_registry
+from core.services.source_registry import get_source_registry
+from crawler.services.request_manager import RequestManager
 
 
 class MacroSpider:

@@ -5,9 +5,9 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from ..models.models import Company, CompanyReliability, Fundamental
-from .exceptions import DatabaseError
-from .reliability_config import (
+from core.models.models import Company, CompanyReliability, Fundamental
+from core.services.exceptions import DatabaseError
+from core.services.reliability_config import (
     CRITERION_WEIGHTS,
     CYCLICAL_SECTOR_KEYWORDS,
     GRADE_THRESHOLDS,

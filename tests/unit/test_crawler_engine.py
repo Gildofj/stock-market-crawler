@@ -2,9 +2,9 @@ from datetime import datetime
 
 import pytest
 
+from core.models.schemas import StockPriceSchema
 from crawler.engine.crawler_engine import CrawlerEngine
 from crawler.models.contract import CrawlResult
-from crawler.models.schemas import StockPriceSchema
 
 
 def test_calculate_advanced_metrics(mocker):

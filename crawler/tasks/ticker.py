@@ -1,11 +1,11 @@
 from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
+from core.database import session_local
+from core.services.etl_service import ETLService
+from core.services.reliability_service import ReliabilityService
 from crawler.celery_app import app
 from crawler.engine.crawler_engine import CrawlerEngine
-from crawler.services.database import session_local
-from crawler.services.etl_service import ETLService
-from crawler.services.reliability_service import ReliabilityService
 from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
 
 

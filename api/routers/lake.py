@@ -7,7 +7,7 @@ from api.deps import (
     LakeServiceDep,
 )
 from api.limiter import DefaultRateLimit, StrictRateLimit
-from crawler.models.schemas import (
+from core.models.schemas import (
     FundamentalSchema,
     LakeInsightSchema,
     LakeNewsSchema,

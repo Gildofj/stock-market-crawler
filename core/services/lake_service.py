@@ -5,14 +5,14 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
-from ..models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
-from ..models.schemas import (
+from core.models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
+from core.models.schemas import (
     LakeInsightSchema,
     LakeNewsSchema,
     LakeRIDocumentInternalSchema,
 )
-from .exceptions import DatabaseError
-from .source_registry import SourceNotFoundError, get_source_registry
+from core.services.exceptions import DatabaseError
+from core.services.source_registry import SourceNotFoundError, get_source_registry
 
 
 def _resolve_source_id(slug: str | None) -> uuid.UUID | None:

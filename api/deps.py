@@ -3,14 +3,14 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from crawler.repositories import (
+from core.database import get_db as get_crawler_db
+from core.repositories import (
     CompanyRepository,
     FundamentalRepository,
     PriceRepository,
     ReliabilityRepository,
 )
-from crawler.services.database import get_db as get_crawler_db
-from crawler.services.lake_service import LakeService
+from core.services.lake_service import LakeService
 
 DBDep = Annotated[Session, Depends(get_crawler_db)]
 

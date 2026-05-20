@@ -1,9 +1,9 @@
 from loguru import logger
 
+from core.database import session_local
+from core.repositories import CompanyRepository
+from core.services.lake_service import LakeService
 from crawler.celery_app import app
-from crawler.repositories import CompanyRepository
-from crawler.services.database import session_local
-from crawler.services.lake_service import LakeService
 from crawler.spiders.news_spider import NewsSpider
 from crawler.tasks._shared import _TRANSIENT_ERRORS
 

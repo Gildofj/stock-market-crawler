@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from crawler.services.config import settings
+from core.config import settings
 
 
 class R2Storage:

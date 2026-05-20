@@ -1,6 +1,6 @@
 """SourceRegistry behavior: lookups, URL heuristics, and fail-open policy."""
 
-from crawler.services.source_registry import (
+from core.services.source_registry import (
     SourceNotFoundError,
     SourceRecord,
     SourceRegistry,

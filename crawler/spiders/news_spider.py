@@ -6,10 +6,10 @@ from time import struct_time
 import feedparser
 from loguru import logger
 
-from ..models.schemas import LakeNewsSchema
-from ..repositories import CompanyRepository
-from ..services.lake_service import LakeService
-from ..services.source_registry import get_source_registry
+from core.models.schemas import LakeNewsSchema
+from core.repositories import CompanyRepository
+from core.services.lake_service import LakeService
+from core.services.source_registry import get_source_registry
 
 TICKER_PATTERN = re.compile(r"\b([A-Z]{4}[0-9]{1,2})\b")
 

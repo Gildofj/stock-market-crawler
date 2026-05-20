@@ -3,7 +3,7 @@ import time
 
 from loguru import logger
 
-from crawler.services.config import settings
+from core.config import settings
 from crawler.tasks import crawl_news_task, crawl_ri_task
 
 

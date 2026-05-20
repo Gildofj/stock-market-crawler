@@ -7,8 +7,9 @@ import pandas as pd
 import yfinance as yf
 from loguru import logger
 
+from core.models.schemas import StockPriceSchema
+
 from ..models.contract import CrawlResult
-from ..models.schemas import StockPriceSchema
 from .base_spider import BaseSpider
 
 

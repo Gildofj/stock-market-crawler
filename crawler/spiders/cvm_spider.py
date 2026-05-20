@@ -28,9 +28,10 @@ from datetime import datetime
 import pandas as pd
 from loguru import logger
 
+from core.services.financial_calculator import RawFinancials, cagr, compute_all
+
 from ..models.contract import CrawlResult
 from ..services.cvm_dataset_service import CVMDatasetService, CVMYearData, Statement
-from ..services.financial_calculator import RawFinancials, cagr, compute_all
 from .base_spider import BaseSpider
 
 
@@ -182,7 +183,7 @@ class CVMSpider(BaseSpider):
             self._ticker_index = {}
             return self._ticker_index
 
-        from ..services.cnpj_map import CNPJ_TO_TICKER
+        from core.services.cnpj_map import CNPJ_TO_TICKER
 
         index: dict[str, str] = {}
         if "CNPJ_CIA" in cad.columns and "CD_CVM" in cad.columns:

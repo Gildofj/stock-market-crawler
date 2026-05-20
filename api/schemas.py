@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from crawler.models.schemas import LakeNewsSchema
+from core.models.schemas import LakeNewsSchema
 
 
 class CompanyBase(BaseModel):

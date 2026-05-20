@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from api.deps import get_company_repo, get_crawler_db, get_lake_service, get_price_repo
 from api.main import app
-from crawler.models.models import Company, LakeNews, LakeNewsTicker, LakeRIDocument, StockPrice
+from core.models.models import Company, LakeNews, LakeNewsTicker, LakeRIDocument, StockPrice
 
 
 # Mock Database setup

@@ -7,8 +7,8 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from ..models.models import Fundamental, MLFeature, StockPrice
-from .exceptions import DatabaseError
+from core.models.models import Fundamental, MLFeature, StockPrice
+from core.services.exceptions import DatabaseError
 
 
 class ETLService:

@@ -4,14 +4,15 @@ import uuid
 from loguru import logger
 from sqlalchemy.orm import Session
 
-from ..models.contract import CrawlResult
-from ..models.schemas import CompanySchema, FundamentalSchema
-from ..repositories import (
+from core.models.schemas import CompanySchema, FundamentalSchema
+from core.repositories import (
     CompanyRepository,
     FundamentalRepository,
     PriceRepository,
 )
-from ..services.financial_calculator import bazin_fair_value, graham_fair_value
+from core.services.financial_calculator import bazin_fair_value, graham_fair_value
+
+from ..models.contract import CrawlResult
 from ..services.reconciliation_service import ReconciliationService
 from ..services.request_manager import RequestManager
 from ..spiders.b3_spider import B3Spider

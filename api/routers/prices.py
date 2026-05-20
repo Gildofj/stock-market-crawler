@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 from api.deps import PriceRepoDep
 from api.limiter import DefaultRateLimit
-from crawler.models.schemas import StockPriceSchema
+from core.models.schemas import StockPriceSchema
 
 router = APIRouter(
     prefix="/prices",

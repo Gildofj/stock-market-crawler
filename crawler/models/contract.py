@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from .schemas import StockPriceSchema
+from core.models.schemas import StockPriceSchema
 
 
 class CrawlResult(BaseModel):

@@ -2,16 +2,16 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from crawler.engine.crawler_engine import CrawlerEngine
-from crawler.models.contract import CrawlResult
-from crawler.models.models import (
+from core.models.models import (
     Company,
     Fundamental,
     LakeIndicatorReconciliation,
     MLFeature,
 )
-from crawler.models.schemas import StockPriceSchema
-from crawler.services.etl_service import ETLService
+from core.models.schemas import StockPriceSchema
+from core.services.etl_service import ETLService
+from crawler.engine.crawler_engine import CrawlerEngine
+from crawler.models.contract import CrawlResult
 
 
 @pytest.mark.integration

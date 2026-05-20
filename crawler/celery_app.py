@@ -15,7 +15,7 @@ from celery import Celery
 from celery.schedules import crontab
 from kombu import Queue
 
-from crawler.services.config import settings
+from core.config import settings
 
 app = Celery(
     "stock_market_crawler",

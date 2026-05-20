@@ -19,8 +19,9 @@ from typing import Protocol
 
 from loguru import logger
 
+from core.models.models import LakeIndicatorReconciliation
+
 from ..models.contract import CrawlResult
-from ..models.models import LakeIndicatorReconciliation
 
 
 class _SessionLike(Protocol):

@@ -9,7 +9,7 @@ project explicitly removed.
 import pandas as pd
 import pytest
 
-from crawler.services.source_registry import SourceRecord, get_source_registry
+from core.services.source_registry import SourceRecord, get_source_registry
 from crawler.spiders import ri_spider as ri_spider_module
 from crawler.spiders.ri_spider import RISpider
 
@@ -50,8 +50,8 @@ def test_spider_does_not_import_storage_module():
 
 def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
     """Setting enabled=False on the cvm row should short-circuit crawl_recent."""
-    from crawler.repositories import CompanyRepository
-    from crawler.services.lake_service import LakeService
+    from core.repositories import CompanyRepository
+    from core.services.lake_service import LakeService
 
     # Flip the cached registry record to disabled.
     registry = get_source_registry()

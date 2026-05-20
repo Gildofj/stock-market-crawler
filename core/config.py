@@ -27,12 +27,20 @@ class Settings(BaseSettings):
         current_url = os.getenv("DATABASE_URL") or self.DATABASE_URL
 
         if current_url:
+            # Ensure scheme is postgresql+asyncpg for SQLAlchemy Async
+            if current_url.startswith("postgres://"):
+                current_url = current_url.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif current_url.startswith("postgresql://") and "+asyncpg" not in current_url:
+                current_url = current_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
             # If using Supabase/Cloud, ensure we handle sslmode if not provided
             if "supabase" in current_url and "sslmode" not in current_url:
                 separator = "&" if "?" in current_url else "?"
                 return f"{current_url}{separator}sslmode=require"
             return current_url
-        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+        # Fallback to local config with asyncpg
+        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
     # Redis Configuration
     REDIS_URL: str = _DEFAULT_REDIS_URL

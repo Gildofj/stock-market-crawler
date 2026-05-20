@@ -30,7 +30,7 @@ import sys
 from loguru import logger
 from sqlalchemy import text
 
-from crawler.services.database import session_local
+from core.database import session_local
 
 
 def _execute(db, sql: str, *, dry_run: bool, label: str) -> int:

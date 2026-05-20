@@ -12,8 +12,8 @@ from collections.abc import Iterable
 
 import pytest
 
+from core.models.models import LakeIndicatorReconciliation
 from crawler.models.contract import CrawlResult
-from crawler.models.models import LakeIndicatorReconciliation
 from crawler.services.reconciliation_service import (
     OUTLIER_THRESHOLD_PCT,
     ReconciliationService,

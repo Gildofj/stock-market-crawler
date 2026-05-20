@@ -7,14 +7,14 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from api.main import app
-from crawler.models.models import (
+from core.database import get_db as get_crawler_db
+from core.models.models import (
     Company,
     CompanyReliability,
     Fundamental,
     LakeNews,
     LakeNewsTicker,
 )
-from crawler.services.database import get_db as get_crawler_db
 from tests.conftest import TEST_AUTH_HEADERS
 
 client = TestClient(app, headers=TEST_AUTH_HEADERS)

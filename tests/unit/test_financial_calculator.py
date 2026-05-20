@@ -8,7 +8,7 @@ import math
 
 import pytest
 
-from crawler.services.financial_calculator import (
+from core.services.financial_calculator import (
     ComputedIndicators,
     RawFinancials,
     bazin_fair_value,

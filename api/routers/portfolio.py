@@ -15,8 +15,8 @@ from api.schemas import (
     PortfolioSnapshotResponse,
     ReliabilityResponse,
 )
-from crawler.models.models import LakeNews
-from crawler.models.schemas import LakeNewsSchema
+from core.models.models import LakeNews
+from core.models.schemas import LakeNewsSchema
 
 MAX_SYMBOLS_PER_REQUEST = 50
 

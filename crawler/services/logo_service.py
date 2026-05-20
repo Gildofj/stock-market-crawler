@@ -14,8 +14,9 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup, Tag
 from loguru import logger
 
-from ..repositories import CompanyRepository
-from ..services.request_manager import RequestManager
+from core.repositories import CompanyRepository
+
+from .request_manager import RequestManager
 
 
 class LogoService:

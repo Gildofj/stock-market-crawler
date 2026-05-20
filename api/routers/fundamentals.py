@@ -5,7 +5,7 @@ from fastapi_cache.decorator import cache
 
 from api.deps import FundamentalRepoDep
 from api.limiter import DefaultRateLimit
-from crawler.models.schemas import FundamentalSchema
+from core.models.schemas import FundamentalSchema
 
 router = APIRouter(
     prefix="/fundamentals",

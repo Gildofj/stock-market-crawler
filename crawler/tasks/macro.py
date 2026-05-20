@@ -1,7 +1,7 @@
 from loguru import logger
 
+from core.database import session_local
 from crawler.celery_app import app
-from crawler.services.database import session_local
 from crawler.spiders.macro_spider import MacroSpider
 from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
 

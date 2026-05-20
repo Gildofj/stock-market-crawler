@@ -3,7 +3,7 @@ from fastapi_cache.decorator import cache
 
 from api.deps import CompanyRepoDep
 from api.limiter import DefaultRateLimit
-from crawler.models.schemas import CompanySchema
+from core.models.schemas import CompanySchema
 
 router = APIRouter(
     prefix="/companies",

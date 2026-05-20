@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
 
-from crawler.models.schemas import StockPriceSchema
-from crawler.services.etl_service import ETLService
+from core.models.schemas import StockPriceSchema
+from core.services.etl_service import ETLService
 
 
 def test_generate_features_calculation(mocker):

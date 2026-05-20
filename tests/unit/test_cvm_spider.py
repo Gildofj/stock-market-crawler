@@ -7,8 +7,8 @@ from datetime import datetime
 
 import pandas as pd
 
+from core.models.schemas import StockPriceSchema
 from crawler.models.contract import CrawlResult
-from crawler.models.schemas import StockPriceSchema
 from crawler.services.cvm_dataset_service import CVMYearData
 from crawler.spiders.cvm_spider import CVMSpider
 

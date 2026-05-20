@@ -5,20 +5,21 @@ from __future__ import annotations
 import uuid
 
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.models import StockPrice
-from ..models.schemas import StockPriceSchema
-from ..services.exceptions import DatabaseError
+from core.models.models import StockPrice
+from core.models.schemas import StockPriceSchema
+from core.services.exceptions import DatabaseError
 
 
 class PriceRepository:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    def save_bulk(
+    async def save_bulk(
         self, company_id: uuid.UUID, prices: list[StockPriceSchema]
     ) -> None:
         """Idempotent bulk upsert: duplicates on (time, company_id) are skipped."""
@@ -36,21 +37,22 @@ class PriceRepository:
         )
 
         try:
-            self.db.execute(stmt)
-            self.db.commit()
+            await self.db.execute(stmt)
+            await self.db.commit()
             logger.info(f"Bulk saved {len(prices)} prices for company_id {company_id}")
         except SQLAlchemyError as exc:
-            self.db.rollback()
+            await self.db.rollback()
             logger.error(f"Bulk save prices failed for company_id {company_id}: {exc}")
             raise DatabaseError("Failed to persist prices") from exc
 
-    def get_history(
+    async def get_history(
         self, company_id: uuid.UUID, limit: int = 100
     ) -> list[StockPrice]:
-        return (
-            self.db.query(StockPrice)
+        stmt = (
+            select(StockPrice)
             .filter(StockPrice.company_id == company_id)
             .order_by(StockPrice.time.desc())
             .limit(limit)
-            .all()
         )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
