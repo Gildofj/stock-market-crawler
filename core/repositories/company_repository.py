@@ -10,14 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.models.models import Company
 from core.models.schemas import CompanySchema
 
+_PRESERVE_IF_NULL_FIELDS = frozenset(
+    {"name", "sector", "sub_sector", "segment", "logo_url", "website"}
+)
+
 
 class CompanyRepository:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-
-    # ------------------------------------------------------------------
-    # Reads
-    # ------------------------------------------------------------------
 
     async def get(self, company_id: uuid.UUID) -> Company | None:
         result = await self.db.execute(select(Company).filter(Company.id == company_id))
@@ -90,13 +90,10 @@ class CompanyRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    # ------------------------------------------------------------------
-    # Writes
-    # ------------------------------------------------------------------
-
     async def get_or_create(self, company_data: CompanySchema) -> Company:
-        """Returns the existing row or creates one, refreshing metadata when
-        the payload differs from what's stored."""
+        """Returns the existing row or creates one. For metadata fields a
+        flaky upstream may forget (name, sector, logo_url, ...), a previously
+        populated value is never overwritten with None."""
         existing = await self.get_by_symbol(company_data.symbol)
 
         if existing is None:
@@ -108,6 +105,8 @@ class CompanyRepository:
 
         updated = False
         for field, value in company_data.model_dump(exclude_unset=True).items():
+            if value is None and field in _PRESERVE_IF_NULL_FIELDS and getattr(existing, field):
+                continue
             if getattr(existing, field) != value:
                 setattr(existing, field, value)
                 updated = True

@@ -114,7 +114,7 @@ class CVMSpider(BaseSpider):
     # ------------------------------------------------------------------
 
     def _populate_fundamentals(self, result: CrawlResult) -> None:
-        cvm_code = self._resolve_cvm_code(result.symbol)
+        cvm_code = self.get_cvm_code(result.symbol)
         if cvm_code is None:
             logger.warning(
                 f"CVMSpider: no CD_CVM mapping for {result.symbol}; skipping fundamentals"
@@ -158,7 +158,7 @@ class CVMSpider(BaseSpider):
     # Ticker → CD_CVM resolution
     # ------------------------------------------------------------------
 
-    def _resolve_cvm_code(self, ticker: str) -> str | None:
+    def get_cvm_code(self, ticker: str) -> str | None:
         index = self._load_ticker_index()
         return index.get(ticker.upper())
 

@@ -1,11 +1,3 @@
-"""Best-effort logo discovery for companies that don't carry one yet.
-
-Logos are sourced *only* from each company's own website (or its public
-favicon endpoint). We deliberately do not scrape proprietary aggregators
-because their logo assets are part of their bundled product offering and
-attract the same database-protection risk as their indicators.
-"""
-
 from __future__ import annotations
 
 import re
@@ -16,15 +8,41 @@ from loguru import logger
 
 from core.repositories import CompanyRepository
 
+from .metadata_overrides import get_override
 from .request_manager import RequestManager
 
 
-class LogoService:
-    """Resolves a logo URL for a company directly from its own site."""
+def _clearbit_url(website: str) -> str | None:
+    parsed = urlparse(website if "://" in website else f"https://{website}")
+    if not parsed.netloc:
+        return None
+    domain = parsed.netloc.removeprefix("www.")
+    return f"https://logo.clearbit.com/{domain}"
 
-    def __init__(self, company_repo: CompanyRepository) -> None:
+
+class LogoService:
+    def __init__(
+        self,
+        company_repo: CompanyRepository,
+        request_manager: RequestManager | None = None,
+    ) -> None:
         self.company_repo = company_repo
-        self.request_manager = RequestManager()
+        self.request_manager = request_manager or RequestManager()
+
+    async def resolve(self, symbol: str, website: str | None) -> str | None:
+        override = get_override(symbol).get("logo_url")
+        if override:
+            return override
+
+        if website:
+            scraped = await self._extract_logo_from_site(website)
+            if scraped:
+                return scraped
+            clearbit = _clearbit_url(website)
+            if clearbit:
+                return clearbit
+
+        return None
 
     async def update_logo_if_missing(self, symbol: str) -> str | None:
         company = await self.company_repo.get_by_symbol(symbol)
@@ -33,14 +51,10 @@ class LogoService:
         if company.logo_url:
             return str(company.logo_url)
 
-        website = getattr(company, "website", None)
-        if not website:
-            return None
-
-        logo_url = await self._extract_logo_from_site(str(website))
+        logo_url = await self.resolve(symbol, getattr(company, "website", None))
         if logo_url:
             await self.company_repo.update_info(symbol, {"logo_url": logo_url})
-            logger.info(f"Logo for {symbol} resolved from official site.")
+            logger.info(f"Logo for {symbol} resolved: {logo_url}")
         return logo_url
 
     async def _extract_logo_from_site(self, site_url: str) -> str | None:
@@ -52,7 +66,6 @@ class LogoService:
         if response.status_code != 200:
             return None
 
-        # BeautifulSoup is CPU-bound, but we'll run it in-loop for now or to_thread
         soup = BeautifulSoup(response.text, "lxml")
 
         icon = soup.find("link", rel=lambda value: bool(value and "icon" in str(value).lower()))
@@ -76,7 +89,6 @@ class LogoService:
             if src_str:
                 return urljoin(site_url, str(src_str))
 
-        # Last resort: assume there's a /favicon.ico at the site root.
         parsed = urlparse(site_url)
         if parsed.scheme and parsed.netloc:
             return f"{parsed.scheme}://{parsed.netloc}/favicon.ico"

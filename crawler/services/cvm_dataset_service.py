@@ -105,6 +105,17 @@ class CVMDatasetService:
             df["CD_CVM"] = df["CD_CVM"].astype(str).str.strip()
         return df
 
+    def get_sector_by_cvm_code(self) -> dict[str, str]:
+        cad = self.get_cad()
+        if cad is None or "CD_CVM" not in cad.columns or "SETOR_ATIV" not in cad.columns:
+            return {}
+        mapping: dict[str, str] = {}
+        for code, sector in zip(cad["CD_CVM"], cad["SETOR_ATIV"], strict=False):
+            if not code or not sector or pd.isna(sector):
+                continue
+            mapping[str(code).strip()] = str(sector).strip()
+        return mapping
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------

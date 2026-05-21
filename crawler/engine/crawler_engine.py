@@ -12,6 +12,8 @@ from core.repositories import (
 from core.services.financial_calculator import bazin_fair_value, graham_fair_value
 
 from ..models.contract import CrawlResult
+from ..services.logo_service import LogoService
+from ..services.metadata_resolver import MetadataResolver
 from ..services.reconciliation_service import ReconciliationService
 from ..services.request_manager import RequestManager
 from ..spiders.b3_spider import B3Spider
@@ -48,6 +50,10 @@ class CrawlerEngine:
         spiders = spiders or {}
         self.b3_spider = spiders.get("b3") or B3Spider()
         self.cvm_spider = spiders.get("cvm") or CVMSpider()
+        self.metadata_resolver = MetadataResolver(
+            self.cvm_spider,
+            LogoService(self.company_repo, request_manager=self.request_manager),
+        )
 
     async def run_batch_async(self, symbols: list[str]) -> list[CrawlResult]:
         """Run the price + fundamentals pipeline across a batch of tickers."""
@@ -60,6 +66,7 @@ class CrawlerEngine:
             result = results_dict.get(symbol) or CrawlResult(symbol=symbol)
 
             await self.cvm_spider.enrich(result)
+            await self.metadata_resolver.apply(result)
             self._calculate_advanced_metrics(result)
 
             await self._save_to_db(result)
@@ -71,6 +78,7 @@ class CrawlerEngine:
         logger.info(f"Engine: Starting async enrichment chain for {symbol}")
         result = await self.b3_spider.crawl_ticker(symbol)
         await self.cvm_spider.enrich(result)
+        await self.metadata_resolver.apply(result)
         self._calculate_advanced_metrics(result)
         await self._save_to_db(result)
         return result
