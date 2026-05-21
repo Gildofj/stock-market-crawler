@@ -68,9 +68,7 @@ async def get_portfolio_snapshot(
     fundamental_repo: FundamentalRepoDep,
     reliability_repo: ReliabilityRepoDep,
     lake: LakeServiceDep,
-    symbols: str = Query(
-        ..., description="Comma-separated tickers (max 50). Case-insensitive."
-    ),
+    symbols: str = Query(..., description="Comma-separated tickers (max 50). Case-insensitive."),
     news_per_symbol: int = Query(10, gt=0, le=20),
 ) -> PortfolioSnapshotResponse:
     """Returns company + fundamentals + reliability + top-N news per symbol.
@@ -92,9 +90,7 @@ async def get_portfolio_snapshot(
     """
     parsed = _parse_symbols(symbols)
     if not parsed:
-        raise HTTPException(
-            status_code=422, detail="symbols query param cannot be empty"
-        )
+        raise HTTPException(status_code=422, detail="symbols query param cannot be empty")
     if len(parsed) > MAX_SYMBOLS_PER_REQUEST:
         raise HTTPException(
             status_code=422,
@@ -103,9 +99,7 @@ async def get_portfolio_snapshot(
 
     companies = await company_repo.get_many_by_symbols(parsed)
     if not companies:
-        raise HTTPException(
-            status_code=400, detail="no known symbols in request"
-        )
+        raise HTTPException(status_code=400, detail="no known symbols in request")
 
     company_ids = [c.id for c in companies]
     fundamentals_by_id = await fundamental_repo.get_latest_for_companies(company_ids)

@@ -11,8 +11,7 @@ def _assert_redis_broker() -> None:
     broker = settings.REDIS_URL
     if not broker.startswith(("redis://", "rediss://")):
         logger.error(
-            "REDIS_URL must point to a Redis broker (redis:// or rediss://), "
-            "but resolved to {!r}.",
+            "REDIS_URL must point to a Redis broker (redis:// or rediss://), but resolved to {!r}.",
             broker,
         )
         sys.exit(1)

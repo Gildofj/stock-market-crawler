@@ -27,9 +27,7 @@ class MetadataResolver:
 
         if result.logo_url is None:
             try:
-                result.logo_url = await self.logo_service.resolve(
-                    result.symbol, result.website
-                )
+                result.logo_url = await self.logo_service.resolve(result.symbol, result.website)
             except Exception as exc:
                 logger.warning(f"logo resolve failed for {result.symbol}: {exc}")
 

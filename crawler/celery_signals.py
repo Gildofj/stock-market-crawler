@@ -13,9 +13,7 @@ from core.telemetry import setup_tracing
 
 
 @task_prerun.connect
-def _on_task_prerun(
-    task_id: str | None = None, task: Any = None, **_: Any
-) -> None:
+def _on_task_prerun(task_id: str | None = None, task: Any = None, **_: Any) -> None:
     if task_id:
         task_id_var.set(task_id)
     if task is not None:

@@ -17,7 +17,9 @@ class StockPriceSchema(BaseModel):
     close: float = Field(..., description="Closing price")
     adj_close: float | None = Field(default=None, description="Adjusted closing price")
     volume: int | None = Field(default=None, description="Trading volume")
-    source_id: uuid.UUID | None = Field(default=None, description="FK to data_sources (e.g. yfinance)")
+    source_id: uuid.UUID | None = Field(
+        default=None, description="FK to data_sources (e.g. yfinance)"
+    )
 
 
 class CompanySchema(BaseModel):
@@ -57,8 +59,12 @@ class FundamentalSchema(BaseModel):
     valuation_graham: float | None = Field(default=None, description="Graham Fair Value Price")
     valuation_bazin: float | None = Field(default=None, description="Bazin Fair Value Price")
     quality_score: int | None = Field(default=None, description="Composite Quality Score")
-    primary_source_id: uuid.UUID | None = Field(default=None, description="FK to data_sources (e.g. cvm-dfp)")
-    contributing_sources: list[str] = Field(default_factory=list, description="All sources that touched this row")
+    primary_source_id: uuid.UUID | None = Field(
+        default=None, description="FK to data_sources (e.g. cvm-dfp)"
+    )
+    contributing_sources: list[str] = Field(
+        default_factory=list, description="All sources that touched this row"
+    )
 
 
 class SourceAttributionSchema(BaseModel):
@@ -130,7 +136,9 @@ class LakeRIDocumentSchema(BaseModel):
         default="CVM (dados.cvm.gov.br)",
         description="Static attribution string for the original publisher.",
     )
-    source_id: uuid.UUID | None = Field(default=None, description="FK to data_sources (e.g. cvm)")
+    source_id: uuid.UUID | None = Field(
+        default=None, description="FK to data_sources (e.g. cvm)"
+    )
 
 
 class LakeRIDocumentInternalSchema(LakeRIDocumentSchema):

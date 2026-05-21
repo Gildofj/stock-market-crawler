@@ -46,7 +46,7 @@ async def test_get_news_by_company_id(client, mock_repos, mocker):
             title="Petrobras bate recorde",
             url="https://infomoney.com.br/1",
             published_at=datetime.now(UTC),
-            sentiment="positive"
+            sentiment="positive",
         )
     ]
     # Simulate tickers relation
@@ -77,7 +77,7 @@ async def test_get_investor_relations(client, mock_repos, mocker):
             category="ITR",
             title="Informações Trimestrais",
             pdf_url="https://cvm.gov.br/doc.pdf",
-            reference_date=date(2023, 9, 30)
+            reference_date=date(2023, 9, 30),
         )
     ]
 
@@ -88,9 +88,7 @@ async def test_get_investor_relations(client, mock_repos, mocker):
     mock_company_repo.get = mocker.AsyncMock(return_value=mock_company)
     mock_lake_service.get_ri_documents_by_ticker = mocker.AsyncMock(return_value=mock_ri)
 
-    response = client.get(
-        f"/api/v1/investor-relations/{company_id}", headers={"X-API-Key": "test"}
-    )
+    response = client.get(f"/api/v1/investor-relations/{company_id}", headers={"X-API-Key": "test"})
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
@@ -105,7 +103,7 @@ async def test_get_quote(client, mock_repos, mocker):
 
     mock_prices = [
         StockPrice(time=datetime(2023, 10, 20), close=35.5, company_id=company_id),
-        StockPrice(time=datetime(2023, 10, 19), close=34.0, company_id=company_id)
+        StockPrice(time=datetime(2023, 10, 19), close=34.0, company_id=company_id),
     ]
 
     mock_price_repo.get_history.return_value = mocker.AsyncMock(return_value=mock_prices)()

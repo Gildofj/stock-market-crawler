@@ -82,6 +82,7 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
 
     # Verify persistence
     from sqlalchemy import select
+
     res = await db_session.execute(select(Company).filter_by(symbol="FLOW3"))
     company = res.scalars().first()
     assert company is not None
@@ -121,10 +122,7 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
     await etl.generate_features(company.id)
 
     res = await db_session.execute(
-        select(MLFeature)
-        .filter_by(company_id=company.id)
-        .order_by(MLFeature.time.desc())
-        .limit(1)
+        select(MLFeature).filter_by(company_id=company.id).order_by(MLFeature.time.desc()).limit(1)
     )
     feature = res.scalars().first()
     assert feature is not None

@@ -16,6 +16,7 @@ router = APIRouter(
     dependencies=[Depends(DefaultRateLimit)],
 )
 
+
 class QuoteSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     company_id: uuid.UUID
@@ -26,6 +27,7 @@ class QuoteSchema(BaseModel):
     currency: str = "BRL"
     as_of: datetime
     market_state: str = "CLOSED"
+
 
 @router.get("/quotes", response_model=list[QuoteSchema])
 @cache(expire=300, namespace="prices:quotes_batch")
@@ -47,16 +49,19 @@ async def get_quotes_batch(
             change_abs = float(current.close) - float(prev.close)
             change_pct = (change_abs / float(prev.close) * 100) if float(prev.close) != 0 else 0.0
 
-            quotes.append(QuoteSchema(
-                company_id=cid,
-                price=float(current.close),
-                previous_close=float(prev.close),
-                change_abs=change_abs,
-                change_pct=change_pct,
-                as_of=current.time,
-            ))
+            quotes.append(
+                QuoteSchema(
+                    company_id=cid,
+                    price=float(current.close),
+                    previous_close=float(prev.close),
+                    change_abs=change_abs,
+                    change_pct=change_pct,
+                    as_of=current.time,
+                )
+            )
 
     return quotes
+
 
 @router.get("/quote/{company_id}", response_model=QuoteSchema)
 @cache(expire=300, namespace="prices:quote")
@@ -79,6 +84,7 @@ async def get_quote(company_id: uuid.UUID, repo: PriceRepoDep):
         change_pct=change_pct,
         as_of=current.time,
     )
+
 
 @router.get("/{company_id}", response_model=list[StockPriceSchema])
 @cache(expire=300, namespace="prices:history")

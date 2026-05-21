@@ -141,17 +141,18 @@ class CrawlerEngine:
     async def _ensure_source_ids(self) -> None:
         if hasattr(self, "_source_ids") and self._source_ids:
             return
-        
+
         from sqlalchemy import select
+
         from core.models.models import DataSource
-        
+
         stmt = select(DataSource.slug, DataSource.id)
         res = await self.company_repo.db.execute(stmt)
         self._source_ids = {row[0]: row[1] for row in res.all()}
 
     async def _save_to_db(self, result: CrawlResult) -> None:
         await self._ensure_source_ids()
-        
+
         result.primary_source_id = self._source_ids.get("cvm")
         result.contributing_sources = [
             slug for slug in ("cvm", "yfinance") if self._source_ids.get(slug)

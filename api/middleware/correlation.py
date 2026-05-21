@@ -68,9 +68,7 @@ def _extract_request_id(headers: list[tuple[bytes, bytes]], header: bytes) -> st
 def _wrap_send(send: Send, header: bytes, value: bytes) -> Send:
     async def send_with_header(message: Message) -> None:
         if message["type"] == "http.response.start":
-            existing = [
-                (k, v) for k, v in message.get("headers", []) if k.lower() != header
-            ]
+            existing = [(k, v) for k, v in message.get("headers", []) if k.lower() != header]
             existing.append((header, value))
             message["headers"] = existing
         await send(message)

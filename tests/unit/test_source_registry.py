@@ -50,9 +50,11 @@ async def test_get_returns_seeded_record():
 @pytest.mark.asyncio
 async def test_get_raises_for_unknown_slug(monkeypatch):
     registry = _seeded_registry()
+
     # Block refresh from masking the miss by also blanking _by_slug after.
     async def _no_refresh(*a, **kw):
         return None
+
     monkeypatch.setattr(registry, "refresh", _no_refresh)
     try:
         await registry.get("does-not-exist")
@@ -76,8 +78,10 @@ async def test_is_enabled_fails_open_for_unknown(monkeypatch):
     """Unknown slug ≠ disabled. Fail-open avoids stopping collection on a
     missing migration or typo. Explicit operator action is required to halt."""
     registry = _seeded_registry()
+
     async def _no_refresh(*a, **kw):
         return None
+
     monkeypatch.setattr(registry, "refresh", _no_refresh)
     assert await registry.is_enabled("not-seeded-yet") is True
 

@@ -201,9 +201,7 @@ class LakeService:
             logger.error(f"Insert RI doc failed for {payload.doc_id}: {exc}")
             raise DatabaseError("Failed to insert RI document") from exc
 
-    async def get_ri_documents_by_ticker(
-        self, ticker: str, limit: int = 3
-    ) -> list[LakeRIDocument]:
+    async def get_ri_documents_by_ticker(self, ticker: str, limit: int = 3) -> list[LakeRIDocument]:
         stmt = (
             select(LakeRIDocument)
             .filter(LakeRIDocument.ticker == ticker.upper())

@@ -382,9 +382,13 @@ class CVMSpider(BaseSpider):
         leaves = matches
         if "CD_CONTA" in matches.columns:
             codes = matches["CD_CONTA"].astype(str).tolist()
-            leaf_mask = matches["CD_CONTA"].astype(str).apply(
-                lambda code: not any(
-                    other != code and other.startswith(code + ".") for other in codes
+            leaf_mask = (
+                matches["CD_CONTA"]
+                .astype(str)
+                .apply(
+                    lambda code: (
+                        not any(other != code and other.startswith(code + ".") for other in codes)
+                    )
                 )
             )
             leaves = matches.loc[leaf_mask]

@@ -116,8 +116,7 @@ if os.getenv("ENV") == "production":
     allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
     if not allow_origins:
         raise RuntimeError(
-            "ALLOWED_ORIGINS must be set to a non-empty comma-separated list "
-            "when ENV=production."
+            "ALLOWED_ORIGINS must be set to a non-empty comma-separated list when ENV=production."
         )
     allow_credentials = True
 else:

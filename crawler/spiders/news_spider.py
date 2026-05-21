@@ -131,9 +131,7 @@ class NewsSpider:
                     url=link,
                     url_hash=self._hash_url(link),
                     sentiment=None,
-                    published_at=self._to_datetime(
-                        getattr(entry, "published_parsed", None)
-                    )
+                    published_at=self._to_datetime(getattr(entry, "published_parsed", None))
                     or self._to_datetime(getattr(entry, "updated_parsed", None)),
                     tickers=tickers,
                 )

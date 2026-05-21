@@ -53,9 +53,7 @@ class ReliabilityRepository:
             .order_by(CompanyReliability.reliability_score.desc())
         )
         if grade_filter:
-            stmt = stmt.filter(
-                CompanyReliability.reliability_grade == grade_filter.upper()
-            )
+            stmt = stmt.filter(CompanyReliability.reliability_grade == grade_filter.upper())
 
         result = await self.db.execute(stmt.limit(limit))
         return list(result.scalars().all())

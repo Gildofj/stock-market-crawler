@@ -80,9 +80,7 @@ class CompanyRepository:
         else:
             stmt = (
                 select(Company)
-                .filter(
-                    or_(Company.symbol.ilike(f"%{query}%"), Company.name.ilike(f"%{query}%"))
-                )
+                .filter(or_(Company.symbol.ilike(f"%{query}%"), Company.name.ilike(f"%{query}%")))
                 .order_by(Company.symbol.ilike(query).desc(), Company.symbol.asc())
                 .limit(limit)
             )

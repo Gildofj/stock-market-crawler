@@ -92,9 +92,7 @@ def _build_exporter() -> Any:
 
 def _install_instrumentations() -> None:
     _instrument("fastapi", "opentelemetry.instrumentation.fastapi", "FastAPIInstrumentor")
-    _instrument(
-        "sqlalchemy", "opentelemetry.instrumentation.sqlalchemy", "SQLAlchemyInstrumentor"
-    )
+    _instrument("sqlalchemy", "opentelemetry.instrumentation.sqlalchemy", "SQLAlchemyInstrumentor")
     _instrument("celery", "opentelemetry.instrumentation.celery", "CeleryInstrumentor")
     _instrument("httpx", "opentelemetry.instrumentation.httpx", "HTTPXClientInstrumentor")
     if settings.OTEL_INSTRUMENT_REDIS:

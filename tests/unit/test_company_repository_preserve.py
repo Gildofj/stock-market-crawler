@@ -41,9 +41,7 @@ async def test_get_or_create_preserves_existing_metadata_when_payload_is_none(co
 
 @pytest.mark.asyncio
 async def test_get_or_create_still_updates_with_non_none_value(company_repo):
-    await company_repo.get_or_create(
-        CompanySchema(symbol="VALE3", name="Vale", sector="Materials")
-    )
+    await company_repo.get_or_create(CompanySchema(symbol="VALE3", name="Vale", sector="Materials"))
 
     await company_repo.get_or_create(
         CompanySchema(symbol="VALE3", name="Vale S.A.", sector="Basic Materials")

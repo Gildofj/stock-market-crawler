@@ -31,6 +31,7 @@ async def test_repository_flow(company_repo, price_repo, db_session):
 
     # Verify persistence within the transaction
     from sqlalchemy import select
+
     result = await db_session.execute(select(StockPrice).filter_by(company_id=company.id))
     saved_price = result.scalars().first()
     assert saved_price.close == 10.5

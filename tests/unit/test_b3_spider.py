@@ -72,9 +72,7 @@ async def test_b3_spider_does_not_write_fundamentals(mocker, _info_dict, _histor
     those come from CVMSpider. Numeric .info fields are captured into
     `yahoo_info_indicators` for reconciliation only.
     """
-    _patch_ticker(
-        mocker, info=_info_dict, history=_history_df, shares=pd.Series([1_000_000.0])
-    )
+    _patch_ticker(mocker, info=_info_dict, history=_history_df, shares=pd.Series([1_000_000.0]))
 
     result = await B3Spider().crawl_ticker("FLOW3")
 
@@ -111,9 +109,7 @@ async def test_b3_spider_captures_info_snapshot(mocker, _info_dict, _history_df)
     untouched (no normalisation at this layer — the reconciliation service
     handles unit conversion).
     """
-    _patch_ticker(
-        mocker, info=_info_dict, history=_history_df, shares=pd.Series([1_000_000.0])
-    )
+    _patch_ticker(mocker, info=_info_dict, history=_history_df, shares=pd.Series([1_000_000.0]))
 
     result = await B3Spider().crawl_ticker("FLOW3")
 
@@ -164,9 +160,7 @@ async def test_b3_spider_handles_get_shares_full_failure(mocker, _info_dict, _hi
 @pytest.mark.asyncio
 async def test_b3_spider_handles_empty_shares_series(mocker, _info_dict, _history_df):
     """An empty shares Series is a soft miss, not a fatal error."""
-    _patch_ticker(
-        mocker, info=_info_dict, history=_history_df, shares=pd.Series([], dtype=float)
-    )
+    _patch_ticker(mocker, info=_info_dict, history=_history_df, shares=pd.Series([], dtype=float))
 
     result = await B3Spider().crawl_ticker("FLOW3")
 
@@ -195,9 +189,7 @@ async def test_b3_spider_returns_empty_result_for_delisted(mocker, _info_dict):
 @pytest.mark.asyncio
 async def test_b3_spider_marks_zero_volume_inactive(mocker, _info_dict):
     """Five trading days of zero volume → is_active flipped to 0."""
-    idx = pd.to_datetime(
-        ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]
-    )
+    idx = pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"])
     df = pd.DataFrame(
         {
             "Open": [1.0] * 5,

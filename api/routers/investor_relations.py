@@ -15,6 +15,7 @@ router = APIRouter(
     dependencies=[Depends(DefaultRateLimit)],
 )
 
+
 class InvestorRelationLink(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -22,6 +23,7 @@ class InvestorRelationLink(BaseModel):
     url: str
     kind: str
     published_at: date | None = None
+
 
 @router.get("/{company_id}", response_model=list[InvestorRelationLink])
 @cache(expire=1800, namespace="ri:by_company")
@@ -52,4 +54,3 @@ async def get_investor_relations_by_company_id(
         )
         for row in ri_rows
     ]
-

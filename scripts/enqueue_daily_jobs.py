@@ -47,6 +47,7 @@ def enqueue_all():
 
     logger.info("Successfully enqueued all daily jobs.")
 
+
 if __name__ == "__main__":
     start_time = time.time()
     enqueue_all()

@@ -28,9 +28,7 @@ def stub_source_registry(monkeypatch):
         risk_tier="low",
         enabled=True,
     )
-    monkeypatch.setattr(
-        registry, "_by_slug", {"cvm": fake_record}, raising=True
-    )
+    monkeypatch.setattr(registry, "_by_slug", {"cvm": fake_record}, raising=True)
     monkeypatch.setattr(registry, "_loaded_at", float("inf"), raising=True)
     yield
 
@@ -43,9 +41,7 @@ def test_spider_does_not_import_storage_module():
     assert "storage_service" not in source, (
         "RISpider should no longer reference storage_service — mirror removed."
     )
-    assert "upload_ri_pdf" not in source, (
-        "RISpider must not call upload_ri_pdf (deprecated)."
-    )
+    assert "upload_ri_pdf" not in source, "RISpider must not call upload_ri_pdf (deprecated)."
 
 
 @pytest.mark.asyncio
@@ -69,6 +65,7 @@ async def test_spider_skips_when_cvm_disabled(monkeypatch, db_session):
         lake_service=LakeService(db_session),
         request_manager=None,
     )
+
     # Force the spider to not need a real network call when disabled.
     async def _empty_df(*args, **kwargs):
         return pd.DataFrame()

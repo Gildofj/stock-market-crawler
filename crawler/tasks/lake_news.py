@@ -36,4 +36,3 @@ def crawl_news_task(self):
             await db.close()
 
     asyncio.run(_run())
-

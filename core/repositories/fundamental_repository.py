@@ -63,13 +63,10 @@ class FundamentalRepository:
             .subquery()
         )
 
-        stmt = (
-            select(Fundamental)
-            .join(
-                latest_sub,
-                (Fundamental.company_id == latest_sub.c.cid)
-                & (Fundamental.collected_at == latest_sub.c.max_at),
-            )
+        stmt = select(Fundamental).join(
+            latest_sub,
+            (Fundamental.company_id == latest_sub.c.cid)
+            & (Fundamental.collected_at == latest_sub.c.max_at),
         )
 
         result = await self.db.execute(stmt)

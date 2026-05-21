@@ -30,8 +30,7 @@ class PublicDataSourceSchema(BaseModel):
     license_label: str | None = Field(
         default=None,
         description=(
-            "Informal legal posture "
-            "(public-domain, rss-fair-use, tos-restricted, unknown)."
+            "Informal legal posture (public-domain, rss-fair-use, tos-restricted, unknown)."
         ),
     )
     risk_tier: str = Field(

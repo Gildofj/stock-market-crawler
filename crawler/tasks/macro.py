@@ -34,4 +34,3 @@ def crawl_macro_data_task(self):
             await db.close()
 
     asyncio.run(_run())
-

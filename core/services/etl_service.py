@@ -21,9 +21,7 @@ class ETLService:
 
         # 1. Load data
         stmt_prices = (
-            select(StockPrice)
-            .filter(StockPrice.company_id == company_id)
-            .order_by(StockPrice.time)
+            select(StockPrice).filter(StockPrice.company_id == company_id).order_by(StockPrice.time)
         )
         result_prices = await self.db.execute(stmt_prices)
         prices = result_prices.scalars().all()
@@ -79,9 +77,8 @@ class ETLService:
         valid_df = df.dropna(subset=essential_cols)
         for _index, row in valid_df.iterrows():
             # Check if feature already exists for this time/company to avoid conflicts
-            stmt_existing = (
-                select(MLFeature)
-                .filter(MLFeature.time == row["time"], MLFeature.company_id == company_id)
+            stmt_existing = select(MLFeature).filter(
+                MLFeature.time == row["time"], MLFeature.company_id == company_id
             )
             result_existing = await self.db.execute(stmt_existing)
             existing = result_existing.scalars().first()

@@ -37,18 +37,15 @@ app.conf.update(
     result_backend=None,
     task_ignore_result=True,
     task_store_errors_even_if_ignored=False,
-
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
-
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     task_default_retry_delay=30,
     task_track_started=False,
-
     worker_concurrency=2,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
@@ -63,7 +60,6 @@ app.conf.update(
     # at WARNING level, silently dropping INFO-level JSON written by
     # core.logging._gcp_sink and creating a feedback loop on WARNING+.
     worker_redirect_stdouts=False,
-
     broker_pool_limit=10,
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=None,
@@ -78,7 +74,6 @@ app.conf.update(
         "interval_step": 2.0,
         "interval_max": 30.0,
     },
-
     task_default_queue="default",
     task_queues=(
         Queue("default"),
@@ -92,7 +87,6 @@ app.conf.update(
         # crawl_ri_task runs as a Cloud Run Job, not via Celery — intentionally unrouted.
         "crawler.tasks.crawl_macro_data_task": {"queue": "macro"},
     },
-
     # Hours are UTC (Brazil = UTC-3). RI crawl is on Cloud Scheduler, not here.
     beat_schedule={
         "lake-news-hourly": {

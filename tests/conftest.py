@@ -38,6 +38,7 @@ def _clear_cache_between_tests():
     yield
     InMemoryBackend._store.clear()
 
+
 # Use a fast in-memory SQLite for core logic tests
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -56,9 +57,7 @@ async def db_session(engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    session_factory = async_sessionmaker(
-        bind=engine, class_=AsyncSession, expire_on_commit=False
-    )
+    session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
         yield session
 

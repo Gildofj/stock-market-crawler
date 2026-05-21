@@ -16,15 +16,12 @@ import sys
 import urllib.request
 
 METADATA_TOKEN_URL = (
-    "http://metadata.google.internal/computeMetadata/v1/"
-    "instance/service-accounts/default/token"
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 )
 
 
 def fetch(name: str) -> str:
-    token_req = urllib.request.Request(
-        METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"}
-    )
+    token_req = urllib.request.Request(METADATA_TOKEN_URL, headers={"Metadata-Flavor": "Google"})
     with urllib.request.urlopen(token_req, timeout=5) as resp:
         token = json.loads(resp.read())["access_token"]
 
@@ -33,9 +30,7 @@ def fetch(name: str) -> str:
         f"https://secretmanager.googleapis.com/v1/projects/{project}"
         f"/secrets/{name}/versions/latest:access"
     )
-    secret_req = urllib.request.Request(
-        secret_url, headers={"Authorization": f"Bearer {token}"}
-    )
+    secret_req = urllib.request.Request(secret_url, headers={"Authorization": f"Bearer {token}"})
     with urllib.request.urlopen(secret_req, timeout=10) as resp:
         payload = json.loads(resp.read())["payload"]["data"]
     return base64.b64decode(payload).decode()

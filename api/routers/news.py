@@ -15,6 +15,7 @@ router = APIRouter(
     dependencies=[Depends(DefaultRateLimit)],
 )
 
+
 class NewsItemSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -25,6 +26,7 @@ class NewsItemSchema(BaseModel):
     summary: str | None = None
     sentiment: str | None = None
     impact: str | None = None
+
 
 @router.get("/{company_id}", response_model=list[NewsItemSchema])
 @cache(expire=600, namespace="news:by_company")
@@ -61,4 +63,3 @@ async def get_news_by_company_id(
         )
         for row in news_rows
     ]
-

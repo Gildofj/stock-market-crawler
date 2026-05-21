@@ -25,8 +25,7 @@ class RISpider:
     """
 
     IPE_URL_TEMPLATE = (
-        "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/"
-        "ipe_cia_aberta_{year}.csv"
+        "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/ipe_cia_aberta_{year}.csv"
     )
 
     TARGET_CATEGORIES = {"ITR", "DFP", "FORMULARIO_DE_REFERENCIA", "FATO_RELEVANTE"}
@@ -107,7 +106,7 @@ class RISpider:
 
     async def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
         import uuid
-        
+
         # Operator kill-switch: disabling 'cvm' in data_sources halts new
         # collection without a deploy. Existing rows are unaffected.
         if not await get_source_registry().is_enabled("cvm"):
@@ -123,7 +122,7 @@ class RISpider:
 
         cutoff = datetime.utcnow().date() - timedelta(days=days_back)
         target_year = year or datetime.utcnow().year
-        
+
         dfs = []
         df_current = await self._fetch_index_csv(target_year)
         if df_current is not None and not df_current.empty:
@@ -144,16 +143,12 @@ class RISpider:
             logger.warning("RISpider: unexpected CSV schema, skipping.")
             return 0
 
-        df["__cnpj"] = (
-            df["CNPJ_Companhia"].astype(str).str.replace(r"\D", "", regex=True)
-        )
+        df["__cnpj"] = df["CNPJ_Companhia"].astype(str).str.replace(r"\D", "", regex=True)
         filtered: pd.DataFrame = df[df["__cnpj"].isin(list(cnpjs))]  # type: ignore[assignment]
 
         date_col = "Data_Entrega" if "Data_Entrega" in filtered.columns else None
         if date_col:
-            filtered = filtered.assign(
-                __date=pd.to_datetime(filtered[date_col], errors="coerce")
-            )
+            filtered = filtered.assign(__date=pd.to_datetime(filtered[date_col], errors="coerce"))
             filtered = filtered[filtered["__date"].dt.date >= cutoff]  # type: ignore[assignment]
 
         if "Categoria" in filtered.columns:

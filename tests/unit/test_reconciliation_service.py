@@ -20,6 +20,8 @@ from crawler.services.reconciliation_service import (
 )
 
 ...
+
+
 class _FakeSession:
     """Minimal stand-in for an AsyncSession — collects what would be
     persisted so tests can introspect without a real database. Parameter
@@ -29,7 +31,7 @@ class _FakeSession:
     def __init__(self) -> None:
         self.saved: list[LakeIndicatorReconciliation] = []
         self.committed = False
-        self.bind = type('obj', (object,), {'dialect': type('obj', (object,), {'name': 'sqlite'})})
+        self.bind = type("obj", (object,), {"dialect": type("obj", (object,), {"name": "sqlite"})})
 
     def add_all(self, objects: Iterable[object]) -> None:
         # The service only ever passes reconciliation rows; narrow at the

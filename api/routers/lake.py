@@ -62,12 +62,8 @@ async def get_lake_snapshot(
         "ticker": symbol_u,
         "company_id": company.id,
         "news": _news_to_schema(news),
-        "ri_documents": [
-            LakeRIDocumentSchema.model_validate(doc) for doc in ri_docs
-        ],
-        "fundamentals": FundamentalSchema.model_validate(fundamentals)
-        if fundamentals
-        else None,
+        "ri_documents": [LakeRIDocumentSchema.model_validate(doc) for doc in ri_docs],
+        "fundamentals": FundamentalSchema.model_validate(fundamentals) if fundamentals else None,
         "insight": LakeInsightSchema.model_validate(cache_row) if cache_row else None,
     }
 

@@ -35,7 +35,7 @@ class SourceNotFoundError(KeyError):
 @dataclass(frozen=True)
 class SourceRecord:
     id: str  # UUID stringified; SQLAlchemy gives us the uuid object but we
-             # immediately stringify for downstream serialization safety.
+    # immediately stringify for downstream serialization safety.
     slug: str
     display_name: str
     homepage_url: str

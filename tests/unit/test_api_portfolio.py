@@ -145,9 +145,7 @@ async def test_snapshot_returns_all_sections_for_known_symbols(
 
     await db_session.commit()
 
-    response = client.get(
-        "/api/v1/portfolio/snapshot?symbols=PETR4,VALE3&news_per_symbol=10"
-    )
+    response = client.get("/api/v1/portfolio/snapshot?symbols=PETR4,VALE3&news_per_symbol=10")
     assert response.status_code == 200
     body = response.json()
 
@@ -204,9 +202,7 @@ async def test_snapshot_deduplicates_and_uppercases(db_session: AsyncSession, ov
     await _seed_company(db_session, "VALE3")
     await db_session.commit()
 
-    response = client.get(
-        "/api/v1/portfolio/snapshot?symbols=petr4,PETR4,vale3"
-    )
+    response = client.get("/api/v1/portfolio/snapshot?symbols=petr4,PETR4,vale3")
     assert response.status_code == 200
     body = response.json()
 
@@ -236,9 +232,7 @@ async def test_snapshot_news_shared_across_tickers_in_request_appears_in_both_bu
 
 
 @pytest.mark.asyncio
-async def test_snapshot_handles_company_with_no_fundamentals(
-    db_session: AsyncSession, override_db
-):
+async def test_snapshot_handles_company_with_no_fundamentals(db_session: AsyncSession, override_db):
     await _seed_company(db_session, "PETR4")
     await db_session.commit()
 
@@ -272,9 +266,7 @@ async def test_snapshot_returns_only_latest_fundamental_per_company(
 
 
 @pytest.mark.asyncio
-async def test_snapshot_issues_constant_query_count(
-    db_session: AsyncSession, override_db, engine
-):
+async def test_snapshot_issues_constant_query_count(db_session: AsyncSession, override_db, engine):
     """N+1 regression net. The endpoint must issue exactly four bulk
     queries (companies, fundamentals, reliability, news) regardless of
     how many symbols are requested.

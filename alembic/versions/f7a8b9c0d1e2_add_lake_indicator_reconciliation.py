@@ -39,8 +39,7 @@ def upgrade() -> None:
         "ON lake_indicator_reconciliation(company_id)"
     )
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_lake_recon_ticker "
-        "ON lake_indicator_reconciliation(ticker)"
+        "CREATE INDEX IF NOT EXISTS idx_lake_recon_ticker ON lake_indicator_reconciliation(ticker)"
     )
     op.execute(
         "CREATE INDEX IF NOT EXISTS idx_lake_recon_indicator "

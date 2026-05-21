@@ -86,8 +86,7 @@ class CloudflareMiddleware(BaseHTTPMiddleware):
                     status_code=403,
                     content={
                         "detail": (
-                            "Direct access forbidden. "
-                            "Use the official domain via Cloudflare."
+                            "Direct access forbidden. Use the official domain via Cloudflare."
                         )
                     },
                 )
