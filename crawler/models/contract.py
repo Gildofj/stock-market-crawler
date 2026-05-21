@@ -1,3 +1,4 @@
+import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.models.schemas import StockPriceSchema
@@ -58,9 +59,13 @@ class CrawlResult(BaseModel):
         None,
         description=(
             "Raw numeric snapshot from yfinance Ticker.info (undocumented fields). "
-            "Reconciliation only — never written to the fundamentals table."
+            "ReconciliationService uses this to log upstream changes without mutating the core."
         ),
     )
+
+    # Data Lineage
+    primary_source_id: uuid.UUID | None = Field(None, description="FK to data_sources (e.g. cvm-dfp)")
+    contributing_sources: list[str] = Field(default_factory=list, description="All sources that touched this row")
 
     def __init__(self, **data):
         super().__init__(**data)

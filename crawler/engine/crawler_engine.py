@@ -101,14 +101,16 @@ class CrawlerEngine:
             else None
         )
 
-        result.valuation_graham = graham_fair_value(result.eps, bvps)
+        if result.valuation_graham is None:
+            result.valuation_graham = graham_fair_value(result.eps, bvps)
 
-        annual_dividend = (
-            (result.dy / 100) * current_price
-            if result.dy and result.dy > 0 and current_price
-            else None
-        )
-        result.valuation_bazin = bazin_fair_value(annual_dividend)
+        if result.valuation_bazin is None:
+            annual_dividend = (
+                (result.dy / 100) * current_price
+                if result.dy and result.dy > 0 and current_price
+                else None
+            )
+            result.valuation_bazin = bazin_fair_value(annual_dividend)
 
         score = 0
         metrics_count = 0
@@ -136,7 +138,25 @@ class CrawlerEngine:
         if metrics_count > 0:
             result.quality_score = score
 
+    async def _ensure_source_ids(self) -> None:
+        if hasattr(self, "_source_ids") and self._source_ids:
+            return
+        
+        from sqlalchemy import select
+        from core.models.models import DataSource
+        
+        stmt = select(DataSource.slug, DataSource.id)
+        res = await self.company_repo.db.execute(stmt)
+        self._source_ids = {row[0]: row[1] for row in res.all()}
+
     async def _save_to_db(self, result: CrawlResult) -> None:
+        await self._ensure_source_ids()
+        
+        result.primary_source_id = self._source_ids.get("cvm")
+        result.contributing_sources = [
+            slug for slug in ("cvm", "yfinance") if self._source_ids.get(slug)
+        ]
+
         company_schema = CompanySchema(
             symbol=result.symbol,
             name=result.name or result.symbol,
@@ -151,6 +171,9 @@ class CrawlerEngine:
         company_id = uuid.UUID(str(company.id))
 
         if result.prices:
+            yfinance_id = self._source_ids.get("yfinance")
+            for price in result.prices:
+                price.source_id = yfinance_id
             await self.price_repo.save_bulk(company_id, result.prices)
 
         fundamental_schema = FundamentalSchema(
@@ -170,6 +193,8 @@ class CrawlerEngine:
             valuation_graham=result.valuation_graham,
             valuation_bazin=result.valuation_bazin,
             quality_score=result.quality_score,
+            primary_source_id=result.primary_source_id,
+            contributing_sources=result.contributing_sources,
         )
         await self.fundamental_repo.save(company_id, fundamental_schema)
 

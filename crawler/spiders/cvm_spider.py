@@ -171,6 +171,8 @@ class CVMSpider(BaseSpider):
         result.debt_to_equity = indicators.debt_to_equity
         result.market_cap = indicators.market_cap
         result.eps = indicators.eps
+        result.valuation_graham = indicators.valuation_graham
+        result.valuation_bazin = indicators.valuation_bazin
 
         # Growth metrics derived from a multi-year DFP window. Falling back to
         # None when CVM history is shorter than the requested window keeps
@@ -434,7 +436,11 @@ class CVMSpider(BaseSpider):
         self, cvm_code: str, statement: Statement, spec: _AccountSpec, years: int
     ) -> float | None:
         latest_year = datetime.now().year
-        end_year = latest_year - 1  # DFP for the current year may not be published yet
+        dfp = self._get_year("DFP", latest_year) or self._get_year("DFP", latest_year - 1)
+        if dfp is None:
+            return None
+
+        end_year = dfp.year
         start_year = end_year - years
 
         end = self._annual_value(cvm_code, end_year, spec)

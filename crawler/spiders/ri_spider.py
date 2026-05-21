@@ -106,17 +106,38 @@ class RISpider:
         return None
 
     async def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
+        import uuid
+        
         # Operator kill-switch: disabling 'cvm' in data_sources halts new
         # collection without a deploy. Existing rows are unaffected.
         if not await get_source_registry().is_enabled("cvm"):
             logger.info("RISpider: 'cvm' source disabled — skipping crawl.")
             return 0
 
+        try:
+            cvm_source = await get_source_registry().get("cvm")
+            cvm_source_id = uuid.UUID(cvm_source.id)
+        except Exception as e:
+            logger.warning(f"RISpider: could not fetch 'cvm' source_id, lineage will be null: {e}")
+            cvm_source_id = None
+
         cutoff = datetime.utcnow().date() - timedelta(days=days_back)
         target_year = year or datetime.utcnow().year
-        df = await self._fetch_index_csv(target_year)
-        if df is None or df.empty:
+        
+        dfs = []
+        df_current = await self._fetch_index_csv(target_year)
+        if df_current is not None and not df_current.empty:
+            dfs.append(df_current)
+
+        if year is None and (cutoff.year < target_year or df_current is None):
+            df_prev = await self._fetch_index_csv(target_year - 1)
+            if df_prev is not None and not df_prev.empty:
+                dfs.append(df_prev)
+
+        if not dfs:
             return 0
+
+        df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
 
         cnpjs = watched_cnpjs()
         if "CNPJ_Companhia" not in df.columns:
@@ -174,6 +195,7 @@ class RISpider:
                 text_excerpt=text,
                 reference_date=self._coerce_date(ref_value),
                 r2_public_url=None,
+                source_id=cvm_source_id,
             )
 
             company = await self.company_repo.get_by_symbol(ticker)
