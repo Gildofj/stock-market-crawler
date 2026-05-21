@@ -121,6 +121,16 @@ def test_roic_returns_none_for_invalid_invested_capital():
     assert roic(200, 40, 200, 0, 0, 0) is None
 
 
+def test_roic_falls_back_to_equity_plus_debt_when_cash_dominates():
+    # equity=100, debt=50, cash=500 -> first attempt = -350; fallback = 150
+    # nopat = 200 * 0.66 = 132 -> 132 / 150 = 88.0%
+    assert roic(200, None, None, 100, 50, 500) == pytest.approx(88.0, rel=1e-3)
+
+
+def test_roic_still_none_when_equity_is_negative_and_no_debt():
+    assert roic(200, None, None, -100, 0, 0) is None
+
+
 def test_margins_percent():
     assert gross_margin(300, 1000) == pytest.approx(30.0)
     assert ebit_margin(150, 1000) == pytest.approx(15.0)

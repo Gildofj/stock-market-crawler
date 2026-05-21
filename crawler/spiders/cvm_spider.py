@@ -51,6 +51,7 @@ class _AccountSpec:
 _REVENUE = _AccountSpec("DRE", "3.01", ("receita liquida", "receitas de intermedi"))
 _GROSS_PROFIT = _AccountSpec("DRE", "3.03", ("resultado bruto",))
 _EBIT = _AccountSpec("DRE", "3.05", ("resultado antes do resultado financeiro",))
+_FINANCIAL_RESULT = _AccountSpec("DRE", "3.06", ("resultado financeiro",))
 _PRETAX = _AccountSpec("DRE", "3.07", ("resultado antes dos tributos",))
 _INCOME_TAX = _AccountSpec("DRE", "3.08", ("imposto de renda", "contribuicao social"))
 _NET_INCOME = _AccountSpec(
@@ -81,6 +82,21 @@ _DIVIDENDS_PAID = _AccountSpec(
     "6.03.01",
     ("dividendos pagos", "juros sobre capital proprio pagos", "jcp pagos"),
 )
+
+
+def _derive_ebit(
+    net_income: float | None,
+    income_tax: float | None,
+    pretax: float | None,
+    financial_result: float | None,
+) -> float | None:
+    if financial_result is None:
+        return None
+    if pretax is not None:
+        return pretax - financial_result
+    if net_income is not None and income_tax is not None:
+        return (net_income + income_tax) - financial_result
+    return None
 
 
 class CVMSpider(BaseSpider):
@@ -233,7 +249,15 @@ class CVMSpider(BaseSpider):
         # are unavailable (e.g. yfinance outage).
         shares_outstanding = result.shares_outstanding or self._infer_shares(result)
 
+        net_income = self._extract(dfp, cvm_code, _NET_INCOME, annual_row)
+        income_tax = self._extract(dfp, cvm_code, _INCOME_TAX, annual_row)
+        pretax = self._extract(dfp, cvm_code, _PRETAX, annual_row)
+        financial_result = self._extract(dfp, cvm_code, _FINANCIAL_RESULT, annual_row)
+
         ebit = self._extract(dfp, cvm_code, _EBIT, annual_row)
+        if ebit is None:
+            ebit = _derive_ebit(net_income, income_tax, pretax, financial_result)
+
         depreciation = self._extract(dfp, cvm_code, _DEPRECIATION, annual_row)
         ebitda = (ebit + depreciation) if (ebit is not None and depreciation is not None) else None
 
@@ -248,9 +272,10 @@ class CVMSpider(BaseSpider):
             gross_profit=self._extract(dfp, cvm_code, _GROSS_PROFIT, annual_row),
             ebit=ebit,
             ebitda=ebitda,
-            net_income=self._extract(dfp, cvm_code, _NET_INCOME, annual_row),
-            income_tax_expense=self._extract(dfp, cvm_code, _INCOME_TAX, annual_row),
-            pretax_income=self._extract(dfp, cvm_code, _PRETAX, annual_row),
+            net_income=net_income,
+            income_tax_expense=income_tax,
+            pretax_income=pretax,
+            financial_result=financial_result,
             total_assets=self._extract(dfp, cvm_code, _TOTAL_ASSETS, annual_row),
             current_assets=self._extract(dfp, cvm_code, _CURRENT_ASSETS, annual_row),
             cash_and_equivalents=self._extract(dfp, cvm_code, _CASH, annual_row),

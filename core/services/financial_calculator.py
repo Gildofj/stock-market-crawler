@@ -41,6 +41,7 @@ class RawFinancials:
     net_income: float | None = None
     income_tax_expense: float | None = None
     pretax_income: float | None = None
+    financial_result: float | None = None
 
     # --- Balance sheet (latest period) ---
     total_assets: float | None = None
@@ -155,6 +156,8 @@ def roic(
         return None
 
     invested_capital = equity + (debt or 0.0) - (cash or 0.0)
+    if invested_capital <= 0:
+        invested_capital = equity + (debt or 0.0)
     if invested_capital <= 0:
         return None
 
