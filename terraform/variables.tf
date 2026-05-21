@@ -56,9 +56,7 @@ variable "scheduler_timezone" {
   default     = "America/Sao_Paulo"
 }
 
-# Cloudflare R2 (S3-compatible) Object Storage — used for mirroring RI PDFs
-# (public bucket) and storing portfolio spreadsheet uploads (private bucket).
-# Leave the credentials blank to disable R2 integration; the application
+# Cloudflare R2 (S3-compatible). Leave credentials blank to disable; the app
 # degrades gracefully and skips uploads when R2 is not configured.
 variable "r2_account_id" {
   description = "Cloudflare account ID hosting the R2 buckets."
@@ -75,9 +73,8 @@ variable "r2_api_token" {
 }
 
 variable "r2_bucket_ri_docs" {
-  # LEGACY. RI PDFs are no longer mirrored — the upstream CVM URL is the
-  # canonical reference. This variable is kept so existing tfvars / env stay
-  # valid; the bucket can be drained manually when comfortable.
+  # LEGACY. RI PDFs are no longer mirrored (upstream CVM URL is canonical).
+  # Kept so existing tfvars/env stay valid; bucket can be drained manually.
   description = "(Legacy) Former public mirror bucket for CVM RI PDFs. No longer written to."
   type        = string
   default     = "ri-docs"
@@ -90,7 +87,7 @@ variable "r2_bucket_portfolios" {
 }
 
 variable "r2_ri_public_base_url" {
-  # LEGACY. See `r2_bucket_ri_docs`. Kept to avoid breaking existing deploys.
+  # LEGACY — see r2_bucket_ri_docs.
   description = "(Legacy) Former public base URL for the RI mirror bucket."
   type        = string
   default     = ""

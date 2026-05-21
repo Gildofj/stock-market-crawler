@@ -1,14 +1,9 @@
-"""Celery application configured for a single-VM, self-hosted Redis deployment.
+"""Celery app for a single-VM, self-hosted Redis deployment on GCE e2-micro.
 
-Design constraints
-------------------
-* **Self-hosted Redis**: Runs as a sidecar container on the GCE VM. No command
-  budget limits, allowing for low-latency polling.
-* **GCP e2-micro (1 GB RAM)**: workers are recycled on a memory ceiling so a
-  rogue ``pdfplumber`` parse cannot OOM the VM.
-* **No external scheduler**: beat runs embedded inside the worker process so we
-  do not pay for Cloud Scheduler / Cloud Run Jobs. All scheduled tasks are
-  idempotent (DB upserts) which makes the ephemeral schedule file harmless.
+Workers are recycled on a per-child memory ceiling so a rogue ``pdfplumber``
+parse cannot OOM the 1 GB VM. Beat runs embedded inside the worker process
+(no Cloud Scheduler) and every scheduled task must be idempotent — the
+schedule file is ephemeral and may double-fire on restart.
 """
 
 from celery import Celery
@@ -22,9 +17,7 @@ from core.telemetry import setup_tracing
 setup_logging()
 setup_tracing("celery-worker")
 
-# Importing for side-effects: registers task_prerun/task_postrun handlers and
-# the worker_process_init handler that re-runs setup_tracing() in each prefork
-# child (BatchSpanProcessor's daemon thread does not survive fork).
+# Side-effect import: registers task_prerun/postrun + worker_process_init signals.
 from crawler import celery_signals  # noqa: E402, F401
 
 app = Celery(
@@ -39,54 +32,46 @@ app = Celery(
 )
 
 app.conf.update(
-    # ── Result backend ───────────────────────────────────────────────
-    # Disabled on purpose: task outputs are persisted to Postgres inside
-    # the task body, and nothing in the codebase calls AsyncResult.get().
-    # Disabling cuts Redis command volume by roughly half.
+    # No code path calls AsyncResult.get(); disabling the backend cuts Redis
+    # command volume by ~half.
     result_backend=None,
     task_ignore_result=True,
     task_store_errors_even_if_ignored=False,
 
-    # ── Serialization / clock ────────────────────────────────────────
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
 
-    # ── Reliability ──────────────────────────────────────────────────
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     task_default_retry_delay=30,
-    task_track_started=False,  # avoids writes to the (absent) backend
+    task_track_started=False,
 
-    # ── Worker pool ──────────────────────────────────────────────────
-    # concurrency=2 fits the e2-micro IO-bound workload. Memory ceiling
-    # is set per child so pdfplumber/pandas spikes recycle that worker
-    # instead of taking down the whole VM.
     worker_concurrency=2,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
-    # 200 MB ceiling fits two Celery processes on a 1 GB e2-micro: worker-hot
-    # (concurrency=2) + worker-lake (concurrency=1) stay under ~900 MB worst-case
-    # even when every child is at its peak. See terraform/compute_engine.tf.
-    worker_max_memory_per_child=200_000,  # 200 MB (units: KiB)
+    # 200 MB ceiling fits worker-hot (concurrency=2) + worker-lake
+    # (concurrency=1) under ~900 MB on the 1 GB e2-micro.
+    worker_max_memory_per_child=200_000,
     worker_send_task_events=False,
     worker_enable_remote_control=False,
     worker_disable_rate_limits=True,
     worker_hijack_root_logger=False,
+    # Default redirect captures sys.stdout into the `celery.redirected` logger
+    # at WARNING level, silently dropping INFO-level JSON written by
+    # core.logging._gcp_sink and creating a feedback loop on WARNING+.
+    worker_redirect_stdouts=False,
 
-    # ── Broker (Self-hosted Redis) ───────────────────────────────────
     broker_pool_limit=10,
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=None,
     broker_heartbeat=None,
     broker_transport_options={
-        # Visibility timeout must exceed the longest task. RI PDF parses
-        # can take a couple of minutes per document, so 1h is generous.
+        # Must exceed the longest task; RI PDF parses can take minutes.
         "visibility_timeout": 3600,
         "socket_keepalive": True,
-        # Polling interval can be low for self-hosted Redis
         "polling_interval": 0.5,
         "max_retries": 5,
         "interval_start": 1.0,
@@ -94,9 +79,6 @@ app.conf.update(
         "interval_max": 30.0,
     },
 
-    # ── Queues / routing ─────────────────────────────────────────────
-    # One worker consumes all queues today, but naming them now lets us
-    # split into dedicated workers later with zero code changes.
     task_default_queue="default",
     task_queues=(
         Queue("default"),
@@ -107,15 +89,11 @@ app.conf.update(
     task_routes={
         "crawler.tasks.crawl_ticker_task": {"queue": "crawler"},
         "crawler.tasks.crawl_news_task": {"queue": "lake"},
-        # crawl_ri_task is intentionally NOT routed: it runs as a Cloud Run Job
-        # (entrypoint: ``python -m crawler.tasks.lake_ri``), not via Celery.
-        # The task decorator is kept so local dev / tests can still invoke it.
+        # crawl_ri_task runs as a Cloud Run Job, not via Celery — intentionally unrouted.
         "crawler.tasks.crawl_macro_data_task": {"queue": "macro"},
     },
 
-    # ── Embedded beat schedule ───────────────────────────────────────
-    # Hours are UTC. Brazil = UTC-3.
-    # RI crawl is scheduled by Cloud Scheduler → Cloud Run Job, not here.
+    # Hours are UTC (Brazil = UTC-3). RI crawl is on Cloud Scheduler, not here.
     beat_schedule={
         "lake-news-hourly": {
             "task": "crawler.tasks.crawl_news_task",
@@ -123,7 +101,7 @@ app.conf.update(
         },
         "macro-daily": {
             "task": "crawler.tasks.crawl_macro_data_task",
-            "schedule": crontab(minute=0, hour=11),  # 08:00 BRT
+            "schedule": crontab(minute=0, hour=11),
         },
     },
     beat_max_loop_interval=300,

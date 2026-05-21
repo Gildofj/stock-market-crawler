@@ -1,13 +1,5 @@
-"""Celery signal handlers bridging per-task state into :mod:`core.context`.
-
-* ``task_prerun``  — populates ``task_id_var`` / ``task_name_var`` so every log
-  emitted by the task body carries ``task_id`` and ``task_name``.
-* ``task_postrun`` — clears them so a stray log between tasks does not
-  mis-attribute itself to the previous one.
-
-PR 3 will extend this module with a ``worker_process_init`` handler that
-re-initializes the OpenTelemetry SDK inside each Celery prefork child (the
-``BatchSpanProcessor`` daemon thread does not survive ``fork``).
+"""Celery signal handlers bridging per-task state into :mod:`core.context`
+and re-initializing OpenTelemetry inside prefork children.
 """
 
 from __future__ import annotations
@@ -38,17 +30,8 @@ def _on_task_postrun(**_: Any) -> None:
 
 @worker_process_init.connect
 def _on_worker_process_init(**_: Any) -> None:
-    """Re-initialize OpenTelemetry in each prefork child.
-
-    Celery's default ``prefork`` pool forks worker children after the master
-    has booted. The ``BatchSpanProcessor`` exporter runs on a daemon thread
-    which does not survive ``fork``, so each child must rebuild its own
-    TracerProvider/exporter pipeline. ``setup_tracing()`` is idempotent per
-    service name, so calling it from the master *and* the children is safe.
-    """
-    # Module-import-time setup_tracing() in celery_app.py already marked the
-    # service as configured for the master. Reset the cache so the child does
-    # not no-op the second call.
+    # BatchSpanProcessor's daemon thread does not survive fork; each prefork
+    # child must rebuild its TracerProvider/exporter pipeline.
     import core.telemetry as telemetry
 
     telemetry._CONFIGURED_FOR = None

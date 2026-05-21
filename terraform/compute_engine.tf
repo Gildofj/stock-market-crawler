@@ -30,12 +30,9 @@ resource "google_compute_instance" "worker" {
         containers = [{
           name  = "celery-worker"
           image = var.image_name
-          # Secrets (DATABASE_URL, REDIS_PASSWORD, R2_ACCOUNT_ID, R2_API_TOKEN)
-          # are fetched by scripts/worker_entrypoint.sh from Google Secret
-          # Manager via the GCE metadata server, using this VM's service
-          # account (which has roles/secretmanager.secretAccessor via
-          # secrets.tf). GCE container declarations have no native
-          # secret_key_ref equivalent — the entrypoint shim is the bridge.
+          # GCE container declarations have no secret_key_ref; the entrypoint
+          # shim (scripts/worker_entrypoint.sh) fetches secrets via the
+          # metadata server using this VM's SA.
           env = [
             { name = "REDIS_HOST", value = "localhost" },
             { name = "PYTHONPATH", value = "/app" },
@@ -44,7 +41,7 @@ resource "google_compute_instance" "worker" {
             { name = "R2_BUCKET_PORTFOLIOS", value = var.r2_bucket_portfolios },
             { name = "R2_RI_PUBLIC_BASE_URL", value = var.r2_ri_public_base_url },
           ]
-          ports = [{ containerPort = 6379, hostPort = 6379 }]
+          ports   = [{ containerPort = 6379, hostPort = 6379 }]
           command = ["/app/scripts/worker_entrypoint.sh"]
         }]
         restartPolicy = "Always"
@@ -65,7 +62,6 @@ resource "google_compute_instance" "worker" {
   depends_on = [google_project_service.compute]
 }
 
-# Firewall rule to allow SSH (optional, for debugging)
 resource "google_compute_firewall" "allow_ssh" {
   name    = "allow-ssh-crawler"
   network = "default"
@@ -75,12 +71,12 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = ["0.0.0.0/0"] # Narrow this down to your IP in production
+  source_ranges = ["0.0.0.0/0"] # TODO: narrow to operator IP
   target_tags   = ["ssh-enabled"]
 }
 
-# Firewall rule to allow Redis access from the internet (protected by password)
-# Needed for the API running on Cloud Run to access the cache/limiter.
+# Open Redis to the internet (password-protected) so the Cloud Run API can
+# reach the cache/limiter.
 resource "google_compute_firewall" "allow_redis" {
   name    = "allow-redis-crawler"
   network = "default"
@@ -90,6 +86,6 @@ resource "google_compute_firewall" "allow_redis" {
     ports    = ["6379"]
   }
 
-  source_ranges = ["0.0.0.0/0"] 
+  source_ranges = ["0.0.0.0/0"]
   target_tags   = ["redis-enabled"]
 }

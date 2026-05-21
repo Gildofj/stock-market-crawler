@@ -1,17 +1,7 @@
-"""Structured logging for the stock market crawler.
+"""Structured logging with two output modes selected via ``LOG_FORMAT``:
 
-Two output modes selected via ``LOG_FORMAT``:
-
-* ``human`` — colored, human-readable text on stderr (default for local dev).
-* ``gcp``   — newline-delimited JSON on stdout shaped for Google Cloud Logging
-  ingestion. Cloud Run, Cloud Run Jobs and the GCE COS Docker logging driver
-  pick stdout up automatically; the JSON shape gives correct severity, source
-  location, exception capture and link-out to Cloud Trace — all without
-  requiring a Google SDK in the runtime.
-
-An OpenTelemetry patcher injects ``trace_id``/``span_id`` whenever a trace is
-active. It is a no-op until the OTel SDK is wired (PR 3 of the observability
-roadmap).
+* ``human`` — colored text on stderr (local dev).
+* ``gcp``   — newline-delimited JSON on stdout for Google Cloud Logging.
 """
 
 from __future__ import annotations
@@ -53,7 +43,6 @@ _CONFIGURED = False
 
 
 def _trace_context() -> tuple[str | None, str | None]:
-    """Return ``(trace_id_hex, span_id_hex)`` for the active span, or ``(None, None)``."""
     try:
         from opentelemetry import trace  # pyright: ignore[reportMissingImports]
     except ImportError:
@@ -129,7 +118,7 @@ def _gcp_sink(message: Any) -> None:
 
 
 class _InterceptHandler(logging.Handler):
-    """Route stdlib logging records (uvicorn, sqlalchemy, ...) through loguru."""
+    """Routes stdlib logging records (uvicorn, sqlalchemy, ...) through loguru."""
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -146,7 +135,7 @@ class _InterceptHandler(logging.Handler):
 
 
 def setup_logging() -> None:
-    """Configure loguru sinks. Idempotent across processes and re-imports."""
+    """Idempotent across processes and re-imports."""
     global _CONFIGURED
     if _CONFIGURED:
         return

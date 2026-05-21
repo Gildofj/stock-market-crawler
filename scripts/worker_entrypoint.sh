@@ -1,31 +1,18 @@
 #!/bin/bash
-# Worker entrypoint: starts two Celery processes on the same VM image.
+# Two Celery processes on one VM image:
+#   * Split keeps a stuck News (lake) fetch from starving ticker crawls.
+#   * Per-child memory ceiling (celery_app.py: 200 MB) recycles offenders.
+#   * Single container because COS multi-container is poorly supported on GCE.
+# `wait -n` exits as soon as either child dies, letting COS recycle the unit.
 #
-# Why two processes (instead of one --beat with all queues):
-#   * Hot path (crawler/default/macro) shouldn't share a worker process with the
-#     lake path (RSS parsing), so a stuck News fetch can't starve ticker crawls.
-#   * Memory ceilings are enforced per-child (see celery_app.py: 200 MB), so a
-#     misbehaving lake task recycles only its own worker without touching hot.
-#
-# Why one container (instead of two via docker-compose):
-#   * GCE Container-Optimized OS reliably runs a single container per VM via
-#     gce-container-declaration. Multi-container on COS exists but is poorly
-#     documented and not worth the operational cost for a 2-process split.
-#   * If either Celery dies, `wait -n` returns and the script exits, which makes
-#     COS recycle the whole container (restartPolicy: Always).
-#
-# Secrets:
-#   * DATABASE_URL, REDIS_PASSWORD, R2_ACCOUNT_ID, R2_API_TOKEN are fetched from
-#     Google Secret Manager via the metadata server (no gcloud SDK needed on
-#     the runtime image — curl + python3 only). The VM's service account
-#     (crawler-worker-sa) has roles/secretmanager.secretAccessor wired in
-#     terraform/secrets.tf.
+# Secrets are fetched from Google Secret Manager via the metadata server
+# (curl-free: pure stdlib in scripts/fetch_secret.py). The VM SA gets
+# roles/secretmanager.secretAccessor from terraform/secrets.tf.
 
 set -euo pipefail
 
 : "${GCP_PROJECT:?GCP_PROJECT env var is required to fetch secrets}"
 
-# Wrapper around scripts/fetch_secret.py (pure stdlib — no curl needed).
 fetch_secret() {
   python3 /app/scripts/fetch_secret.py "$1"
 }
@@ -44,16 +31,15 @@ fi
 cleanup() {
   echo "[entrypoint] shutting down workers..."
   kill -TERM "${HOT_PID:-}" "${LAKE_PID:-}" 2>/dev/null || true
-  # Also stop redis
   redis-cli shutdown || true
   wait
 }
 trap cleanup EXIT INT TERM
 
-echo "[entrypoint] starting redis-server with password protection..."
+echo "[entrypoint] starting redis-server..."
 redis-server --requirepass "${REDIS_PASSWORD}" --bind 0.0.0.0 --daemonize yes
 
-echo "[entrypoint] starting worker-hot (queues: crawler,default,macro, with beat)..."
+echo "[entrypoint] starting worker-hot (crawler,default,macro + beat)..."
 celery -A crawler.celery_app worker \
   --beat \
   --loglevel=info \
@@ -62,7 +48,7 @@ celery -A crawler.celery_app worker \
   -n "hot@%h" &
 HOT_PID=$!
 
-echo "[entrypoint] starting worker-lake (queues: lake)..."
+echo "[entrypoint] starting worker-lake (lake)..."
 celery -A crawler.celery_app worker \
   --loglevel=info \
   --concurrency=1 \
@@ -71,5 +57,4 @@ celery -A crawler.celery_app worker \
 LAKE_PID=$!
 
 echo "[entrypoint] both workers up (hot=$HOT_PID, lake=$LAKE_PID); waiting..."
-# Exit as soon as either child exits so COS restarts the container as a unit.
 wait -n

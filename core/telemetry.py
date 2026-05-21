@@ -1,27 +1,8 @@
-"""OpenTelemetry tracing setup for the stock market crawler.
+"""OpenTelemetry tracing setup.
 
-``setup_tracing(service_name)`` is idempotent per ``service_name`` and safe to
-call from re-entrant contexts:
-
-* From ``api/main.py`` once at module import (before ``FastAPI()``).
-* From ``crawler/celery_app.py`` once at module import.
-* Again from the Celery ``worker_process_init`` signal, because the
-  ``BatchSpanProcessor`` daemon thread does not survive ``fork`` in prefork
-  pools — each child re-runs setup so its thread is alive.
-
-Every instrumentation step is wrapped in a best-effort guard: a missing
-instrumentor package degrades to "no spans for that integration" rather than
-preventing the app from booting.
-
-Configuration is read from :class:`core.config.Settings`:
-
-* ``OTEL_ENABLED`` — global kill switch (default ``False``)
-* ``OTEL_EXPORTER`` — ``console`` | ``otlp`` | ``gcp``
-* ``OTEL_SAMPLE_RATIO`` — wrapped in ``ParentBased(TraceIdRatioBased)``
-* ``OTEL_INSTRUMENT_REDIS`` — opt-in for the Redis instrumentor
-
-Standard OTel SDK env vars (``OTEL_EXPORTER_OTLP_ENDPOINT``,
-``OTEL_PYTHON_FASTAPI_EXCLUDED_URLS``, ...) are consumed by the SDK directly.
+``setup_tracing(service_name)`` is idempotent per ``service_name``. Must be
+re-run inside Celery prefork children because ``BatchSpanProcessor``'s daemon
+thread does not survive ``fork`` (see :mod:`crawler.celery_signals`).
 """
 
 from __future__ import annotations
@@ -37,7 +18,6 @@ _CONFIGURED_FOR: str | None = None
 
 
 def setup_tracing(service_name: str) -> None:
-    """Initialize the OTel SDK and best-effort auto-instrumentation."""
     global _CONFIGURED_FOR
     if not settings.OTEL_ENABLED:
         return
@@ -128,8 +108,6 @@ def _instrument(label: str, module: str, klass: str) -> None:
     except ImportError:
         logger.debug(f"OTel instrumentor for {label} not installed; skipping.")
     except Exception as exc:
-        # Most instrumentors raise on a second .instrument() call — that's
-        # fine and matches the idempotency contract of setup_tracing().
         if "already instrumented" in str(exc).lower():
             return
         logger.warning(f"Failed to install OTel instrumentor for {label}: {exc}")

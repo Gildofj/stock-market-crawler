@@ -78,7 +78,6 @@ app = FastAPI(
     },
 )
 
-# OpenAPI Tags Configuration
 tags_metadata = [
     {
         "name": "Companies",
@@ -112,7 +111,6 @@ tags_metadata = [
 ]
 app.openapi_tags = tags_metadata
 
-# 1. Configuração de Segurança - CORS
 if os.getenv("ENV") == "production":
     raw_origins = os.getenv("ALLOWED_ORIGINS", "")
     allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
@@ -134,20 +132,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Performance - Compressão GZip
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# 3. Configuração de Segurança - Cloudflare Strict
-# Garante que ninguém acesse a URL do Render diretamente
+# Blocks direct access to the Render URL — all traffic must come via Cloudflare.
 if os.getenv("ENV") == "production":
     app.add_middleware(CloudflareMiddleware)
 
-# 4. Correlation ID — registered LAST so it becomes the OUTERMOST middleware in
-# Starlette's wrap order, ensuring every request (including those rejected by
-# Cloudflare/CORS) gets a request_id bound into the logging context.
+# Registered last so it becomes the OUTERMOST middleware in Starlette's wrap
+# order: every request (including those rejected by Cloudflare/CORS) gets a
+# request_id bound into the logging context.
 app.add_middleware(CorrelationMiddleware)
 
-# 5. Registro de Rotas
 api_dependencies = [Depends(require_api_key)]
 app.include_router(companies.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(fundamentals.router, prefix="/api/v1", dependencies=api_dependencies)
@@ -158,8 +153,7 @@ app.include_router(news.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(investor_relations.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
 
-# Transparency endpoint — intentionally public (no api_key, no premium gate).
-# Anyone can audit which sources are active in this deployment.
+# Intentionally public (no api_key) so anyone can audit active data sources.
 app.include_router(sources.router, prefix="/api/v1")
 
 

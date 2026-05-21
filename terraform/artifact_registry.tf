@@ -7,7 +7,6 @@ resource "google_artifact_registry_repository" "crawler_images" {
   depends_on = [google_project_service.artifactregistry]
 }
 
-# Allow the worker VM SA to pull images from the registry.
 resource "google_artifact_registry_repository_iam_member" "worker_reader" {
   location   = google_artifact_registry_repository.crawler_images.location
   repository = google_artifact_registry_repository.crawler_images.name

@@ -1,17 +1,6 @@
-# Google Secret Manager — single source of truth for all runtime secrets.
-#
-# Bootstrap-then-decouple pattern:
-#   * `google_secret_manager_secret_version.app_bootstrap` seeds the FIRST
-#     version of each secret from terraform.tfvars on the initial apply.
-#   * `lifecycle { ignore_changes = [secret_data] }` releases Terraform's grip
-#     after the bootstrap so future rotations happen out-of-band via:
-#         gcloud secrets versions add <name> --data-file=-
-#     Terraform will keep the resource but won't try to overwrite newer
-#     versions added by gcloud.
-#
-# Consumers (api_runtime_sa, worker_sa, ri_job_sa) get
-# roles/secretmanager.secretAccessor on every secret via the product matrix
-# at the bottom of this file.
+# Bootstrap-then-decouple: app_bootstrap seeds version 1 from tfvars on first
+# apply; `ignore_changes = [secret_data]` then releases TF's grip so rotations
+# happen via `gcloud secrets versions add <name> --data-file=-`.
 
 locals {
   app_secrets = {

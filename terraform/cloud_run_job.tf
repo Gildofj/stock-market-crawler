@@ -1,24 +1,12 @@
-# Cloud Run Job dedicated to the CVM RI document crawl.
-#
-# Why a Job instead of a Celery task on the worker VM:
-#   * RI parses PDFs with pdfplumber, which spikes RAM hard. Running it on the
-#     1 GB e2-micro means a single bad filing can OOM the whole VM and take
-#     down the ticker / news crawls with it.
-#   * RI runs only once a day, so paying for a Job (free tier: 240k vCPU-s/mo)
-#     is dramatically under quota — ~9k vCPU-s/month at 1 vCPU × 5 min × 30 d.
-#   * Independent release cadence: updating the RI spider doesn't reboot the
-#     hot worker.
-#
-# The Job uses the SAME container image as the API and the workers, just with
-# a different entrypoint (`python -m crawler.tasks.lake_ri`) — see
-# crawler/tasks/lake_ri.py:main(). No second Dockerfile, no image divergence.
+# RI runs as a Cloud Run Job (not a Celery task) because pdfplumber's RAM
+# spikes would OOM the 1 GB worker VM and take ticker/news down with it.
+# Same container image, different entrypoint (python -m crawler.tasks.lake_ri).
 
 resource "google_service_account" "ri_job_sa" {
   account_id   = "lagoai-ri-job"
   display_name = "Service Account for LagoAI Cloud Run Job (RI crawl)"
 }
 
-# Allow the worker VM SA's image registry to be pulled by this Job.
 resource "google_artifact_registry_repository_iam_member" "ri_job_reader" {
   location   = google_artifact_registry_repository.crawler_images.location
   repository = google_artifact_registry_repository.crawler_images.name
@@ -31,14 +19,12 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
   location = var.region
 
   template {
-    # Single execution, no parallelism — RI is a one-shot crawl.
     parallelism = 1
     task_count  = 1
 
     template {
       service_account = google_service_account.ri_job_sa.email
-      # 30-minute ceiling matches the Celery soft_time_limit historically used
-      # for this task (see crawler/tasks/lake_ri.py).
+      # 30 min matches the historical Celery soft_time_limit for this task.
       timeout     = "1800s"
       max_retries = 1
 
@@ -56,9 +42,7 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
             }
           }
         }
-        # REDIS_URL is intentionally absent — the Job writes directly to
-        # Postgres and never enqueues anything, so it has no business
-        # holding a Redis connection.
+        # REDIS_URL absent on purpose: the Job writes directly to Postgres.
         env {
           name  = "PYTHONPATH"
           value = "/app"
@@ -96,19 +80,16 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
 
         resources {
           limits = {
-            cpu = "1"
-            # pdfplumber is RAM-hungry; 1 GiB gives plenty of headroom and
-            # the Job's instance-based GiB-seconds easily fits the 450k/mo
-            # free quota at this cadence.
-            memory = "1Gi"
+            cpu    = "1"
+            memory = "1Gi" # pdfplumber needs headroom; fits the 450k GiB-s/mo free quota.
           }
         }
       }
     }
   }
 
-  # The deploy workflow rotates the image tag via `gcloud run jobs update`.
-  # Ignore that drift so terraform apply doesn't roll back a fresh deploy.
+  # Deploy workflow rotates the image tag via `gcloud run jobs update`; ignore
+  # that drift so terraform apply doesn't roll back a fresh deploy.
   lifecycle {
     ignore_changes = [
       client,
@@ -124,10 +105,6 @@ resource "google_cloud_run_v2_job" "ri_crawl" {
   ]
 }
 
-# Cloud Scheduler invokes the Job via the Cloud Run Admin API. Free tier of
-# Cloud Scheduler is 3 jobs/month; this brings the project to 1 active job
-# (news/RI HTTP schedulers in scheduler.tf are flag-gated and disabled by
-# default — see enable_lagoai_scheduling in variables.tf).
 resource "google_service_account" "ri_job_invoker" {
   account_id   = "lagoai-ri-invoker"
   display_name = "Cloud Scheduler invoker for LagoAI RI Job"

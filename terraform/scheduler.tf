@@ -1,10 +1,6 @@
-# Cloud Scheduler API enable + a general-purpose service account for HTTP-style
-# scheduled jobs targeting Cloud Run services. The LagoAI lake jobs that used
-# to live here (news_collection / ri_collection) were removed:
-#   * News runs from the Celery beat embedded in worker-hot (see celery_app.py).
-#   * RI runs as a Cloud Run Job (see cloud_run_job.tf).
-# Both previous schedulers pointed to /api/v1/internal/jobs/* endpoints that
-# were never built, so removing them removes dead infra, not live traffic.
+# Generic SA for HTTP-style Cloud Scheduler → Cloud Run (API) jobs.
+# Previous LagoAI lake schedulers were removed: news now runs from Celery beat
+# (celery_app.py), RI as a Cloud Run Job (cloud_run_job.tf).
 
 resource "google_project_service" "cloudscheduler" {
   service            = "cloudscheduler.googleapis.com"
@@ -16,9 +12,8 @@ resource "google_service_account" "scheduler_sa" {
   display_name = "Service Account for Cloud Scheduler → Cloud Run (API) calls"
 }
 
-# Defence-in-depth: even though the API allows allUsers today, granting
-# run.invoker explicitly keeps the door open to lock the service down later
-# by removing the noauth binding without breaking schedulers.
+# Defence-in-depth: API is allUsers today, but explicit run.invoker keeps the
+# door open to lock it down later without breaking schedulers.
 resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
   location = google_cloud_run_v2_service.api.location
   project  = google_cloud_run_v2_service.api.project

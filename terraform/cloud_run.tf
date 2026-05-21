@@ -1,5 +1,4 @@
-# Dedicated runtime SA for the Cloud Run API (replaces the default project
-# compute SA so we can scope permissions tightly — least privilege).
+# Replaces the default project compute SA so permissions can be scoped tightly.
 resource "google_service_account" "api_runtime_sa" {
   account_id   = "cloud-run-api-sa"
   display_name = "Cloud Run runtime SA for stock-market-api"
@@ -90,9 +89,8 @@ resource "google_cloud_run_v2_service" "api" {
       resources {
         limits = {
           cpu = "1"
-          # Bumped from 512Mi to handle pandas-based spreadsheet parsing in the
-          # /carteira router and pdfplumber sidecars. Free tier (360k GiB-s/mo)
-          # still covers ~100h of active time at 1 GiB.
+          # 1Gi (vs 512Mi) handles pandas spreadsheet parsing in /carteira
+          # and pdfplumber sidecars; free tier still covers ~100h/mo.
           memory = "1Gi"
         }
         cpu_idle          = true
@@ -121,7 +119,7 @@ resource "google_cloud_run_v2_service" "api" {
   ]
 }
 
-# Allow unauthenticated access (Cloudflare will handle proxying/security)
+# Unauthenticated at GCP edge; Cloudflare in front handles access control.
 resource "google_cloud_run_service_iam_member" "noauth" {
   location = google_cloud_run_v2_service.api.location
   project  = google_cloud_run_v2_service.api.project

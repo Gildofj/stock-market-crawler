@@ -1,42 +1,28 @@
-# Use a slim Python image
 FROM python:3.12-slim-bookworm
 
-# Install redis-server
 RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
 
-# Install uv directly from the official GitHub Container Registry
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Set working directory
 WORKDIR /app
 
-# Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1
 
-# Copy only the files needed for dependency installation to maximize Docker cache
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies using uv
-# --frozen ensures we use the exact versions from uv.lock
-# --extra observability pulls the OpenTelemetry SDK + instrumentations needed
-# for Cloud Trace export in production. Kept as an extra so local dev that
-# only wants the API/crawler does not have to download the full OTel tree.
+# `observability` extra pulls the OpenTelemetry SDK + instrumentations needed
+# for Cloud Trace export in production. Optional so local dev that only wants
+# the API/crawler does not have to download the full OTel tree.
 RUN uv sync --frozen --no-install-project --no-dev --extra observability
 
-# Copy the rest of the application code
 COPY . .
 
-# Ensure the worker entrypoint script is executable on Linux even if the
-# repo was checked out on Windows (where COPY can lose the +x bit).
+# COPY can drop the +x bit when the repo was checked out on Windows.
 RUN chmod +x /app/scripts/worker_entrypoint.sh
 
-# Place executables in the path
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Production default: emit JSON logs on stdout for Cloud Logging ingestion.
-# docker-compose overrides this to "human" for local dev.
+# Production default; docker-compose overrides to "human" for local dev.
 ENV LOG_FORMAT=gcp
 
-# Default command (serves the API)
-# Use 0.0.0.0 and PORT env var for Render compatibility
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
