@@ -21,16 +21,16 @@ from crawler.spiders.ri_spider import RISpider
 from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
 
 
-def _run_ri_crawl(days_back: int = 30) -> int:
+async def _run_ri_crawl(days_back: int = 30) -> int:
     """Pure crawl logic, callable from Celery or standalone."""
     db = session_local()
     try:
         company_repo = CompanyRepository(db)
         lake_service = LakeService(db)
         spider = RISpider(company_repo, lake_service, request_manager)
-        return spider.crawl_recent(days_back=days_back)
+        return await spider.crawl_recent(days_back=days_back)
     finally:
-        db.close()
+        await db.close()
 
 
 @app.task(

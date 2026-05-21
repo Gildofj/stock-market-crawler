@@ -31,9 +31,12 @@ class Settings(BaseSettings):
             elif current_url.startswith("postgresql://") and "+asyncpg" not in current_url:
                 current_url = current_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-            if "supabase" in current_url and "sslmode" not in current_url:
+            if "sslmode=" in current_url:
+                current_url = current_url.replace("sslmode=", "ssl=")
+
+            if "supabase" in current_url and "ssl=" not in current_url:
                 separator = "&" if "?" in current_url else "?"
-                return f"{current_url}{separator}sslmode=require"
+                return f"{current_url}{separator}ssl=require"
             return current_url
 
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
