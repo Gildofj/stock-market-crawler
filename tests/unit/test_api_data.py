@@ -65,7 +65,7 @@ async def test_get_fundamentals_by_id(db_session: AsyncSession, override_db):
     db_session.add(c1)
     await db_session.flush()
 
-    f1 = Fundamental(company_id=c1.id, p_l=5.5, collected_at=datetime.now())
+    f1 = Fundamental(company_id=c1.id, p_l=5.5, collected_at=datetime.now(), contributing_sources=[])
     db_session.add(f1)
     await db_session.commit()
 

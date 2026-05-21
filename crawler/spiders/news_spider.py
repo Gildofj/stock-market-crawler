@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from time import struct_time
 
 import feedparser
+from bs4 import BeautifulSoup
 from loguru import logger
 
 from core.models.schemas import LakeNewsSchema
@@ -74,6 +75,12 @@ class NewsSpider:
         return hashlib.md5(url.encode("utf-8")).hexdigest()
 
     @staticmethod
+    def _clean_html(text: str | None) -> str | None:
+        if not text:
+            return text
+        return BeautifulSoup(text, "html.parser").get_text(separator=" ", strip=True)
+
+    @staticmethod
     def extract_tickers(text: str, issuer_index: dict[str, set[str]]) -> list[str]:
         if not text:
             return []
@@ -119,8 +126,8 @@ class NewsSpider:
 
                 payload = LakeNewsSchema(
                     source=source,
-                    title=title[:500],
-                    summary=getattr(entry, "summary", None),
+                    title=self._clean_html(title)[:500] if title else "No Title",
+                    summary=self._clean_html(getattr(entry, "summary", None)),
                     url=link,
                     url_hash=self._hash_url(link),
                     sentiment=None,
