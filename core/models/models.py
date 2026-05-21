@@ -73,11 +73,6 @@ class Company(Base):
     is_active: Mapped[int] = mapped_column(Integer, default=1)  # 1 for Active, 0 for Inactive
     logo_url: Mapped[str | None] = mapped_column(String(500))
     website: Mapped[str | None] = mapped_column(String(255))
-    # Provenance: which spider populated the metadata (name/sector/logo).
-    # Nullable for legacy rows; new rows should populate via SourceRegistry.
-    metadata_source_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -89,9 +84,6 @@ class Company(Base):
     )
     reliability: Mapped["CompanyReliability | None"] = relationship(
         "CompanyReliability", back_populates="company", uselist=False
-    )
-    metadata_source: Mapped["DataSource | None"] = relationship(
-        "DataSource", foreign_keys=[metadata_source_id]
     )
 
 

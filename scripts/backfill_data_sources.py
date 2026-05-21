@@ -12,10 +12,7 @@ Strategy:
 * ``stock_prices`` — historically populated by yfinance via the b3 enrichment
   chain; default to ``'yfinance'`` for safety. Operators with a different
   provenance can pass ``--prices-slug``.
-* ``companies.metadata_source_id`` — left NULL unless ``--companies-slug`` is
-  given; we don't know retroactively which spider populated each row.
-* ``fundamentals.primary_source_id`` — same as companies: NULL by default,
-  override available.
+* ``fundamentals.primary_source_id`` — NULL by default; override available.
 
 Run with:
 
@@ -58,7 +55,6 @@ async def backfill(
     dry_run: bool,
     ri_slug: str,
     prices_slug: str,
-    companies_slug: str | None,
     fundamentals_slug: str | None,
 ) -> int:
     total = 0
@@ -100,19 +96,6 @@ async def backfill(
             dry_run=dry_run,
             label=f"stock_prices.source_id := '{prices_slug}'",
         )
-        if companies_slug:
-            total += await _execute(
-                db,
-                f"""
-                UPDATE companies AS c
-                SET metadata_source_id = ds.id
-                FROM data_sources AS ds
-                WHERE c.metadata_source_id IS NULL
-                  AND ds.slug = '{companies_slug}'
-                """,
-                dry_run=dry_run,
-                label=f"companies.metadata_source_id := '{companies_slug}'",
-            )
         if fundamentals_slug:
             total += await _execute(
                 db,
@@ -147,11 +130,6 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--ri-slug", default="cvm")
     p.add_argument("--prices-slug", default="yfinance")
     p.add_argument(
-        "--companies-slug",
-        default=None,
-        help="Slug to attribute company metadata to (e.g. 'b3'). NULL if omitted.",
-    )
-    p.add_argument(
         "--fundamentals-slug",
         default="cvm",
         help=(
@@ -169,7 +147,6 @@ def main() -> int:
             dry_run=args.dry_run,
             ri_slug=args.ri_slug,
             prices_slug=args.prices_slug,
-            companies_slug=args.companies_slug,
             fundamentals_slug=args.fundamentals_slug,
         )
     )

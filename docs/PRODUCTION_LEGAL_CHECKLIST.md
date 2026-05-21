@@ -71,9 +71,8 @@ When a source publisher (e.g. InfoMoney) requests removal:
 6. **Re-enable** (`enabled = true`) only after the dispute is resolved
    (renegotiation, ToS change, spider modification).
 
-The `lake_ri_documents`, `stock_prices`, `companies.metadata_source_id`, and
-`fundamentals.primary_source_id` columns follow the same query pattern with
-their respective FK names.
+The `lake_ri_documents`, `stock_prices`, and `fundamentals.primary_source_id`
+columns follow the same query pattern with their respective FK names.
 
 ## Source-specific notes
 
@@ -107,8 +106,6 @@ set small. Pick up before scaling user count significantly:
   the model but are populated only via the backfill script.
 - **Wire `source_id` on `stock_prices`** — yfinance is the dominant source
   today; backfill covers historical rows, but new inserts also need the FK.
-- **Wire `metadata_source_id` on `companies`** — same shape; depends on
-  which spider fills the row first.
 - **Per-field provenance on `fundamentals`** — beyond the snapshot-level
   attribution, store which source filled each field (`p_l_source`, etc.) if
   any source ever disputes a specific number.
