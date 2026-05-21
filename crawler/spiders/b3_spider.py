@@ -142,7 +142,12 @@ class B3Spider(BaseSpider):
                 if shares_series is not None and not shares_series.empty:
                     result.shares_outstanding = float(shares_series.iloc[-1])
             except Exception as exc:
-                logger.warning(f"shares_outstanding unavailable for {symbol}: {exc}")
+                logger.warning(f"shares_outstanding via get_shares_full unavailable for {symbol}: {exc}")
+
+            if result.shares_outstanding is None and info:
+                shares_fallback = info.get("sharesOutstanding") or info.get("impliedSharesOutstanding")
+                if shares_fallback:
+                    result.shares_outstanding = float(shares_fallback)
 
             # 4. Snapshot of quantitative .info fields — read for reconciliation
             # only. The CVMSpider (clean-room, CVM Dados Abertos) is the source

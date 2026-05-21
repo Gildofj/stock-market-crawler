@@ -431,13 +431,17 @@ class CVMSpider(BaseSpider):
     @staticmethod
     def _infer_shares(result: CrawlResult) -> float | None:
         """Derive shares outstanding from already-populated market_cap and price."""
+        mcap = result.market_cap
+        if mcap is None and result.yahoo_info_indicators:
+            mcap = result.yahoo_info_indicators.get("marketCap")
+
         if (
-            result.market_cap is not None
+            mcap is not None
             and result.prices
             and result.prices[-1].close is not None
             and result.prices[-1].close > 0
         ):
-            return result.market_cap / result.prices[-1].close
+            return mcap / result.prices[-1].close
         return None
 
     # ------------------------------------------------------------------
