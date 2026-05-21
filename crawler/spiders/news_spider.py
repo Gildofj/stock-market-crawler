@@ -14,9 +14,25 @@ from core.services.source_registry import get_source_registry
 
 TICKER_PATTERN = re.compile(r"\b([A-Z]{4}[0-9]{1,2})\b")
 
+_B3_ISSUER_PREFIX_LEN = 4
+
+
+def _issuer_prefix(ticker: str) -> str:
+    return ticker[:_B3_ISSUER_PREFIX_LEN]
+
+
+def _build_issuer_index(symbols: set[str]) -> dict[str, set[str]]:
+    index: dict[str, set[str]] = {}
+    for symbol in symbols:
+        if len(symbol) < _B3_ISSUER_PREFIX_LEN:
+            continue
+        index.setdefault(_issuer_prefix(symbol), set()).add(symbol)
+    return index
+
 
 class NewsSpider:
-    """Collects financial news from Brazilian RSS feeds and tags them with tickers."""
+    """Collects financial news from Brazilian RSS feeds and tags every sibling
+    ticker of any issuer mentioned (a story citing PETR4 also gets PETR3)."""
 
     FEEDS: dict[str, str] = {
         "infomoney": "https://www.infomoney.com.br/feed/",
@@ -33,14 +49,16 @@ class NewsSpider:
     ):
         self.company_repo = company_repo
         self.lake_service = lake_service
-        self._known_tickers = known_tickers
+        self._issuer_index: dict[str, set[str]] | None = (
+            _build_issuer_index(known_tickers) if known_tickers is not None else None
+        )
 
-    async def _resolve_known_tickers(self) -> set[str]:
-        if self._known_tickers is not None:
-            return self._known_tickers
+    async def _resolve_issuer_index(self) -> dict[str, set[str]]:
+        if self._issuer_index is not None:
+            return self._issuer_index
         symbols = await self.company_repo.get_all_symbols()
-        self._known_tickers = symbols
-        return symbols
+        self._issuer_index = _build_issuer_index(symbols)
+        return self._issuer_index
 
     @staticmethod
     def _to_datetime(value: struct_time | None) -> datetime | None:
@@ -55,29 +73,31 @@ class NewsSpider:
     def _hash_url(url: str) -> str:
         return hashlib.md5(url.encode("utf-8")).hexdigest()
 
-    def extract_tickers(self, text: str, known_tickers: set[str]) -> list[str]:
+    @staticmethod
+    def extract_tickers(text: str, issuer_index: dict[str, set[str]]) -> list[str]:
         if not text:
             return []
         candidates = {match.upper() for match in TICKER_PATTERN.findall(text)}
-        candidates = {t for t in candidates if t.isalnum() and 4 <= len(t) <= 6}
-        return sorted(candidates & known_tickers)
+        matched: set[str] = set()
+        for candidate in candidates:
+            siblings = issuer_index.get(_issuer_prefix(candidate))
+            if siblings and candidate in siblings:
+                matched.update(siblings)
+        return sorted(matched)
 
     async def crawl_all(self) -> int:
-        known = await self._resolve_known_tickers()
-        if not known:
+        issuer_index = await self._resolve_issuer_index()
+        if not issuer_index:
             logger.warning("NewsSpider: no known tickers — skipping all feeds.")
             return 0
 
         registry = get_source_registry()
         persisted = 0
         for source, url in self.FEEDS.items():
-            # Operator kill-switch: an UPDATE on data_sources.enabled stops the
-            # spider from re-collecting from this feed within ~30s (cache TTL).
             if not await registry.is_enabled(source):
                 logger.info(f"NewsSpider: skipping disabled source: {source}")
                 continue
             try:
-                # feedparser is sync, but we only do few network calls here
                 feed = await asyncio.to_thread(feedparser.parse, url)
             except Exception as e:
                 logger.error(f"NewsSpider: failed to parse feed {source}: {e}")
@@ -93,7 +113,7 @@ class NewsSpider:
                     continue
 
                 text_blob = f"{title} {getattr(entry, 'summary', '')}"
-                tickers = self.extract_tickers(text_blob, known)
+                tickers = self.extract_tickers(text_blob, issuer_index)
                 if not tickers:
                     continue
 
