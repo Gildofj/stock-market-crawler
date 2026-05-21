@@ -244,9 +244,14 @@ class CVMSpider(BaseSpider):
           window. When ITR isn't available we fall back to the latest DFP annual.
         * Balance-sheet items use the latest available period (ITR or DFP).
         """
-        dfp = self._get_year("DFP", year) or self._get_year("DFP", year - 1)
+        dfp = None
+        for offset in range(6):
+            dfp = self._get_year("DFP", year - offset)
+            if dfp is not None:
+                break
+
         if dfp is None:
-            logger.warning(f"CVMSpider: no DFP for {cvm_code} ({year}); skipping fundamentals")
+            logger.warning(f"CVMSpider: no DFP for {cvm_code} in the last 6 years (from {year}); skipping fundamentals")
             return None
 
         annual_row = self._latest_annual_row(dfp, cvm_code)
@@ -440,7 +445,12 @@ class CVMSpider(BaseSpider):
         self, cvm_code: str, statement: Statement, spec: _AccountSpec, years: int
     ) -> float | None:
         latest_year = datetime.now().year
-        dfp = self._get_year("DFP", latest_year) or self._get_year("DFP", latest_year - 1)
+        dfp = None
+        for offset in range(6):
+            dfp = self._get_year("DFP", latest_year - offset)
+            if dfp is not None:
+                break
+                
         if dfp is None:
             return None
 
