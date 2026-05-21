@@ -245,20 +245,21 @@ class CVMSpider(BaseSpider):
         * Balance-sheet items use the latest available period (ITR or DFP).
         """
         dfp = None
+        annual_row = None
         for offset in range(6):
-            dfp = self._get_year("DFP", year - offset)
-            if dfp is not None:
-                break
+            candidate_dfp = self._get_year("DFP", year - offset)
+            if candidate_dfp is not None:
+                candidate_row = self._latest_annual_row(candidate_dfp, cvm_code)
+                if candidate_row is not None:
+                    dfp = candidate_dfp
+                    annual_row = candidate_row
+                    break
 
-        if dfp is None:
+        if dfp is None or annual_row is None:
             logger.warning(
                 f"CVMSpider: no DFP for {cvm_code} in the last 6 years (from {year}); "
                 "skipping fundamentals"
             )
-            return None
-
-        annual_row = self._latest_annual_row(dfp, cvm_code)
-        if annual_row is None:
             return None
 
         latest_price = result.prices[-1].close if result.prices else None
@@ -313,7 +314,8 @@ class CVMSpider(BaseSpider):
         for df in year_data.statements.values():
             if "CD_CVM" not in df.columns or "DT_REFER" not in df.columns:
                 continue
-            slice_ = df.loc[df["CD_CVM"] == cvm_code, "DT_REFER"]
+            cvm_int = int(cvm_code)
+            slice_ = df.loc[pd.to_numeric(df["CD_CVM"], errors="coerce") == cvm_int, "DT_REFER"]
             if not slice_.empty:
                 return slice_.max()
         return None
@@ -329,10 +331,14 @@ class CVMSpider(BaseSpider):
         if df is None or reference_date is None:
             return None
 
-        mask = (df["CD_CVM"] == cvm_code) & (df["DT_REFER"] == reference_date)
+        cvm_int = int(cvm_code)
+        mask = (pd.to_numeric(df["CD_CVM"], errors="coerce") == cvm_int) & (
+            df["DT_REFER"] == reference_date
+        )
         if "CD_CONTA" in df.columns:
-            mask &= df["CD_CONTA"].astype(str).str.startswith(spec.code_prefix + ".") | (
-                df["CD_CONTA"].astype(str) == spec.code_prefix
+            mask &= (
+                df["CD_CONTA"].astype(str).str.startswith(spec.code_prefix + ".")
+                | (df["CD_CONTA"].astype(str) == spec.code_prefix)
             )
 
         slice_ = df.loc[mask]
@@ -378,8 +384,9 @@ class CVMSpider(BaseSpider):
             return None
 
         ds_normalised = df["DS_CONTA"].astype(str).map(_strip_accents)
+        cvm_int = int(cvm_code)
         mask = (
-            (df["CD_CVM"] == cvm_code)
+            (pd.to_numeric(df["CD_CVM"], errors="coerce") == cvm_int)
             & (df["DT_REFER"] == reference_date)
             & ds_normalised.str.contains(pattern, na=False)
         )
@@ -454,9 +461,11 @@ class CVMSpider(BaseSpider):
         latest_year = datetime.now().year
         dfp = None
         for offset in range(6):
-            dfp = self._get_year("DFP", latest_year - offset)
-            if dfp is not None:
-                break
+            candidate_dfp = self._get_year("DFP", latest_year - offset)
+            if candidate_dfp is not None:
+                if self._latest_annual_row(candidate_dfp, cvm_code) is not None:
+                    dfp = candidate_dfp
+                    break
 
         if dfp is None:
             return None

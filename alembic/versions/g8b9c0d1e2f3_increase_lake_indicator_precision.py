@@ -18,7 +18,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.execute("""
-        ALTER TABLE lake_indicator_reconciliation 
+        ALTER TABLE lake_indicator_reconciliation
         ALTER COLUMN source_value_raw TYPE NUMERIC(30, 8),
         ALTER COLUMN source_value_normalised TYPE NUMERIC(30, 8),
         ALTER COLUMN cvm_value TYPE NUMERIC(30, 8),
@@ -28,7 +28,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("""
-        ALTER TABLE lake_indicator_reconciliation 
+        ALTER TABLE lake_indicator_reconciliation
         ALTER COLUMN source_value_raw TYPE NUMERIC(20, 8),
         ALTER COLUMN source_value_normalised TYPE NUMERIC(20, 8),
         ALTER COLUMN cvm_value TYPE NUMERIC(20, 8),
