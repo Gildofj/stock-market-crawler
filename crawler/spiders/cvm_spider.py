@@ -336,9 +336,8 @@ class CVMSpider(BaseSpider):
             df["DT_REFER"] == reference_date
         )
         if "CD_CONTA" in df.columns:
-            mask &= (
-                df["CD_CONTA"].astype(str).str.startswith(spec.code_prefix + ".")
-                | (df["CD_CONTA"].astype(str) == spec.code_prefix)
+            mask &= df["CD_CONTA"].astype(str).str.startswith(spec.code_prefix + ".") | (
+                df["CD_CONTA"].astype(str) == spec.code_prefix
             )
 
         slice_ = df.loc[mask]
