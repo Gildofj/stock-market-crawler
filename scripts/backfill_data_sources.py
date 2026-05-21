@@ -24,9 +24,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from typing import cast
 
 from loguru import logger
-from sqlalchemy import text
+from sqlalchemy import CursorResult, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import session_local
@@ -45,7 +46,7 @@ async def _execute(db: AsyncSession, sql: str, *, dry_run: bool, label: str) -> 
         logger.info(f"{label}: would update ~{result} rows.")
         return int(result)
 
-    result = await db.execute(text(sql))
+    result = cast(CursorResult, await db.execute(text(sql)))
     rowcount = result.rowcount or 0
     logger.info(f"{label}: updated {rowcount} rows.")
     return rowcount

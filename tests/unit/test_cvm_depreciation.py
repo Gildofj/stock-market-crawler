@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import cast
 
 import pandas as pd
 
-from crawler.services.cvm_dataset_service import CVMYearData
+from crawler.services.cvm_dataset_service import CVMYearData, Statement
 from crawler.spiders.cvm_spider import CVMSpider, _strip_accents
 
 CVM_CODE = "00099"
@@ -24,7 +25,7 @@ def _year(statements: dict[str, list[dict]]) -> CVMYearData:
         year=2024,
         doc_type="DFP",
         scope="con",
-        statements={name: pd.DataFrame(rows) for name, rows in statements.items()},
+        statements={cast(Statement, name): pd.DataFrame(rows) for name, rows in statements.items()},
     )
 
 

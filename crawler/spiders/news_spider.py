@@ -126,7 +126,7 @@ class NewsSpider:
 
                 payload = LakeNewsSchema(
                     source=source,
-                    title=self._clean_html(title)[:500] if title else "No Title",
+                    title=(self._clean_html(title) or "No Title")[:500] if title else "No Title",
                     summary=self._clean_html(getattr(entry, "summary", None)),
                     url=link,
                     url_hash=self._hash_url(link),

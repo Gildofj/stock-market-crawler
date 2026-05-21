@@ -9,8 +9,10 @@ outliers, and emits one append-only row per (ticker, indicator).
 
 import uuid
 from collections.abc import Iterable
+from typing import cast
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.models.models import LakeIndicatorReconciliation
 from crawler.models.contract import CrawlResult
@@ -64,7 +66,7 @@ async def test_emit_returns_zero_when_no_snapshot():
     session = _FakeSession()
     result = _result(p_l=10.0)  # CVM has data, but yahoo did not report
 
-    written = await ReconciliationService(session).emit(uuid.uuid4(), result)
+    written = await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     assert written == 0
     assert session.saved == []
@@ -80,7 +82,7 @@ async def test_emit_records_consistent_dy_decimal_form():
     company_id = uuid.uuid4()
     result = _result(dy=5.0, snapshot={"dividendYield": 0.05})
 
-    written = await ReconciliationService(session).emit(company_id, result)
+    written = await ReconciliationService(cast(AsyncSession, session)).emit(company_id, result)
 
     assert written == 1
     row = session.saved[0]
@@ -103,7 +105,7 @@ async def test_emit_flags_dy_outlier_when_yahoo_returns_percent():
     session = _FakeSession()
     result = _result(dy=5.0, snapshot={"dividendYield": 5.0})
 
-    await ReconciliationService(session).emit(uuid.uuid4(), result)
+    await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "dy")
     assert row.source_value_normalised == pytest.approx(500.0)
@@ -121,7 +123,7 @@ async def test_emit_ratio_fields_pass_through_unscaled():
         snapshot={"priceToBook": 2.0},
     )
 
-    await ReconciliationService(session).emit(uuid.uuid4(), result)
+    await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "p_vp")
     assert row.source_value_raw == pytest.approx(2.0)
@@ -139,7 +141,7 @@ async def test_emit_handles_missing_cvm_value():
     # No cvm_value: don't set p_l on the result
     result = _result(snapshot={"forwardPE": 18.0})
 
-    await ReconciliationService(session).emit(uuid.uuid4(), result)
+    await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "p_l")
     assert row.cvm_value is None
@@ -157,7 +159,7 @@ async def test_emit_handles_zero_cvm_value():
     # dy=0.0 means "no dividends paid" by project convention.
     result = _result(dy=0.0, snapshot={"dividendYield": 0.04})
 
-    await ReconciliationService(session).emit(uuid.uuid4(), result)
+    await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "dy")
     assert row.delta_abs == pytest.approx(4.0)
@@ -172,7 +174,7 @@ async def test_emit_within_threshold_not_flagged():
     # delta = (10.5 - 10) / 10 = 0.05 = 5% < threshold (20%)
     result = _result(p_l=10.0, snapshot={"forwardPE": 10.5})
 
-    await ReconciliationService(session).emit(uuid.uuid4(), result)
+    await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "p_l")
     assert row.is_outlier is False
@@ -198,7 +200,7 @@ async def test_emit_multiple_rows_in_one_run():
         },
     )
 
-    written = await ReconciliationService(session).emit(uuid.uuid4(), result)
+    written = await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     indicators_seen = [row.indicator for row in session.saved]
     # 2 rows for p_l (forwardPE, trailingPE), 1 each for p_vp, dy, market_cap
@@ -215,7 +217,7 @@ async def test_emit_carries_ticker_and_source_slug():
     result = _result(p_l=10.0, snapshot={"forwardPE": 10.0})
     company_id = uuid.uuid4()
 
-    await ReconciliationService(session).emit(company_id, result)
+    await ReconciliationService(cast(AsyncSession, session)).emit(company_id, result)
 
     row = session.saved[0]
     assert row.ticker == "TEST3"
