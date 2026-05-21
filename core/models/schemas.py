@@ -136,9 +136,7 @@ class LakeRIDocumentSchema(BaseModel):
         default="CVM (dados.cvm.gov.br)",
         description="Static attribution string for the original publisher.",
     )
-    source_id: uuid.UUID | None = Field(
-        default=None, description="FK to data_sources (e.g. cvm)"
-    )
+    source_id: uuid.UUID | None = Field(default=None, description="FK to data_sources (e.g. cvm)")
 
 
 class LakeRIDocumentInternalSchema(LakeRIDocumentSchema):
