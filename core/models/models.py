@@ -333,13 +333,13 @@ class LakeIndicatorReconciliation(Base):
     source_field: Mapped[str | None] = mapped_column(String(60))
     # Exactly what the upstream feed returned, untouched. Wide precision so
     # decimal yields, BRL market caps and ratios all fit without rounding.
-    source_value_raw: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    source_value_raw: Mapped[float | None] = mapped_column(Numeric(30, 8))
     # Source value normalised to the project's convention (percent for
     # rate-like indicators, ratio for ratio-like, BRL absolute for cap/EPS).
-    source_value_normalised: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    source_value_normalised: Mapped[float | None] = mapped_column(Numeric(30, 8))
     # CVM-derived clean-room value that landed in `fundamentals`.
-    cvm_value: Mapped[float | None] = mapped_column(Numeric(20, 8))
-    delta_abs: Mapped[float | None] = mapped_column(Numeric(20, 8))
+    cvm_value: Mapped[float | None] = mapped_column(Numeric(30, 8))
+    delta_abs: Mapped[float | None] = mapped_column(Numeric(30, 8))
     delta_pct: Mapped[float | None] = mapped_column(Numeric(10, 4))
     # Convenience flag for ML filtering — true when |delta_pct| crosses the
     # service threshold (see ReconciliationService.OUTLIER_THRESHOLD_PCT).
