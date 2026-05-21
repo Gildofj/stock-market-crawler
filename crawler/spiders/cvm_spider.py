@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -72,7 +73,6 @@ _EQUITY = _AccountSpec("BPP", "2.03", ("patrimonio liquido",))
 
 # DFC line item for D&A (used to back EBITDA into EBIT + D&A when EBITDA is
 # not published explicitly — most non-financial CVM filers report only EBIT).
-_DEPRECIATION = _AccountSpec("DFC_MI", "6.01.01", ("depreciacao", "amortizacao"))
 
 # DFC_MI line for dividends and JCP paid to shareholders. Standard code
 # 6.03.01 (Distribuição de dividendos). Banks/insurers occasionally file
@@ -82,6 +82,14 @@ _DIVIDENDS_PAID = _AccountSpec(
     "6.03.01",
     ("dividendos pagos", "juros sobre capital proprio pagos", "jcp pagos"),
 )
+
+_DEPRECIATION_PATTERN = re.compile(r"deprecia|amortiza", re.IGNORECASE)
+
+
+def _strip_accents(text: str) -> str:
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch)
+    )
 
 
 def _derive_ebit(
@@ -258,7 +266,7 @@ class CVMSpider(BaseSpider):
         if ebit is None:
             ebit = _derive_ebit(net_income, income_tax, pretax, financial_result)
 
-        depreciation = self._extract(dfp, cvm_code, _DEPRECIATION, annual_row)
+        depreciation = self._extract_depreciation(dfp, cvm_code, annual_row)
         ebitda = (ebit + depreciation) if (ebit is not None and depreciation is not None) else None
 
         dividends_raw = self._extract(dfp, cvm_code, _DIVIDENDS_PAID, annual_row)
@@ -320,10 +328,11 @@ class CVMSpider(BaseSpider):
         slice_ = df.loc[mask]
         if slice_.empty and spec.keywords and "DS_CONTA" in df.columns:
             pattern = re.compile("|".join(re.escape(k) for k in spec.keywords), re.IGNORECASE)
+            ds_normalised = df["DS_CONTA"].astype(str).map(_strip_accents).str.lower()
             fallback_mask = (
                 (df["CD_CVM"] == cvm_code)
                 & (df["DT_REFER"] == reference_date)
-                & df["DS_CONTA"].astype(str).str.lower().str.contains(pattern)
+                & ds_normalised.str.contains(pattern, na=False)
             )
             slice_ = df.loc[fallback_mask]
 
@@ -345,6 +354,65 @@ class CVMSpider(BaseSpider):
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _sum_keyword_leaves(
+        year_data: CVMYearData,
+        cvm_code: str,
+        reference_date: datetime | None,
+        statement: Statement,
+        pattern: re.Pattern,
+    ) -> float | None:
+        df = year_data.statements.get(statement)
+        if df is None or reference_date is None or "DS_CONTA" not in df.columns:
+            return None
+
+        ds_normalised = df["DS_CONTA"].astype(str).map(_strip_accents)
+        mask = (
+            (df["CD_CVM"] == cvm_code)
+            & (df["DT_REFER"] == reference_date)
+            & ds_normalised.str.contains(pattern, na=False)
+        )
+        matches = df.loc[mask]
+        if matches.empty:
+            return None
+
+        leaves = matches
+        if "CD_CONTA" in matches.columns:
+            codes = matches["CD_CONTA"].astype(str).tolist()
+            leaf_mask = matches["CD_CONTA"].astype(str).apply(
+                lambda code: not any(
+                    other != code and other.startswith(code + ".") for other in codes
+                )
+            )
+            leaves = matches.loc[leaf_mask]
+
+        values = leaves["VL_CONTA"].dropna()
+        if values.empty:
+            return None
+        try:
+            return float(values.sum())
+        except (TypeError, ValueError):
+            return None
+
+    @classmethod
+    def _extract_depreciation(
+        cls,
+        year_data: CVMYearData,
+        cvm_code: str,
+        reference_date: datetime | None,
+    ) -> float | None:
+        dfc_value = cls._sum_keyword_leaves(
+            year_data, cvm_code, reference_date, "DFC_MI", _DEPRECIATION_PATTERN
+        )
+        if dfc_value is not None:
+            return dfc_value
+        dre_value = cls._sum_keyword_leaves(
+            year_data, cvm_code, reference_date, "DRE", _DEPRECIATION_PATTERN
+        )
+        if dre_value is not None:
+            return abs(dre_value)
+        return None
 
     @staticmethod
     def _infer_shares(result: CrawlResult) -> float | None:
