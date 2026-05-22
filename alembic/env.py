@@ -12,7 +12,7 @@ config = context.config
 
 # Overwrite the sqlalchemy.url with the one from our settings.
 # Strip +asyncpg for Alembic (which uses sync engine in this setup).
-sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://")
+sync_url = settings.database_url.replace("postgresql+asyncpg://", "postgresql://").replace("ssl=require", "sslmode=require")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
