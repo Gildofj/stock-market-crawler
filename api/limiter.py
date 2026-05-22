@@ -19,8 +19,8 @@ async def init_rate_limiter() -> None:
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     try:
         connection = from_url(redis_url, encoding="utf8", decode_responses=True)
-        default_bucket = await RedisBucket.init( _default_rates, connection, "rl:default")  # type: ignore[misc] - Motivo: Assinatura assíncrona não mapeada estaticamente.
-        strict_bucket = await RedisBucket.init( _strict_rates, connection, "rl:strict")  # type: ignore[misc] - Motivo: Assinatura assíncrona não mapeada estaticamente.
+        default_bucket = await RedisBucket.init(_default_rates, connection, "rl:default")  # type: ignore[misc] - Motivo: Assinatura assíncrona não mapeada estaticamente.
+        strict_bucket = await RedisBucket.init(_strict_rates, connection, "rl:strict")  # type: ignore[misc] - Motivo: Assinatura assíncrona não mapeada estaticamente.
         _default_limiter = Limiter(default_bucket)
         _strict_limiter = Limiter(strict_bucket)
         logger.info("Rate limiter initialized (Redis backend).")
