@@ -26,13 +26,10 @@ def setup_tracing(service_name: str) -> None:
 
         # Motivo: Tipagem externa
         from opentelemetry.sdk.trace import TracerProvider  # type: ignore
-        from opentelemetry.sdk.trace.export import (
-            # Motivo: Externa
-            BatchSpanProcessor,  # type: ignore
+        from opentelemetry.sdk.trace.export import (  # type: ignore - Motivo: Externa
+            BatchSpanProcessor,
         )
-
-        # Motivo: Externa
-        from opentelemetry.sdk.trace.sampling import (  # type: ignore
+        from opentelemetry.sdk.trace.sampling import (  # type: ignore - Motivo: Externa
             ParentBased,
             TraceIdRatioBased,
         )
@@ -79,23 +76,20 @@ def _build_exporter() -> Any:
     backend = settings.OTEL_EXPORTER
     try:
         if backend == "otlp":
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-                # Motivo: Externa
-                OTLPSpanExporter,  # type: ignore
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore - Motivo: Externa
+                OTLPSpanExporter,
             )
 
             return OTLPSpanExporter()
         if backend == "gcp":
-            from opentelemetry.exporter.cloud_trace import (
-                # Motivo: Externa
-                CloudTraceSpanExporter,  # type: ignore
+            from opentelemetry.exporter.cloud_trace import (  # type: ignore - Motivo: Externa
+                CloudTraceSpanExporter,
             )
 
             return CloudTraceSpanExporter(project_id=settings.GCP_PROJECT_ID)
 
-        from opentelemetry.sdk.trace.export import (
-            # Motivo: Externa
-            ConsoleSpanExporter,  # type: ignore
+        from opentelemetry.sdk.trace.export import (  # type: ignore - Motivo: Externa
+            ConsoleSpanExporter,
         )
 
         return ConsoleSpanExporter()
