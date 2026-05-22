@@ -165,8 +165,8 @@ async def test_cvm_spider_resolves_unknown_ticker_via_brapi(monkeypatch):
     spider._ticker_index = {}
     spider._cnpj_to_cd_cvm = {"12345678000199": CVM_CODE}
 
-    def fake_brapi(ticker: str):
-        return spider._cnpj_to_cd_cvm.get("12345678000199") if ticker == "RENT3" else None
+    def fake_brapi(ticker: str) -> str | None:
+        return CVM_CODE if ticker == "RENT3" else None
 
     monkeypatch.setattr(spider, "_resolve_via_brapi", fake_brapi)
 
