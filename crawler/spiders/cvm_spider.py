@@ -174,7 +174,8 @@ class CVMSpider(BaseSpider):
 
     def get_cvm_code(self, ticker: str) -> str | None:
         index = self._load_ticker_index()
-        return index.get(ticker.upper())
+        clean_ticker = ticker.upper().replace(".SA", "")
+        return index.get(clean_ticker)
 
     def _load_ticker_index(self) -> dict[str, str]:
         """Build a ticker → CD_CVM map from the CVM CAD registry, lazily.
