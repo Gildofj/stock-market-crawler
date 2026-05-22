@@ -18,11 +18,24 @@ def setup_tracing(service_name: str) -> None:
         return
 
     try:
-        from opentelemetry import trace  # type: ignore - Motivo: Tipagem externa
-        from opentelemetry.sdk.resources import Resource  # type: ignore - Motivo: Tipagem externa
-        from opentelemetry.sdk.trace import TracerProvider  # type: ignore - Motivo: Tipagem externa
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore - Motivo: Externa
-        from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased  # type: ignore - Motivo: Externa
+        # Motivo: Tipagem externa
+        from opentelemetry import trace  # type: ignore
+
+        # Motivo: Tipagem externa
+        from opentelemetry.sdk.resources import Resource  # type: ignore
+
+        # Motivo: Tipagem externa
+        from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+        from opentelemetry.sdk.trace.export import (
+            # Motivo: Externa
+            BatchSpanProcessor,  # type: ignore
+        )
+
+        # Motivo: Externa
+        from opentelemetry.sdk.trace.sampling import (  # type: ignore
+            ParentBased,
+            TraceIdRatioBased,
+        )
     except ImportError:
         logger.warning(
             "OTEL_ENABLED=true but opentelemetry SDK not installed. "
@@ -66,15 +79,24 @@ def _build_exporter() -> Any:
     backend = settings.OTEL_EXPORTER
     try:
         if backend == "otlp":
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore - Motivo: Externa
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                # Motivo: Externa
+                OTLPSpanExporter,  # type: ignore
+            )
 
             return OTLPSpanExporter()
         if backend == "gcp":
-            from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter  # type: ignore - Motivo: Externa
+            from opentelemetry.exporter.cloud_trace import (
+                # Motivo: Externa
+                CloudTraceSpanExporter,  # type: ignore
+            )
 
             return CloudTraceSpanExporter(project_id=settings.GCP_PROJECT_ID)
 
-        from opentelemetry.sdk.trace.export import ConsoleSpanExporter  # type: ignore - Motivo: Externa
+        from opentelemetry.sdk.trace.export import (
+            # Motivo: Externa
+            ConsoleSpanExporter,  # type: ignore
+        )
 
         return ConsoleSpanExporter()
     except ImportError as exc:
@@ -107,7 +129,8 @@ def shutdown_tracing() -> None:
     if _CONFIGURED_FOR is None:
         return
     try:
-        from opentelemetry import trace  # type: ignore - Motivo: Tipagem externa
+        # Motivo: Tipagem externa
+        from opentelemetry import trace  # type: ignore
 
         provider = trace.get_tracer_provider()
         shutdown = getattr(provider, "shutdown", None)
