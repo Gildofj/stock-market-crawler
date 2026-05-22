@@ -65,6 +65,10 @@ class FundamentalSchema(BaseModel):
     contributing_sources: list[str] = Field(
         default_factory=list, description="All sources that touched this row"
     )
+    provenance: dict[str, str] | None = Field(
+        default_factory=dict,
+        description="Maps indicator field names to their contributing source slug",
+    )
 
 
 class SourceAttributionSchema(BaseModel):

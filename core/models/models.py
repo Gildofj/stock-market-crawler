@@ -61,6 +61,29 @@ class DataSource(Base):
     )
 
 
+class DataSourceAuditLog(Base):
+    """Immutable audit trail for all operational actions taken on Data Sources.
+
+    This captures 'who did what, when, and why', specifically designed for
+    legal compliance when responding to takedown requests or altering feeds.
+    """
+
+    __tablename__ = "data_source_audit_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    data_source_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="CASCADE"), nullable=False
+    )
+    operator: Mapped[str] = mapped_column(String(255), nullable=False)
+    # e.g., 'takedown', 'enable', 'edit_contact'
+    action_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    affected_rowcount: Mapped[int | None] = mapped_column(Integer)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    data_source: Mapped["DataSource"] = relationship("DataSource")
+
+
 class Company(Base):
     __tablename__ = "companies"
 
@@ -157,6 +180,8 @@ class Fundamental(Base):
         Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
     )
     contributing_sources: Mapped[list[str] | None] = mapped_column(JSON)
+    # Field-level tracking: mapping of field names to the data source slug that populated them
+    provenance: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     collected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

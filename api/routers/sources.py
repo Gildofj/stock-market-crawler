@@ -7,9 +7,11 @@ this deployment is collecting from. The endpoint reflects the
 drop out of this response within ~30 seconds (registry cache TTL).
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from fastapi_cache.decorator import cache
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.limiter import DefaultRateLimit
 from core.services.source_registry import get_source_registry
 
 
@@ -39,7 +41,11 @@ class PublicDataSourceSchema(BaseModel):
     )
 
 
-router = APIRouter(prefix="/sources", tags=["Transparency"])
+router = APIRouter(
+    prefix="/sources",
+    tags=["Transparency"],
+    dependencies=[Depends(DefaultRateLimit)],
+)
 
 
 @router.get(
@@ -47,6 +53,7 @@ router = APIRouter(prefix="/sources", tags=["Transparency"])
     response_model=list[PublicDataSourceSchema],
     summary="List of enabled data sources powering this deployment",
 )
+@cache(expire=1800, namespace="sources:list")
 async def list_sources() -> list[PublicDataSourceSchema]:
     registry = get_source_registry()
     # ``all_enabled`` returns a sorted snapshot already.

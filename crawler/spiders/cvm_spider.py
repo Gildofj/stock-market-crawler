@@ -120,10 +120,6 @@ class CVMSpider(BaseSpider):
         self._dfp_cache: dict[int, CVMYearData | None] = {}
         self._itr_cache: dict[int, CVMYearData | None] = {}
 
-    # ------------------------------------------------------------------
-    # BaseSpider contract
-    # ------------------------------------------------------------------
-
     async def crawl_ticker(self, symbol: str) -> CrawlResult:
         result = CrawlResult(symbol=symbol)
         await asyncio.to_thread(self._populate_fundamentals, result)
@@ -132,10 +128,6 @@ class CVMSpider(BaseSpider):
     async def enrich(self, result: CrawlResult) -> None:
         """Compute fundamentals in-place using the spider's already-populated price data."""
         await asyncio.to_thread(self._populate_fundamentals, result)
-
-    # ------------------------------------------------------------------
-    # Core orchestration
-    # ------------------------------------------------------------------
 
     def _populate_fundamentals(self, result: CrawlResult) -> None:
         cvm_code = self.get_cvm_code(result.symbol)
@@ -180,10 +172,6 @@ class CVMSpider(BaseSpider):
         result.cagr_revenue_5y = self._cagr_for(cvm_code, "DRE", _REVENUE, years=5)
         result.cagr_profit_5y = self._cagr_for(cvm_code, "DRE", _NET_INCOME, years=5)
 
-    # ------------------------------------------------------------------
-    # Ticker → CD_CVM resolution
-    # ------------------------------------------------------------------
-
     def get_cvm_code(self, ticker: str) -> str | None:
         index = self._load_ticker_index()
         return index.get(ticker.upper())
@@ -220,10 +208,6 @@ class CVMSpider(BaseSpider):
         self._ticker_index = index
         return index
 
-    # ------------------------------------------------------------------
-    # Raw-line-item extraction
-    # ------------------------------------------------------------------
-
     def _get_year(self, doc_type: str, year: int) -> CVMYearData | None:
         cache = self._dfp_cache if doc_type == "DFP" else self._itr_cache
         if year not in cache:
@@ -255,6 +239,17 @@ class CVMSpider(BaseSpider):
                     annual_row = candidate_row
                     break
 
+        itr = None
+        itr_row = None
+        for offset in range(6):
+            candidate_itr = self._get_year("ITR", year - offset)
+            if candidate_itr is not None:
+                candidate_row = self._latest_annual_row(candidate_itr, cvm_code)
+                if candidate_row is not None:
+                    itr = candidate_itr
+                    itr_row = candidate_row
+                    break
+
         if dfp is None or annual_row is None:
             logger.warning(
                 f"CVMSpider: no DFP for {cvm_code} in the last 6 years (from {year}); "
@@ -262,47 +257,53 @@ class CVMSpider(BaseSpider):
             )
             return None
 
+        if itr is not None and itr_row is not None and itr_row > annual_row:
+            bs_data = itr
+            bs_row = itr_row
+        else:
+            bs_data = dfp
+            bs_row = annual_row
+
         latest_price = result.prices[-1].close if result.prices else None
         # Prefer the documented yfinance get_shares_full() value supplied by
         # the B3 spider; fall back to inferring from market_cap when shares
         # are unavailable (e.g. yfinance outage).
         shares_outstanding = result.shares_outstanding or self._infer_shares(result)
 
-        net_income = self._extract(dfp, cvm_code, _NET_INCOME, annual_row)
-        income_tax = self._extract(dfp, cvm_code, _INCOME_TAX, annual_row)
-        pretax = self._extract(dfp, cvm_code, _PRETAX, annual_row)
-        financial_result = self._extract(dfp, cvm_code, _FINANCIAL_RESULT, annual_row)
+        net_income = self._extract_ttm(cvm_code, _NET_INCOME, itr, itr_row, dfp, annual_row)
+        income_tax = self._extract_ttm(cvm_code, _INCOME_TAX, itr, itr_row, dfp, annual_row)
+        pretax = self._extract_ttm(cvm_code, _PRETAX, itr, itr_row, dfp, annual_row)
+        financial_result = self._extract_ttm(
+            cvm_code, _FINANCIAL_RESULT, itr, itr_row, dfp, annual_row
+        )
 
-        ebit = self._extract(dfp, cvm_code, _EBIT, annual_row)
+        ebit = self._extract_ttm(cvm_code, _EBIT, itr, itr_row, dfp, annual_row)
         if ebit is None:
             ebit = _derive_ebit(net_income, income_tax, pretax, financial_result)
 
-        depreciation = self._extract_depreciation(dfp, cvm_code, annual_row)
+        depreciation = self._extract_depreciation_ttm(cvm_code, itr, itr_row, dfp, annual_row)
         ebitda = (ebit + depreciation) if (ebit is not None and depreciation is not None) else None
 
-        dividends_raw = self._extract(dfp, cvm_code, _DIVIDENDS_PAID, annual_row)
-        # DFC reports dividends as cash outflows (negative); the calculator
-        # expects positive magnitude. TODO: aggregate the four most recent
-        # ITRs for a true TTM window; using the latest DFP annual for now.
+        dividends_raw = self._extract_ttm(cvm_code, _DIVIDENDS_PAID, itr, itr_row, dfp, annual_row)
         dividends_paid_annual = abs(dividends_raw) if dividends_raw is not None else None
 
         return RawFinancials(
-            revenue=self._extract(dfp, cvm_code, _REVENUE, annual_row),
-            gross_profit=self._extract(dfp, cvm_code, _GROSS_PROFIT, annual_row),
+            revenue=self._extract_ttm(cvm_code, _REVENUE, itr, itr_row, dfp, annual_row),
+            gross_profit=self._extract_ttm(cvm_code, _GROSS_PROFIT, itr, itr_row, dfp, annual_row),
             ebit=ebit,
             ebitda=ebitda,
             net_income=net_income,
             income_tax_expense=income_tax,
             pretax_income=pretax,
             financial_result=financial_result,
-            total_assets=self._extract(dfp, cvm_code, _TOTAL_ASSETS, annual_row),
-            current_assets=self._extract(dfp, cvm_code, _CURRENT_ASSETS, annual_row),
-            cash_and_equivalents=self._extract(dfp, cvm_code, _CASH, annual_row),
-            short_term_investments=self._extract(dfp, cvm_code, _SHORT_TERM_INV, annual_row),
-            current_liabilities=self._extract(dfp, cvm_code, _CURRENT_LIABILITIES, annual_row),
-            short_term_debt=self._extract(dfp, cvm_code, _SHORT_TERM_DEBT, annual_row),
-            long_term_debt=self._extract(dfp, cvm_code, _LONG_TERM_DEBT, annual_row),
-            equity=self._extract(dfp, cvm_code, _EQUITY, annual_row),
+            total_assets=self._extract(bs_data, cvm_code, _TOTAL_ASSETS, bs_row),
+            current_assets=self._extract(bs_data, cvm_code, _CURRENT_ASSETS, bs_row),
+            cash_and_equivalents=self._extract(bs_data, cvm_code, _CASH, bs_row),
+            short_term_investments=self._extract(bs_data, cvm_code, _SHORT_TERM_INV, bs_row),
+            current_liabilities=self._extract(bs_data, cvm_code, _CURRENT_LIABILITIES, bs_row),
+            short_term_debt=self._extract(bs_data, cvm_code, _SHORT_TERM_DEBT, bs_row),
+            long_term_debt=self._extract(bs_data, cvm_code, _LONG_TERM_DEBT, bs_row),
+            equity=self._extract(bs_data, cvm_code, _EQUITY, bs_row),
             dividends_paid_ttm=dividends_paid_annual,
             current_price=latest_price,
             shares_outstanding=shares_outstanding,
@@ -319,6 +320,98 @@ class CVMSpider(BaseSpider):
             if not slice_.empty:
                 return slice_.max()
         return None
+
+    def _extract_ttm(
+        self,
+        cvm_code: str,
+        spec: _AccountSpec,
+        itr: CVMYearData | None,
+        itr_row: datetime | None,
+        dfp: CVMYearData | None,
+        annual_row: datetime | None,
+    ) -> float | None:
+        """Extract a TTM (Trailing Twelve Months) value for income/cash flow statements.
+
+        If ITR is newer than DFP, we calculate:
+        TTM = ITR(Current) + DFP(Previous) - ITR(Previous)
+        """
+        if itr is None or itr_row is None or dfp is None or annual_row is None:
+            return self._extract(dfp, cvm_code, spec, annual_row) if dfp else None
+
+        if itr_row <= annual_row:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+
+        current_val = self._extract(itr, cvm_code, spec, itr_row)
+        if current_val is None:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+
+        prev_dfp_year = itr.year - 1
+        prev_dfp = self._get_year("DFP", prev_dfp_year)
+        if prev_dfp is None:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+        prev_dfp_row = self._latest_annual_row(prev_dfp, cvm_code)
+        if prev_dfp_row is None:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+
+        prev_dfp_val = self._extract(prev_dfp, cvm_code, spec, prev_dfp_row)
+        if prev_dfp_val is None:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+
+        prev_itr_year = itr.year - 1
+        prev_itr = self._get_year("ITR", prev_itr_year)
+        if prev_itr is None:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+
+        prev_itr_row = datetime(prev_itr_year, itr_row.month, itr_row.day)
+        prev_itr_val = self._extract(prev_itr, cvm_code, spec, prev_itr_row)
+
+        if prev_itr_val is None:
+            return self._extract(dfp, cvm_code, spec, annual_row)
+
+        return current_val + prev_dfp_val - prev_itr_val
+
+    def _extract_depreciation_ttm(
+        self,
+        cvm_code: str,
+        itr: CVMYearData | None,
+        itr_row: datetime | None,
+        dfp: CVMYearData | None,
+        annual_row: datetime | None,
+    ) -> float | None:
+        """Extract a TTM value for depreciation."""
+        if itr is None or itr_row is None or dfp is None or annual_row is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row) if dfp else None
+        if itr_row <= annual_row:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+
+        current_val = self._extract_depreciation(itr, cvm_code, itr_row)
+        if current_val is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+
+        prev_dfp_year = itr.year - 1
+        prev_dfp = self._get_year("DFP", prev_dfp_year)
+        if prev_dfp is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+        prev_dfp_row = self._latest_annual_row(prev_dfp, cvm_code)
+        if prev_dfp_row is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+
+        prev_dfp_val = self._extract_depreciation(prev_dfp, cvm_code, prev_dfp_row)
+        if prev_dfp_val is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+
+        prev_itr_year = itr.year - 1
+        prev_itr = self._get_year("ITR", prev_itr_year)
+        if prev_itr is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+
+        prev_itr_row = datetime(prev_itr_year, itr_row.month, itr_row.day)
+        prev_itr_val = self._extract_depreciation(prev_itr, cvm_code, prev_itr_row)
+
+        if prev_itr_val is None:
+            return self._extract_depreciation(dfp, cvm_code, annual_row)
+
+        return current_val + prev_dfp_val - prev_itr_val
 
     def _extract(
         self,
@@ -449,10 +542,6 @@ class CVMSpider(BaseSpider):
         ):
             return mcap / result.prices[-1].close
         return None
-
-    # ------------------------------------------------------------------
-    # CAGR over multiple DFP years
-    # ------------------------------------------------------------------
 
     def _cagr_for(
         self, cvm_code: str, statement: Statement, spec: _AccountSpec, years: int

@@ -8,15 +8,11 @@ from core.services.reliability_service import ReliabilityService
 @pytest.fixture
 def service(mocker):
     mock_db = mocker.Mock()
-    # Mock AsyncSession methods
     mock_db.execute = mocker.AsyncMock()
     mock_db.commit = mocker.AsyncMock()
     mock_db.rollback = mocker.AsyncMock()
     mock_db.refresh = mocker.AsyncMock()
     return ReliabilityService(db=mock_db)
-
-
-# --- Tag Along derivation ---
 
 
 def test_derive_tag_along_novo_mercado(service):
@@ -41,9 +37,6 @@ def test_derive_tag_along_unknown_segment(service):
 
 def test_derive_tag_along_case_insensitive(service):
     assert service._derive_tag_along("nm") == 100
-
-
-# --- Sector classification ---
 
 
 def test_classify_sector_perennial_utilities(service):
@@ -78,9 +71,6 @@ def test_classify_sector_none(service):
     assert service._classify_sector(None) is None
 
 
-# --- Score: tag along ---
-
-
 def test_score_tag_along_full(service):
     assert service._score_tag_along(100) == 100
 
@@ -93,9 +83,6 @@ def test_score_tag_along_below_minimum(service):
     assert service._score_tag_along(50) == 0
 
 
-# --- Score: perennial ---
-
-
 def test_score_perennial_true(service):
     assert service._score_perennial(True) == 100
 
@@ -106,9 +93,6 @@ def test_score_perennial_none(service):
 
 def test_score_perennial_false(service):
     assert service._score_perennial(False) == 0
-
-
-# --- Score: grade thresholds ---
 
 
 @pytest.mark.parametrize(
@@ -130,9 +114,6 @@ def test_score_perennial_false(service):
 )
 def test_score_to_grade_thresholds(service, score, expected_grade):
     assert service._score_to_grade(score) == expected_grade
-
-
-# --- Score: profit consistency ---
 
 
 @pytest.mark.asyncio
@@ -174,9 +155,6 @@ async def test_score_profit_partial_years(service, mocker):
 
     result = await service._score_profit_consistency(3, 4, uuid.uuid4())
     assert result == min(round((3 / 4) * 80) + 20, 100)
-
-
-# --- Score: debt control ---
 
 
 @pytest.mark.asyncio
@@ -228,9 +206,6 @@ async def test_score_debt_null_returns_neutral(service, mocker):
 
     result = await service._score_debt_control(0, 0, uuid.uuid4())
     assert result == 50
-
-
-# --- Composite weighted score ---
 
 
 def test_compute_composite_weighted():

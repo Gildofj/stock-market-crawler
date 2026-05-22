@@ -12,7 +12,6 @@ class MacroSpider:
     Essential for ML features like Interest Rates (SELIC) and Inflation (IPCA).
     """
 
-    # BCB SGS API URLs
     SELIC_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json"
     IPCA_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json"
 
@@ -37,7 +36,6 @@ class MacroSpider:
         headers = {"Accept": "application/json"}
 
         try:
-            # 1. Fetch SELIC
             selic_response = await self.request_manager.get_async(
                 selic_url, headers=headers, timeout=20
             )
@@ -50,7 +48,6 @@ class MacroSpider:
                     latest_selic = selic_data[-1]["valor"]
                     logger.info(f"Latest SELIC Rate: {latest_selic}%")
 
-            # 2. Fetch IPCA
             ipca_response = await self.request_manager.get_async(
                 ipca_url, headers=headers, timeout=20
             )

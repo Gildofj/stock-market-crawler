@@ -71,7 +71,7 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = ["0.0.0.0/0"] # TODO: narrow to operator IP
+  source_ranges = var.operator_ip_ranges
   target_tags   = ["ssh-enabled"]
 }
 

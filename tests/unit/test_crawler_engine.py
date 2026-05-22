@@ -9,11 +9,9 @@ from crawler.models.contract import CrawlResult
 
 @pytest.mark.asyncio
 async def test_calculate_advanced_metrics(mocker):
-    # Mock dependencies
     mock_db = mocker.Mock()
     engine = CrawlerEngine(db=mock_db)
 
-    # Create a dummy CrawlResult
     result = CrawlResult(
         symbol="TEST3",
         eps=2.0,
@@ -29,7 +27,6 @@ async def test_calculate_advanced_metrics(mocker):
 
     engine._calculate_advanced_metrics(result)
 
-    # Assertions
     # Graham: sqrt(22.5 * 2.0 * (20.0 / 1.0)) = sqrt(22.5 * 2 * 20) = sqrt(900) = 30.0
     assert result.valuation_graham == pytest.approx(30.0)
 
@@ -42,11 +39,9 @@ async def test_calculate_advanced_metrics(mocker):
 
 @pytest.mark.asyncio
 async def test_calculate_advanced_metrics_partial(mocker):
-    # Mock dependencies
     mock_db = mocker.Mock()
     engine = CrawlerEngine(db=mock_db)
 
-    # Create a dummy CrawlResult with partial data
     result = CrawlResult(
         symbol="TEST3",
         eps=1.0,

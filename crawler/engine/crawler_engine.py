@@ -196,6 +196,7 @@ class CrawlerEngine:
             quality_score=result.quality_score,
             primary_source_id=result.primary_source_id,
             contributing_sources=result.contributing_sources,
+            provenance=result.provenance,
         )
         await self.fundamental_repo.save(company_id, fundamental_schema)
 

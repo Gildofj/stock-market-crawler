@@ -64,6 +64,13 @@ class CrawlResult(BaseModel):
         ),
     )
 
+    # Field-level provenance tracking: maps field names (e.g. 'dy', 'market_cap') to
+    # the source slug that populated them. Passed to ETL for the `fundamentals` table.
+    provenance: dict[str, str] = Field(
+        default_factory=dict,
+        description="Maps indicator field names to their contributing source slug",
+    )
+
     # Data Lineage
     primary_source_id: uuid.UUID | None = Field(
         None, description="FK to data_sources (e.g. cvm-dfp)"

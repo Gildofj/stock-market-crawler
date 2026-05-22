@@ -47,7 +47,6 @@ class B3Spider(BaseSpider):
                     results[symbol] = result
                     continue
 
-                # Prices
                 for index, row in ticker_df.dropna(subset=["Close"]).iterrows():  # type: ignore[arg-type]
                     ts = pd.to_datetime(index)  # type: ignore[call-overload]
                     time_val: datetime.datetime = ts.to_pydatetime()  # type: ignore[union-attr]
@@ -100,11 +99,8 @@ class B3Spider(BaseSpider):
                 )
                 result.is_active = 0
 
-            # 1. Company metadata (best-effort: Ticker.info is an undocumented
-            # dict — only textual fields are read here, never numeric ones).
             info: dict[str, Any] = await asyncio.to_thread(lambda: ticker.info)
 
-            # Priority: longName -> shortName -> symbol
             display_name = str(info.get("longName") or info.get("shortName") or symbol)
             if display_name.upper() == symbol.upper():
                 display_name = symbol.replace(".SA", "")
@@ -115,9 +111,7 @@ class B3Spider(BaseSpider):
             result.segment = str(info.get("quoteType")) if info.get("quoteType") else None
             result.website = str(info.get("website")) if info.get("website") else None
 
-            # 2. Historical Prices
             for index, row in history.iterrows():
-                # Handling pandas timestamp safely
                 ts = pd.to_datetime(index)  # type: ignore
                 time_val: datetime.datetime = ts.to_pydatetime()
 
@@ -189,7 +183,6 @@ class B3Spider(BaseSpider):
         try:
             if val is None:
                 return None
-            # Handle potential pandas types or other numeric types
             return float(val)  # type: ignore
         except (ValueError, TypeError):
             return None

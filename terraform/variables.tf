@@ -92,3 +92,9 @@ variable "r2_ri_public_base_url" {
   type        = string
   default     = ""
 }
+
+variable "operator_ip_ranges" {
+  description = "List of operator IP ranges allowed to SSH into the VM"
+  type        = list(string)
+  default     = ["10.0.0.0/8"] # Replace locally in .tfvars
+}
