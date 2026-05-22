@@ -10,7 +10,9 @@
       "Bash(docker context *)",
       "Bash(python -c \"import sys; print\\(sys.path\\)\")",
       "Bash(git stash *)",
-      "PowerShell(uv run *)"
+      "PowerShell(uv run *)",
+      "Bash(Select-Object -First 15)",
+      "WebFetch(domain:brapi.dev)"
     ]
   }
 }

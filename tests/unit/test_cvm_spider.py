@@ -131,8 +131,9 @@ async def test_cvm_spider_computes_dy_from_dfc_dividends():
 
 
 @pytest.mark.asyncio
-async def test_cvm_spider_skips_when_mapping_missing():
+async def test_cvm_spider_skips_when_mapping_missing(monkeypatch):
     spider = CVMSpider(ticker_to_cvm_code={})
+    monkeypatch.setattr(spider, "_resolve_via_brapi", lambda ticker: None)
     result = _result_with_price()
     await spider.enrich(result)
     assert result.p_l is None
@@ -152,6 +153,33 @@ async def test_cvm_spider_overrides_preexisting_values():
     # CVM-derived value: price/EPS = 20/1.5 ≈ 13.33; definitely not 99.
     assert result.p_l is not None and result.p_l != 99.0
     assert result.p_l < 20.0
+
+
+@pytest.mark.asyncio
+async def test_cvm_spider_resolves_unknown_ticker_via_brapi(monkeypatch):
+    """Tickers not in the static CNPJ_TO_TICKER seed must still resolve when
+    Brapi reports a CNPJ that the CVM CAD registry knows. This covers the
+    long-tail (RENT3, JBSS3, ...) that previously persisted empty fundamentals.
+    """
+    spider = _spider()
+    spider._ticker_index = {}
+    spider._cnpj_to_cd_cvm = {"12345678000199": CVM_CODE}
+
+    def fake_brapi(ticker: str):
+        return spider._cnpj_to_cd_cvm.get("12345678000199") if ticker == "RENT3" else None
+
+    monkeypatch.setattr(spider, "_resolve_via_brapi", fake_brapi)
+
+    result = CrawlResult(
+        symbol="RENT3",
+        shares_outstanding=100.0,
+        prices=[StockPriceSchema(time=REF_DATE, close=20.0, volume=1000)],
+    )
+    await spider.enrich(result)
+
+    assert result.p_l is not None
+    assert result.eps == 1.5
+    assert spider.get_cvm_code("RENT3") == CVM_CODE
 
 
 @pytest.mark.asyncio

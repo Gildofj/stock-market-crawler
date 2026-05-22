@@ -110,6 +110,8 @@ def _derive_ebit(
 class CVMSpider(BaseSpider):
     """Spider that derives fundamentals from raw CVM Dados Abertos statements."""
 
+    BRAPI_QUOTE_URL = "https://brapi.dev/api/quote/{ticker}?modules=summaryProfile"
+
     def __init__(
         self,
         dataset_service: CVMDatasetService | None = None,
@@ -119,6 +121,8 @@ class CVMSpider(BaseSpider):
         self._ticker_index: dict[str, str] | None = ticker_to_cvm_code
         self._dfp_cache: dict[int, CVMYearData | None] = {}
         self._itr_cache: dict[int, CVMYearData | None] = {}
+        self._cnpj_to_cd_cvm: dict[str, str] | None = None
+        self._unresolvable_tickers: set[str] = set()
 
     async def crawl_ticker(self, symbol: str) -> CrawlResult:
         result = CrawlResult(symbol=symbol)
@@ -173,21 +177,31 @@ class CVMSpider(BaseSpider):
         result.cagr_profit_5y = self._cagr_for(cvm_code, "DRE", _NET_INCOME, years=5)
 
     def get_cvm_code(self, ticker: str) -> str | None:
-        index = self._load_ticker_index()
         clean_ticker = ticker.upper().replace(".SA", "")
-        return index.get(clean_ticker)
+        index = self._load_ticker_index()
+        hit = index.get(clean_ticker)
+        if hit is not None:
+            return hit
+        if clean_ticker in self._unresolvable_tickers:
+            return None
+        resolved = self._resolve_via_brapi(clean_ticker)
+        if resolved is None:
+            self._unresolvable_tickers.add(clean_ticker)
+            return None
+        index[clean_ticker] = resolved
+        return resolved
 
     def _load_ticker_index(self) -> dict[str, str]:
-        """Build a ticker → CD_CVM map from the CVM CAD registry, lazily.
+        """Build the seed ticker → CD_CVM map from the curated CNPJ list.
 
-        CAD doesn't carry the B3 ticker, so we approximate by stripping
-        digits from the ticker and matching against ``DENOM_SOCIAL``. For the
-        handful of tickers where the heuristic isn't reliable, callers can
-        seed an explicit override at construction time.
+        CAD doesn't carry the B3 ticker, so the seed mapping is bootstrapped
+        from ``CNPJ_TO_TICKER`` and CAD's CNPJ column. Tickers not in the seed
+        are resolved on demand by :meth:`_resolve_via_brapi` and cached back
+        into this index.
         """
         if self._ticker_index is not None:
             return self._ticker_index
-        cad = self.dataset_service.get_cad()
+        cad = self._get_cad_normalised()
         if cad is None:
             self._ticker_index = {}
             return self._ticker_index
@@ -195,19 +209,72 @@ class CVMSpider(BaseSpider):
         from core.services.cnpj_map import CNPJ_TO_TICKER
 
         index: dict[str, str] = {}
-        if "CNPJ_CIA" in cad.columns and "CD_CVM" in cad.columns:
-            cad_normalised = cad.copy()
-            cad_normalised["CNPJ_DIGITS"] = (
-                cad_normalised["CNPJ_CIA"].fillna("").astype(str).str.replace(r"\D", "", regex=True)
-            )
-            for cnpj_digits, ticker in CNPJ_TO_TICKER.items():
-                stripped = cnpj_digits.rstrip("A")
-                hit = cad_normalised.loc[cad_normalised["CNPJ_DIGITS"] == stripped, "CD_CVM"]
-                if not hit.empty:
-                    index[ticker.upper()] = str(hit.iloc[0])
+        for cnpj_digits, ticker in CNPJ_TO_TICKER.items():
+            stripped = cnpj_digits.rstrip("A")
+            cd_cvm = self._cnpj_to_cd_cvm.get(stripped) if self._cnpj_to_cd_cvm else None
+            if cd_cvm is not None:
+                index[ticker.upper()] = cd_cvm
 
         self._ticker_index = index
         return index
+
+    def _get_cad_normalised(self):
+        """Lazy-load CAD and cache the CNPJ→CD_CVM lookup table.
+
+        The CAD CSV is the bridge between Brapi-reported CNPJs and the CVM
+        ``CD_CVM`` that every statement is keyed by. Caching the inverted
+        map avoids re-scanning the (~50k-row) DataFrame on every Brapi hit.
+        """
+        if self._cnpj_to_cd_cvm is not None:
+            return self._cnpj_to_cd_cvm
+        cad = self.dataset_service.get_cad()
+        if cad is None or "CNPJ_CIA" not in cad.columns or "CD_CVM" not in cad.columns:
+            self._cnpj_to_cd_cvm = {}
+            return self._cnpj_to_cd_cvm
+        cnpj_digits = (
+            cad["CNPJ_CIA"].fillna("").astype(str).str.replace(r"\D", "", regex=True)
+        )
+        cd_cvm_series = cad["CD_CVM"].astype(str)
+        self._cnpj_to_cd_cvm = {
+            cnpj: code for cnpj, code in zip(cnpj_digits, cd_cvm_series, strict=False) if cnpj
+        }
+        return self._cnpj_to_cd_cvm
+
+    def _resolve_via_brapi(self, ticker: str) -> str | None:
+        """Resolve a ticker→CD_CVM by querying Brapi's summaryProfile module.
+
+        Brapi's free quote endpoint omits CNPJ, but the ``summaryProfile``
+        module exposes it. We pull only that field and map back through
+        CAD. Failures (rate limit, missing field, network) return None and
+        the ticker is marked unresolvable for the lifetime of the spider.
+        """
+        url = self.BRAPI_QUOTE_URL.format(ticker=ticker)
+        try:
+            response = self.dataset_service.request_manager.get(url, timeout=15)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            logger.warning(f"CVMSpider: Brapi lookup failed for {ticker}: {exc}")
+            return None
+
+        results = (payload or {}).get("results") or []
+        if not results:
+            return None
+
+        cnpj_raw = results[0].get("cnpj")
+        if not cnpj_raw:
+            return None
+        cnpj_digits = "".join(ch for ch in str(cnpj_raw) if ch.isdigit())
+        if not cnpj_digits:
+            return None
+
+        cnpj_map = self._get_cad_normalised() or {}
+        cd_cvm = cnpj_map.get(cnpj_digits)
+        if cd_cvm is None:
+            logger.warning(
+                f"CVMSpider: CNPJ {cnpj_digits} from Brapi for {ticker} not found in CAD"
+            )
+        return cd_cvm
 
     def _get_year(self, doc_type: str, year: int) -> CVMYearData | None:
         cache = self._dfp_cache if doc_type == "DFP" else self._itr_cache
