@@ -21,13 +21,8 @@ def setup_tracing(service_name: str) -> None:
         from opentelemetry import trace  # type: ignore - Motivo: Tipagem externa
         from opentelemetry.sdk.resources import Resource  # type: ignore - Motivo: Tipagem externa
         from opentelemetry.sdk.trace import TracerProvider  # type: ignore - Motivo: Tipagem externa
-        from opentelemetry.sdk.trace.export import (
-            BatchSpanProcessor,  # type: ignore - Motivo: Tipagem externa
-        )
-        from opentelemetry.sdk.trace.sampling import (  # type: ignore - Motivo: Tipagem externa
-            ParentBased,
-            TraceIdRatioBased,
-        )
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore - Motivo: Externa
+        from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased  # type: ignore - Motivo: Externa
     except ImportError:
         logger.warning(
             "OTEL_ENABLED=true but opentelemetry SDK not installed. "
@@ -71,21 +66,15 @@ def _build_exporter() -> Any:
     backend = settings.OTEL_EXPORTER
     try:
         if backend == "otlp":
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore - Motivo: Tipagem externa
-                OTLPSpanExporter,
-            )
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore - Motivo: Externa
 
             return OTLPSpanExporter()
         if backend == "gcp":
-            from opentelemetry.exporter.cloud_trace import (
-                CloudTraceSpanExporter,  # type: ignore - Motivo: Tipagem externa
-            )
+            from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter  # type: ignore - Motivo: Externa
 
             return CloudTraceSpanExporter(project_id=settings.GCP_PROJECT_ID)
 
-        from opentelemetry.sdk.trace.export import (
-            ConsoleSpanExporter,  # type: ignore - Motivo: Tipagem externa
-        )
+        from opentelemetry.sdk.trace.export import ConsoleSpanExporter  # type: ignore - Motivo: Externa
 
         return ConsoleSpanExporter()
     except ImportError as exc:
