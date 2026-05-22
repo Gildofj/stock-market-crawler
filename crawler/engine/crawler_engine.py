@@ -47,6 +47,7 @@ class CrawlerEngine:
         self.reconciliation_service = ReconciliationService(db)
         if request_manager is None:
             from core.config import settings
+
             proxies = []
             if settings.CRAWLER_HTTP_PROXY:
                 proxies.append(settings.CRAWLER_HTTP_PROXY)

@@ -92,12 +92,13 @@ class TickerService:
 
     def __init__(self, dataset_service: CVMDatasetService | None = None):
         from core.config import settings
+
         proxies = []
         if settings.CRAWLER_HTTP_PROXY:
             proxies.append(settings.CRAWLER_HTTP_PROXY)
         if settings.CRAWLER_HTTPS_PROXY:
             proxies.append(settings.CRAWLER_HTTPS_PROXY)
-            
+
         self.request_manager = RequestManager(proxies=proxies if proxies else None)
         self.dataset_service = dataset_service or CVMDatasetService(self.request_manager)
 
