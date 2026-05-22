@@ -74,8 +74,9 @@ def _spider() -> CVMSpider:
     spider = CVMSpider(ticker_to_cvm_code={"FLOW3": CVM_CODE})
     year_data = _synthetic_year()
     # Pre-populate the year cache so the spider doesn't try to hit the network.
-    spider._dfp_cache[datetime.now().year] = year_data
-    spider._dfp_cache[datetime.now().year - 1] = year_data
+    for y in range(datetime.now().year - 6, datetime.now().year + 1):
+        spider._dfp_cache[y] = year_data
+        spider._itr_cache[y] = None
     return spider
 
 
@@ -151,3 +152,24 @@ async def test_cvm_spider_overrides_preexisting_values():
     # CVM-derived value: price/EPS = 20/1.5 ≈ 13.33; definitely not 99.
     assert result.p_l is not None and result.p_l != 99.0
     assert result.p_l < 20.0
+
+
+@pytest.mark.asyncio
+async def test_cvm_spider_resolves_ticker_with_sa_suffix():
+    """Ensures that tickers with a .SA suffix (common from B3/yfinance)
+    are properly stripped when mapping to CD_CVM, avoiding null fundamentals.
+    """
+    spider = _spider()
+    # The spider is seeded with "FLOW3" -> CVM_CODE
+    # We pass a CrawlResult with "FLOW3.SA"
+    result = CrawlResult(
+        symbol="FLOW3.SA",
+        shares_outstanding=100.0,
+        prices=[StockPriceSchema(time=REF_DATE, close=20.0, volume=1000)],
+    )
+
+    await spider.enrich(result)
+
+    # If it resolves correctly, EPS and P/L should not be None
+    assert result.eps == 1.5
+    assert result.p_l is not None

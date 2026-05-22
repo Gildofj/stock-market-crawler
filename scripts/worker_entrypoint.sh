@@ -22,6 +22,11 @@ export DATABASE_URL="$(fetch_secret database-url)"
 export REDIS_PASSWORD="$(fetch_secret redis-password)"
 export R2_ACCOUNT_ID="$(fetch_secret r2-account-id)"
 export R2_API_TOKEN="$(fetch_secret r2-api-token)"
+PROXY_URL="$(fetch_secret webshare-proxy-url || true)"
+if [ -n "$PROXY_URL" ]; then
+  export CRAWLER_HTTP_PROXY="$PROXY_URL"
+  export CRAWLER_HTTPS_PROXY="$PROXY_URL"
+fi
 
 if [ -z "${DATABASE_URL}" ] || [ -z "${REDIS_PASSWORD}" ]; then
   echo "[entrypoint] FATAL: required secrets are empty" >&2

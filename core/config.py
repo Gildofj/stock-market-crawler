@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     # requests — the standard signal for "robot operator email".
     CRAWLER_CONTACT_EMAIL: str = ""
 
+    CRAWLER_HTTP_PROXY: str | None = None
+    CRAWLER_HTTPS_PROXY: str | None = None
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("REDIS_URL", mode="before")

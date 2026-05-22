@@ -32,6 +32,13 @@ variable "database_url" {
   sensitive   = true
 }
 
+variable "webshare_proxy_url" {
+  description = "Proxy URL for Webshare to circumvent IP blocks"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "redis_password" {
   description = "Password for the self-hosted Redis instance on GCE"
   type        = string

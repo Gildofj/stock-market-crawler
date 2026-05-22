@@ -4,11 +4,12 @@
 
 locals {
   app_secrets = {
-    "database-url"   = var.database_url
-    "redis-password" = var.redis_password
-    "api-key"        = var.api_key
-    "r2-account-id"  = var.r2_account_id
-    "r2-api-token"   = var.r2_api_token
+    "database-url"       = var.database_url
+    "redis-password"     = var.redis_password
+    "api-key"            = var.api_key
+    "r2-account-id"      = var.r2_account_id
+    "r2-api-token"       = var.r2_api_token
+    "webshare-proxy-url" = var.webshare_proxy_url
   }
 }
 

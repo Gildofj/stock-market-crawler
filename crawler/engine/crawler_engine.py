@@ -45,7 +45,16 @@ class CrawlerEngine:
         self.price_repo = PriceRepository(db)
         self.fundamental_repo = FundamentalRepository(db)
         self.reconciliation_service = ReconciliationService(db)
-        self.request_manager = request_manager or RequestManager()
+        if request_manager is None:
+            from core.config import settings
+            proxies = []
+            if settings.CRAWLER_HTTP_PROXY:
+                proxies.append(settings.CRAWLER_HTTP_PROXY)
+            if settings.CRAWLER_HTTPS_PROXY:
+                proxies.append(settings.CRAWLER_HTTPS_PROXY)
+            self.request_manager = RequestManager(proxies=proxies if proxies else None)
+        else:
+            self.request_manager = request_manager
 
         spiders = spiders or {}
         self.b3_spider = spiders.get("b3") or B3Spider()
