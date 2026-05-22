@@ -12,12 +12,10 @@ async def test_repository_flow(company_repo, price_repo, db_session):
     """
     Test using the high-performance db_session fixture from conftest.py
     """
-    # 1. Create Company
     company_in = CompanySchema(symbol="TEST3", name="Test Corp")
     company = await company_repo.get_or_create(company_in)
     assert company.id is not None
 
-    # 2. Save Prices
     price_in = StockPriceSchema(
         time=datetime(2023, 1, 1, 10, 0),
         open=10.0,
@@ -29,7 +27,6 @@ async def test_repository_flow(company_repo, price_repo, db_session):
     )
     await price_repo.save_bulk(company.id, [price_in])
 
-    # Verify persistence within the transaction
     from sqlalchemy import select
 
     result = await db_session.execute(select(StockPrice).filter_by(company_id=company.id))

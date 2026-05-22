@@ -28,8 +28,6 @@ def _on_task_postrun(**_: Any) -> None:
 
 @worker_process_init.connect
 def _on_worker_process_init(**_: Any) -> None:
-    # BatchSpanProcessor's daemon thread does not survive fork; each prefork
-    # child must rebuild its TracerProvider/exporter pipeline.
     import core.telemetry as telemetry
 
     telemetry._CONFIGURED_FOR = None

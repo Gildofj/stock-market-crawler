@@ -57,8 +57,6 @@ def _synthetic_year() -> CVMYearData:
     dfc = pd.DataFrame(
         [
             _statement("6.01.01", "Depreciação e Amortização", 50.0),
-            # DFC reports dividends as cash outflows (negative). The spider
-            # must take abs() before feeding the calculator.
             _statement("6.03.01", "Dividendos Pagos", -60.0),
         ],
     )
@@ -73,7 +71,6 @@ def _synthetic_year() -> CVMYearData:
 def _spider() -> CVMSpider:
     spider = CVMSpider(ticker_to_cvm_code={"FLOW3": CVM_CODE})
     year_data = _synthetic_year()
-    # Pre-populate the year cache so the spider doesn't try to hit the network.
     for y in range(datetime.now().year - 6, datetime.now().year + 1):
         spider._dfp_cache[y] = year_data
         spider._itr_cache[y] = None
@@ -81,9 +78,6 @@ def _spider() -> CVMSpider:
 
 
 def _result_with_price() -> CrawlResult:
-    # market_cap is no longer supplied by the B3 spider; shares_outstanding
-    # carries the same information (and is read from a documented yfinance
-    # API). With shares=100 and price=20, market_cap is derived as 2_000.
     return CrawlResult(
         symbol="FLOW3",
         shares_outstanding=100.0,
@@ -98,20 +92,13 @@ async def test_cvm_spider_populates_universal_indicators():
 
     await spider.enrich(result)
 
-    # EPS = 150 / 100 = 1.5; P/L = 20 / 1.5
     assert result.eps == 1.5
     assert result.p_l is not None and result.p_l > 0
-    # BVPS = 1000 / 100 = 10; P/VP = 2
     assert result.p_vp == 2.0
-    # ROE = 150 / 1000 = 15%
     assert result.roe == 15.0
-    # Net margin = 150 / 1000 = 15%
     assert result.net_margin == 15.0
-    # Net debt / EBITDA = (300 - 150) / (250 + 50) = 0.5
     assert result.liquid_debt_ebitda == 0.5
-    # Debt/Equity = 300/1000 = 0.3
     assert result.debt_to_equity == 0.3
-    # Market cap = price * shares = 20 * 100 = 2000
     assert result.market_cap == 2_000.0
 
 
@@ -148,9 +135,8 @@ async def test_cvm_spider_overrides_preexisting_values():
     """
     spider = _spider()
     result = _result_with_price()
-    result.p_l = 99.0  # pretend a stale value was left over
+    result.p_l = 99.0
     await spider.enrich(result)
-    # CVM-derived value: price/EPS = 20/1.5 ≈ 13.33; definitely not 99.
     assert result.p_l is not None and result.p_l != 99.0
     assert result.p_l < 20.0
 
@@ -183,13 +169,29 @@ async def test_cvm_spider_resolves_unknown_ticker_via_brapi(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_cvm_spider_baked_in_seed_survives_cad_outage(monkeypatch):
+    """When ``dados.cvm.gov.br`` is unreachable, the CAD CSV download fails
+    and ``_cnpj_to_cd_cvm`` is empty. The baked-in ``TICKER_TO_CD_CVM`` seed
+    must still allow blue chips (PETR4, VALE3, ...) to resolve so that
+    fundamentals continue to be computed in degraded mode.
+    """
+    spider = CVMSpider(ticker_to_cvm_code=None)
+    spider._cnpj_to_cd_cvm = {}
+    monkeypatch.setattr(spider.dataset_service, "get_cad", lambda: None)
+
+    index = spider._load_ticker_index()
+
+    assert index.get("PETR4") == "9512"
+    assert index.get("VALE3") == "4170"
+    assert spider.get_cvm_code("PETR4") == "9512"
+
+
+@pytest.mark.asyncio
 async def test_cvm_spider_resolves_ticker_with_sa_suffix():
     """Ensures that tickers with a .SA suffix (common from B3/yfinance)
     are properly stripped when mapping to CD_CVM, avoiding null fundamentals.
     """
     spider = _spider()
-    # The spider is seeded with "FLOW3" -> CVM_CODE
-    # We pass a CrawlResult with "FLOW3.SA"
     result = CrawlResult(
         symbol="FLOW3.SA",
         shares_outstanding=100.0,
@@ -198,6 +200,5 @@ async def test_cvm_spider_resolves_ticker_with_sa_suffix():
 
     await spider.enrich(result)
 
-    # If it resolves correctly, EPS and P/L should not be None
     assert result.eps == 1.5
     assert result.p_l is not None

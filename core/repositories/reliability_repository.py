@@ -1,10 +1,3 @@
-"""Queries for the CompanyReliability aggregate.
-
-Writes live in ``crawler/services/reliability_service.py`` because they
-require composing reliability scores from multiple sources — this repo only
-exposes lookups.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -36,7 +29,6 @@ class ReliabilityRepository:
     async def get_for_companies(
         self, company_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, CompanyReliability]:
-        """Bulk lookup leveraging the ``UNIQUE(company_id)`` constraint."""
         if not company_ids:
             return {}
         stmt = select(CompanyReliability).filter(CompanyReliability.company_id.in_(company_ids))

@@ -16,8 +16,6 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "stock_market_crawler_data"
 
-    # Kept small so parallel workers (e.g., GHA matrix chunks) stay within
-    # Supabase's global client cap.
     DB_POOL_SIZE: int = 2
     DB_MAX_OVERFLOW: int = 3
 
@@ -52,15 +50,11 @@ class Settings(BaseSettings):
         url = self.REDIS_URL
         if url == _DEFAULT_REDIS_URL and self.REDIS_HOST and self.REDIS_PASSWORD:
             url = f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        # Celery's redis backend refuses rediss:// without ssl_cert_reqs.
         if url.startswith("rediss://") and "ssl_cert_reqs" not in url:
             separator = "&" if "?" in url else "?"
             return f"{url}{separator}ssl_cert_reqs=CERT_REQUIRED"
         return url
 
-    # Cloudflare R2 S3 credentials are derived from the API token:
-    # access_key_id = first 32 hex chars of SHA-256(token); secret = token itself.
-    # See https://developers.cloudflare.com/r2/api/tokens/.
     R2_ACCOUNT_ID: str | None = None
     R2_API_TOKEN: str | None = None
     R2_BUCKET_RI_DOCS: str = "ri-docs"
@@ -83,8 +77,6 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
-    # Identity attributes exposed as OTel resource attrs and as serviceContext
-    # on every JSON log line. SERVICE_VERSION should be the git SHA in CI.
     LOG_FORMAT: Literal["human", "gcp"] = "human"
     SERVICE_NAME: str = "stock-market-crawler"
     SERVICE_VERSION: str = "dev"
@@ -93,11 +85,7 @@ class Settings(BaseSettings):
 
     OTEL_ENABLED: bool = False
     OTEL_EXPORTER: Literal["console", "otlp", "gcp"] = "console"
-    # Wrapped in ParentBased(TraceIdRatioBased). 0.05–0.10 in prod fits the
-    # 2.5M-span/month Cloud Trace free tier.
     OTEL_SAMPLE_RATIO: float = 1.0
-    # Redis instrumentation off by default because Celery broker polling would
-    # otherwise dominate span volume.
     OTEL_INSTRUMENT_REDIS: bool = False
 
     @field_validator("GCP_PROJECT_ID", mode="before")
@@ -107,8 +95,6 @@ class Settings(BaseSettings):
             return value
         return os.getenv("GOOGLE_CLOUD_PROJECT")
 
-    # When set, the crawler attaches an RFC 9110 `From:` header to outbound
-    # requests — the standard signal for "robot operator email".
     CRAWLER_CONTACT_EMAIL: str = ""
 
     CRAWLER_HTTP_PROXY: str | None = None
@@ -119,8 +105,6 @@ class Settings(BaseSettings):
     @field_validator("REDIS_URL", mode="before")
     @classmethod
     def _coerce_empty_redis_url(cls, value: str | None) -> str:
-        # GHA interpolates missing secrets as empty strings, which would
-        # otherwise override the default and flip Celery's broker to amqp://.
         if value is None or (isinstance(value, str) and not value.strip()):
             return _DEFAULT_REDIS_URL
         return value

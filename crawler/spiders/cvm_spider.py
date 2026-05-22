@@ -1,23 +1,3 @@
-"""Computes fundamental indicators from raw CVM open-data statements.
-
-This spider is the replacement for every proprietary fundamentals scraper
-that previously fed the ``Fundamental`` table. It reads the standardized
-statements that every B3-listed company files with the CVM (DFP for annual,
-ITR for quarterly), maps the universal account codes to line items, and
-defers every formula to :mod:`core.services.financial_calculator`.
-
-The line-item extraction is keyword + account-code resilient: CVM standard
-codes are stable (e.g. ``3.01`` is always Revenue), but companies in
-regulated industries (banks, insurers, utilities) sometimes shift codes by
-one level. We use a primary code match, falling back to a regex over the
-``DS_CONTA`` description for industry-agnostic robustness.
-
-Market data (current price, shares outstanding) is *not* derived from CVM —
-the spider expects it to be already populated on the ``CrawlResult`` by
-the upstream B3 price spider. Price + shares are facts (Lei 9.610/98 Art. 8º)
-that yfinance/B3 publish in real time.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -38,17 +18,11 @@ from .base_spider import BaseSpider
 
 @dataclass(frozen=True)
 class _AccountSpec:
-    """Locator for one line item: a primary CVM code + descriptive fallback regex."""
-
     statement: Statement
     code_prefix: str
     keywords: tuple[str, ...]
 
 
-# The account-code prefixes follow CVM Manual de Normas Contábeis (CPC 26).
-# Keywords are intentionally broad — they only fire as a fallback when the
-# numeric code is not present (typical for banks/insurers that file the
-# 4.x schedule instead of 3.x).
 _REVENUE = _AccountSpec("DRE", "3.01", ("receita liquida", "receitas de intermedi"))
 _GROSS_PROFIT = _AccountSpec("DRE", "3.03", ("resultado bruto",))
 _EBIT = _AccountSpec("DRE", "3.05", ("resultado antes do resultado financeiro",))
@@ -71,12 +45,6 @@ _SHORT_TERM_DEBT = _AccountSpec("BPP", "2.01.04", ("emprestimos e financiamentos
 _LONG_TERM_DEBT = _AccountSpec("BPP", "2.02.01", ("emprestimos e financiamentos",))
 _EQUITY = _AccountSpec("BPP", "2.03", ("patrimonio liquido",))
 
-# DFC line item for D&A (used to back EBITDA into EBIT + D&A when EBITDA is
-# not published explicitly — most non-financial CVM filers report only EBIT).
-
-# DFC_MI line for dividends and JCP paid to shareholders. Standard code
-# 6.03.01 (Distribuição de dividendos). Banks/insurers occasionally file
-# under 6.02.x — the fallback regex catches those plus JCP variants.
 _DIVIDENDS_PAID = _AccountSpec(
     "DFC_MI",
     "6.03.01",
@@ -108,8 +76,6 @@ def _derive_ebit(
 
 
 class CVMSpider(BaseSpider):
-    """Spider that derives fundamentals from raw CVM Dados Abertos statements."""
-
     BRAPI_QUOTE_URL = "https://brapi.dev/api/quote/{ticker}?modules=summaryProfile"
 
     def __init__(
@@ -130,14 +96,16 @@ class CVMSpider(BaseSpider):
         return result
 
     async def enrich(self, result: CrawlResult) -> None:
-        """Compute fundamentals in-place using the spider's already-populated price data."""
         await asyncio.to_thread(self._populate_fundamentals, result)
 
     def _populate_fundamentals(self, result: CrawlResult) -> None:
         cvm_code = self.get_cvm_code(result.symbol)
         if cvm_code is None:
-            logger.warning(
-                f"CVMSpider: no CD_CVM mapping for {result.symbol}; skipping fundamentals"
+            index = self._ticker_index or {}
+            logger.error(
+                f"CVMSpider: skipping fundamentals ticker={result.symbol} "
+                f"reason=cd_cvm_unresolved index_size={len(index)} "
+                f"cad_loaded={bool(self._cnpj_to_cd_cvm)}"
             )
             return
 
@@ -148,20 +116,12 @@ class CVMSpider(BaseSpider):
 
         indicators = compute_all(raw)
 
-        # CVM is the authoritative source for every numeric indicator. The B3
-        # spider no longer writes these fields — it only feeds prices + shares.
-        # Whatever yfinance reports lives separately in
-        # `result.yahoo_info_indicators` and is later persisted by the
-        # ReconciliationService for QA / ML drift modelling.
         result.p_l = indicators.p_l
         result.p_vp = indicators.p_vp
         result.ev_ebitda = indicators.ev_ebitda
         result.roe = indicators.roe
         result.roic = indicators.roic
         result.net_margin = indicators.net_margin
-        # ``0.0`` preserves the historical semantics of "no dividends paid"
-        # (distinct from "data missing"); downstream consumers rely on this
-        # zero value, e.g. crawler_engine._calculate_advanced_metrics.
         result.dy = indicators.dy if indicators.dy is not None else 0.0
         result.liquid_debt_ebitda = indicators.net_debt_ebitda
         result.debt_to_equity = indicators.debt_to_equity
@@ -170,9 +130,6 @@ class CVMSpider(BaseSpider):
         result.valuation_graham = indicators.valuation_graham
         result.valuation_bazin = indicators.valuation_bazin
 
-        # Growth metrics derived from a multi-year DFP window. Falling back to
-        # None when CVM history is shorter than the requested window keeps
-        # behaviour identical to the previous null-tolerant pipeline.
         result.cagr_revenue_5y = self._cagr_for(cvm_code, "DRE", _REVENUE, years=5)
         result.cagr_profit_5y = self._cagr_for(cvm_code, "DRE", _NET_INCOME, years=5)
 
@@ -192,39 +149,33 @@ class CVMSpider(BaseSpider):
         return resolved
 
     def _load_ticker_index(self) -> dict[str, str]:
-        """Build the seed ticker → CD_CVM map from the curated CNPJ list.
-
-        CAD doesn't carry the B3 ticker, so the seed mapping is bootstrapped
-        from ``CNPJ_TO_TICKER`` and CAD's CNPJ column. Tickers not in the seed
-        are resolved on demand by :meth:`_resolve_via_brapi` and cached back
-        into this index.
-        """
         if self._ticker_index is not None:
             return self._ticker_index
-        cad = self._get_cad_normalised()
-        if cad is None:
-            self._ticker_index = {}
-            return self._ticker_index
 
-        from core.services.cnpj_map import CNPJ_TO_TICKER
+        from core.services.cnpj_map import CNPJ_TO_TICKER, TICKER_TO_CD_CVM
 
-        index: dict[str, str] = {}
+        index: dict[str, str] = {
+            ticker.upper(): cd_cvm for ticker, cd_cvm in TICKER_TO_CD_CVM.items()
+        }
+
+        cad_map = self._get_cad_normalised() or {}
         for cnpj_digits, ticker in CNPJ_TO_TICKER.items():
             stripped = cnpj_digits.rstrip("A")
-            cd_cvm = self._cnpj_to_cd_cvm.get(stripped) if self._cnpj_to_cd_cvm else None
+            cd_cvm = cad_map.get(stripped)
             if cd_cvm is not None:
-                index[ticker.upper()] = cd_cvm
+                index.setdefault(ticker.upper(), cd_cvm)
+
+        if not index:
+            logger.error(
+                "CVMSpider: ticker index is empty — both baked-in seed and CAD "
+                "lookup produced no entries. Every ticker will fail CD_CVM "
+                "resolution; check egress to dados.cvm.gov.br."
+            )
 
         self._ticker_index = index
         return index
 
     def _get_cad_normalised(self):
-        """Lazy-load CAD and cache the CNPJ→CD_CVM lookup table.
-
-        The CAD CSV is the bridge between Brapi-reported CNPJs and the CVM
-        ``CD_CVM`` that every statement is keyed by. Caching the inverted
-        map avoids re-scanning the (~50k-row) DataFrame on every Brapi hit.
-        """
         if self._cnpj_to_cd_cvm is not None:
             return self._cnpj_to_cd_cvm
         cad = self.dataset_service.get_cad()
@@ -239,13 +190,6 @@ class CVMSpider(BaseSpider):
         return self._cnpj_to_cd_cvm
 
     def _resolve_via_brapi(self, ticker: str) -> str | None:
-        """Resolve a ticker→CD_CVM by querying Brapi's summaryProfile module.
-
-        Brapi's free quote endpoint omits CNPJ, but the ``summaryProfile``
-        module exposes it. We pull only that field and map back through
-        CAD. Failures (rate limit, missing field, network) return None and
-        the ticker is marked unresolvable for the lifetime of the spider.
-        """
         url = self.BRAPI_QUOTE_URL.format(ticker=ticker)
         try:
             response = self.dataset_service.request_manager.get(url, timeout=15)
@@ -287,13 +231,6 @@ class CVMSpider(BaseSpider):
     def _build_raw_financials(
         self, cvm_code: str, year: int, result: CrawlResult
     ) -> RawFinancials | None:
-        """Assemble the raw-line-item bag the calculator expects.
-
-        Strategy:
-        * Income-statement items prefer the latest ITR-derived trailing-twelve-months
-          window. When ITR isn't available we fall back to the latest DFP annual.
-        * Balance-sheet items use the latest available period (ITR or DFP).
-        """
         dfp = None
         annual_row = None
         for offset in range(6):
@@ -317,9 +254,10 @@ class CVMSpider(BaseSpider):
                     break
 
         if dfp is None or annual_row is None:
-            logger.warning(
-                f"CVMSpider: no DFP for {cvm_code} in the last 6 years (from {year}); "
-                "skipping fundamentals"
+            logger.error(
+                f"CVMSpider: skipping fundamentals cvm_code={cvm_code} "
+                f"ticker={result.symbol} reason=no_dfp_in_window "
+                f"years_tried={year}..{year - 5}"
             )
             return None
 
@@ -331,9 +269,6 @@ class CVMSpider(BaseSpider):
             bs_row = annual_row
 
         latest_price = result.prices[-1].close if result.prices else None
-        # Prefer the documented yfinance get_shares_full() value supplied by
-        # the B3 spider; fall back to inferring from market_cap when shares
-        # are unavailable (e.g. yfinance outage).
         shares_outstanding = result.shares_outstanding or self._infer_shares(result)
 
         net_income = self._extract_ttm(cvm_code, _NET_INCOME, itr, itr_row, dfp, annual_row)
@@ -377,7 +312,6 @@ class CVMSpider(BaseSpider):
 
     @staticmethod
     def _latest_annual_row(year_data: CVMYearData, cvm_code: str) -> datetime | None:
-        """Return the most recent DT_REFER for a given company within the year package."""
         for df in year_data.statements.values():
             if "CD_CVM" not in df.columns or "DT_REFER" not in df.columns:
                 continue
@@ -396,11 +330,6 @@ class CVMSpider(BaseSpider):
         dfp: CVMYearData | None,
         annual_row: datetime | None,
     ) -> float | None:
-        """Extract a TTM (Trailing Twelve Months) value for income/cash flow statements.
-
-        If ITR is newer than DFP, we calculate:
-        TTM = ITR(Current) + DFP(Previous) - ITR(Previous)
-        """
         if itr is None or itr_row is None or dfp is None or annual_row is None:
             return self._extract(dfp, cvm_code, spec, annual_row) if dfp else None
 
@@ -444,7 +373,6 @@ class CVMSpider(BaseSpider):
         dfp: CVMYearData | None,
         annual_row: datetime | None,
     ) -> float | None:
-        """Extract a TTM value for depreciation."""
         if itr is None or itr_row is None or dfp is None or annual_row is None:
             return self._extract_depreciation(dfp, cvm_code, annual_row) if dfp else None
         if itr_row <= annual_row:
@@ -513,9 +441,6 @@ class CVMSpider(BaseSpider):
         if slice_.empty:
             return None
 
-        # Prefer the row whose CD_CONTA matches the spec prefix exactly (parent
-        # row in the chart of accounts) over any sub-account that bubbled up
-        # via the fallback regex.
         if "CD_CONTA" in slice_.columns:
             parent = slice_.loc[slice_["CD_CONTA"].astype(str) == spec.code_prefix]
             if not parent.empty:
@@ -595,7 +520,6 @@ class CVMSpider(BaseSpider):
 
     @staticmethod
     def _infer_shares(result: CrawlResult) -> float | None:
-        """Derive shares outstanding from already-populated market_cap and price."""
         mcap = result.market_cap
         if mcap is None and result.yahoo_info_indicators:
             mcap = result.yahoo_info_indicators.get("marketCap")

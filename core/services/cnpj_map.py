@@ -1,8 +1,9 @@
-"""Static CNPJ -> ticker mapping for resolving CVM filings.
+TICKER_TO_CD_CVM: dict[str, str] = {
+    "PETR4": "9512",
+    "PETR3": "9512",
+    "VALE3": "4170",
+}
 
-Used by RISpider while the project doesn't store CNPJ on the Company table.
-Covers the most relevant Brazilian blue chips; extend as needed.
-"""
 
 CNPJ_TO_TICKER: dict[str, str] = {
     "33000167000101": "PETR4",
@@ -30,7 +31,6 @@ CNPJ_TO_TICKER: dict[str, str] = {
 
 
 def resolve_ticker(cnpj: str) -> str | None:
-    """Normalize CNPJ (strip non-digits) and return ticker if mapped."""
     if not cnpj:
         return None
     digits = "".join(ch for ch in str(cnpj) if ch.isdigit())
@@ -38,5 +38,4 @@ def resolve_ticker(cnpj: str) -> str | None:
 
 
 def watched_cnpjs() -> set[str]:
-    """Set of CNPJs (digits only) the spider should track."""
     return {cnpj.rstrip("A") for cnpj in CNPJ_TO_TICKER}

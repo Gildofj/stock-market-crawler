@@ -32,10 +32,10 @@ def _seeded_registry() -> SourceRegistry:
             tos_url="https://www.infomoney.com.br/termos-de-uso/",
             license_label="rss-fair-use",
             risk_tier="medium",
-            enabled=False,  # Simulates a takedown response.
+            enabled=False,
         ),
     }
-    registry._loaded_at = float("inf")  # Skip refresh.
+    registry._loaded_at = float("inf")
     return registry
 
 
@@ -51,7 +51,6 @@ async def test_get_returns_seeded_record():
 async def test_get_raises_for_unknown_slug(monkeypatch):
     registry = _seeded_registry()
 
-    # Block refresh from masking the miss by also blanking _by_slug after.
     async def _no_refresh(*a, **kw):
         return None
 
@@ -98,7 +97,6 @@ def test_slug_for_url_recognizes_known_hosts():
 @pytest.mark.asyncio
 async def test_all_enabled_sorts_by_display_name():
     registry = _seeded_registry()
-    # Re-enable infomoney to test ordering with multiple entries.
     registry._by_slug["infomoney"] = SourceRecord(
         **{**registry._by_slug["infomoney"].__dict__, "enabled": True}
     )

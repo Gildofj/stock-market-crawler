@@ -25,12 +25,10 @@ def override_db(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_search_includes_id(db_session: AsyncSession, override_db):
-    # Seed data
     c1 = Company(symbol="PETR4", name="Petrobras PN")
     db_session.add(c1)
     await db_session.commit()
 
-    # Test search endpoint
     response = client.get("/api/v1/companies/search?q=PETR4")
     assert response.status_code == 200
     data = response.json()
@@ -41,7 +39,6 @@ async def test_search_includes_id(db_session: AsyncSession, override_db):
 
 @pytest.mark.asyncio
 async def test_get_prices_by_id(db_session: AsyncSession, override_db):
-    # Seed data
     c1 = Company(symbol="PETR4", name="Petrobras PN")
     db_session.add(c1)
     await db_session.flush()
@@ -50,7 +47,6 @@ async def test_get_prices_by_id(db_session: AsyncSession, override_db):
     db_session.add(p1)
     await db_session.commit()
 
-    # Test GET /prices/{uuid}
     response = client.get(f"/api/v1/prices/{c1.id}")
     assert response.status_code == 200
     data = response.json()
@@ -60,7 +56,6 @@ async def test_get_prices_by_id(db_session: AsyncSession, override_db):
 
 @pytest.mark.asyncio
 async def test_get_fundamentals_by_id(db_session: AsyncSession, override_db):
-    # Seed data
     c1 = Company(symbol="VALE3", name="Vale ON")
     db_session.add(c1)
     await db_session.flush()
@@ -74,7 +69,6 @@ async def test_get_fundamentals_by_id(db_session: AsyncSession, override_db):
     db_session.add(f1)
     await db_session.commit()
 
-    # Test GET /fundamentals/{uuid}
     response = client.get(f"/api/v1/fundamentals/{c1.id}")
     assert response.status_code == 200
     data = response.json()

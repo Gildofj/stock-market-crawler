@@ -36,14 +36,6 @@ async def get_news_by_company_id(
     lake: LakeServiceDep,
     limit: Annotated[int, Query(gt=0, le=100)] = 10,
 ) -> list[NewsItemSchema]:
-    """
-    Retrieves the most recent news items for a specific company.
-
-    Returns a list of news containing:
-    - **Source**: Feed origin (e.g., InfoMoney, Valor).
-    - **Sentiment**: AI-classified sentiment (Bullish, Bearish, Neutral).
-    - **Published At**: UTC timestamp of publication.
-    """
     company = await repo.get(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")

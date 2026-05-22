@@ -46,7 +46,6 @@ async def get_lake_snapshot(
     fundamental_repo: FundamentalRepoDep,
     lake: LakeServiceDep,
 ):
-    """Returns news, RI documents, fundamentals and cached AI insight for a ticker."""
     symbol_u = symbol.upper()
 
     company = await repo.get_by_symbol(symbol_u)
@@ -110,11 +109,6 @@ async def upsert_lake_insight(
     lake: LakeServiceDep,
     ttl_hours: int = Query(6, gt=0, le=72),
 ):
-    """Allows the AI Gateway to push a fresh insight payload into the cache.
-
-    Protected by the API key only (no premium gating) so trusted backend
-    services can refresh the cache.
-    """
     payload_with_ticker = payload.model_copy(update={"ticker": symbol.upper()})
     cache_row = await lake.upsert_insight_cache(
         symbol.upper(), payload_with_ticker, ttl_hours=ttl_hours

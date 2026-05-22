@@ -129,12 +129,11 @@ async def test_score_profit_no_data(service, mocker):
 @pytest.mark.asyncio
 async def test_score_profit_all_profitable_positive_cagr(service, mocker):
     mock_result = mocker.Mock()
-    # scalars().first() returns the column value (float)
     mock_result.scalars.return_value.first.return_value = 12.5
     service.db.execute.return_value = mock_result
 
     result = await service._score_profit_consistency(4, 4, uuid.uuid4())
-    assert result == 100  # base=80 + bonus=20
+    assert result == 100
 
 
 @pytest.mark.asyncio
@@ -144,7 +143,7 @@ async def test_score_profit_all_profitable_negative_cagr(service, mocker):
     service.db.execute.return_value = mock_result
 
     result = await service._score_profit_consistency(4, 4, uuid.uuid4())
-    assert result == 80  # base=80, no bonus
+    assert result == 80
 
 
 @pytest.mark.asyncio
@@ -164,7 +163,7 @@ async def test_score_debt_compliant_no_history(service, mocker):
     service.db.execute.return_value = mock_result
 
     result = await service._score_debt_control(0, 0, uuid.uuid4())
-    assert result == 80  # base=80, no history bonus
+    assert result == 80
 
 
 @pytest.mark.asyncio
@@ -193,9 +192,8 @@ async def test_score_debt_with_history_bonus(service, mocker):
     mock_result.scalars.return_value.first.return_value = 1.5
     service.db.execute.return_value = mock_result
 
-    # 3 out of 4 snapshots compliant → bonus = round(3/4 * 20) = 15
     result = await service._score_debt_control(3, 4, uuid.uuid4())
-    assert result == 95  # 80 + 15
+    assert result == 95
 
 
 @pytest.mark.asyncio

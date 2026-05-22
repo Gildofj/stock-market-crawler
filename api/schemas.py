@@ -33,35 +33,21 @@ class StockPriceRead(BaseModel):
 
 
 class FundamentalRead(BaseModel):
-    # Valuation
     p_l: Decimal | None = None
     p_vp: Decimal | None = None
     ev_ebitda: Decimal | None = None
-
-    # Profitability
     roe: Decimal | None = None
     roic: Decimal | None = None
     net_margin: Decimal | None = None
-
-    # Dividends
     dy: Decimal | None = None
-
-    # Debt
     liquid_debt_ebitda: Decimal | None = None
-
-    # Growth
     cagr_revenue_5y: Decimal | None = None
     cagr_profit_5y: Decimal | None = None
-
-    # New Fields for AI Analysis
     debt_to_equity: Decimal | None = None
     market_cap: Decimal | None = None
     eps: Decimal | None = None
-
-    # Calculated
     valuation_graham: Decimal | None = None
     valuation_bazin: Decimal | None = None
-
     quality_score: Decimal | None = None
     collected_at: datetime
 
@@ -94,13 +80,6 @@ class TickerDetail(BaseModel):
 
 
 class PortfolioSnapshotItem(BaseModel):
-    """One entry in the batch portfolio snapshot.
-
-    `found=False` means the symbol was not present in the companies table.
-    All optional sections are returned as null so callers can render a
-    placeholder without re-parsing an error envelope.
-    """
-
     symbol: str
     found: bool
     company: CompanyRead | None = None

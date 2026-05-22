@@ -34,7 +34,7 @@ class _FakeLogoService:
 @pytest.mark.asyncio
 async def test_sector_filled_from_cvm_when_yfinance_missing():
     cvm = _FakeCvmSpider(codes={"PETR4": "9512"}, sectors={"9512": "Petróleo, Gás e Energia"})
-    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type]
+    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type] - Motivo: Mock incompatível
     result = CrawlResult(symbol="PETR4", sector=None)
 
     await resolver.apply(result)
@@ -45,7 +45,7 @@ async def test_sector_filled_from_cvm_when_yfinance_missing():
 @pytest.mark.asyncio
 async def test_yfinance_sector_is_not_overwritten_by_cvm():
     cvm = _FakeCvmSpider(codes={"PETR4": "9512"}, sectors={"9512": "Petróleo"})
-    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type]
+    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type] - Motivo: Mock incompatível
     result = CrawlResult(symbol="PETR4", sector="Energy")
 
     await resolver.apply(result)
@@ -56,7 +56,7 @@ async def test_yfinance_sector_is_not_overwritten_by_cvm():
 @pytest.mark.asyncio
 async def test_override_fills_fii_metadata_when_no_cvm_match():
     cvm = _FakeCvmSpider(codes={}, sectors={})
-    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type]
+    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type] - Motivo: Mock incompatível
     result = CrawlResult(symbol="HGLG11")
 
     await resolver.apply(result)
@@ -70,7 +70,7 @@ async def test_override_fills_fii_metadata_when_no_cvm_match():
 async def test_override_logo_takes_priority_over_logo_service():
     cvm = _FakeCvmSpider(codes={}, sectors={})
     logo = _FakeLogoService(logo="https://logo.clearbit.com/apple.com")
-    resolver = MetadataResolver(cvm, logo)  # type: ignore[arg-type]
+    resolver = MetadataResolver(cvm, logo)  # type: ignore[arg-type] - Motivo: Mock incompatível
     result = CrawlResult(symbol="AAPL34", website="https://apple.com")
 
     await resolver.apply(result)
@@ -82,7 +82,7 @@ async def test_override_logo_takes_priority_over_logo_service():
 async def test_logo_service_invoked_when_no_override():
     cvm = _FakeCvmSpider(codes={}, sectors={})
     logo = _FakeLogoService(logo="https://logo.clearbit.com/petrobras.com.br")
-    resolver = MetadataResolver(cvm, logo)  # type: ignore[arg-type]
+    resolver = MetadataResolver(cvm, logo)  # type: ignore[arg-type] - Motivo: Mock incompatível
     result = CrawlResult(symbol="PETR4", website="https://petrobras.com.br")
 
     await resolver.apply(result)
@@ -98,7 +98,7 @@ async def test_logo_service_failure_is_swallowed():
             raise RuntimeError("boom")
 
     cvm = _FakeCvmSpider(codes={}, sectors={})
-    resolver = MetadataResolver(cvm, _ExplodingLogo())  # type: ignore[arg-type]
+    resolver = MetadataResolver(cvm, _ExplodingLogo())  # type: ignore[arg-type] - Motivo: Mock incompatível
     result = CrawlResult(symbol="PETR4", website="https://petrobras.com.br")
 
     await resolver.apply(result)
@@ -116,8 +116,8 @@ async def test_sector_map_is_cached_across_calls():
             return {"9512": "Petróleo"}
 
     cvm = _FakeCvmSpider(codes={"PETR4": "9512"}, sectors={})
-    cvm.dataset_service = _CountingDataset()  # type: ignore[assignment]
-    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type]
+    cvm.dataset_service = _CountingDataset()  # type: ignore[assignment] - Motivo: Injeção mock
+    resolver = MetadataResolver(cvm, _FakeLogoService())  # type: ignore[arg-type] - Motivo: Mock incompatível
 
     await resolver.apply(CrawlResult(symbol="PETR4"))
     await resolver.apply(CrawlResult(symbol="PETR4"))

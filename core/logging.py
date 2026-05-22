@@ -1,9 +1,3 @@
-"""Structured logging with two output modes selected via ``LOG_FORMAT``:
-
-* ``human`` — colored text on stderr (local dev).
-* ``gcp``   — newline-delimited JSON on stdout for Google Cloud Logging.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -110,7 +104,6 @@ def _gcp_sink(message: Any) -> None:
         payload["exception"] = "".join(
             tb_module.format_exception(exc.type, exc.value, exc.traceback)
         )
-        # Marks the entry for Cloud Error Reporting auto-grouping.
         payload["@type"] = _ERROR_REPORTING_TYPE
 
     sys.stdout.write(orjson.dumps(payload).decode() + "\n")
@@ -118,8 +111,6 @@ def _gcp_sink(message: Any) -> None:
 
 
 class _InterceptHandler(logging.Handler):
-    """Routes stdlib logging records (uvicorn, sqlalchemy, ...) through loguru."""
-
     def emit(self, record: logging.LogRecord) -> None:
         try:
             level: str | int = logger.level(record.levelname).name
@@ -135,7 +126,6 @@ class _InterceptHandler(logging.Handler):
 
 
 def setup_logging() -> None:
-    """Idempotent across processes and re-imports."""
     global _CONFIGURED
     if _CONFIGURED:
         return

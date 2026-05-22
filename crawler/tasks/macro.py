@@ -25,8 +25,6 @@ def crawl_macro_data_task(self):
     async def _run():
         db = session_local()
         try:
-            # MacroSpider is currently sync but its constructor or methods might
-            # interact with the database (which is now async).
             macro_spider = MacroSpider(request_manager)
             await macro_spider.crawl_macro_indicators()
             task_logger.info("Macro data collection completed.")

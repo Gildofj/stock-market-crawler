@@ -9,22 +9,6 @@ from .request_manager import RequestManager
 
 
 class TickerService:
-    """Discovers the universe of active B3 tickers.
-
-    Sources, in priority order:
-
-    1. Brapi public ``/available`` endpoint — JSON list maintained by the
-       open-source brapi project. Lowest-friction, no scraping involved.
-    2. B3's own ``InstrumentsConsolidated`` CSV — the exchange-published
-       file listing every traded instrument. Authoritative, no third-party
-       middleman, no proprietary indicators.
-    3. CVM CAD registry — every public company registered with the
-       regulator; not a ticker list per se, but a deterministic backstop
-       that proves the company exists before we ever try to price it.
-    4. Blue-chip fallback baked into the codebase — only used when *every*
-       network source is unreachable (typically inside CI).
-    """
-
     BRAPI_URL = "https://brapi.dev/api/available"
     B3_INSTRUMENTS_URL = "https://arquivos.b3.com.br/apinegocios/tickercsv"
 
@@ -143,12 +127,6 @@ class TickerService:
         return data.get("stocks", [])
 
     def _fetch_from_b3_instruments(self) -> list[str]:
-        """Pull the B3-published consolidated ticker CSV.
-
-        The file is a comma-separated dump where the first column is the
-        instrument code. Only equity tickers (4–6 alphanumeric chars) are
-        retained downstream by ``get_all_tickers``.
-        """
         response = self.request_manager.get(self.B3_INSTRUMENTS_URL, timeout=30)
         response.raise_for_status()
         try:
@@ -161,13 +139,6 @@ class TickerService:
         return [str(v).strip() for v in df[first_col].dropna()]
 
     def _fetch_from_cvm_cad(self) -> list[str]:
-        """Last-resort registry-based ticker hint.
-
-        CAD doesn't carry the B3 ticker directly, so this only validates that
-        a company is registered. It returns the curated blue-chip list when
-        CAD is reachable — that gives us a "live data confirms registry"
-        signal without inventing tickers we have no way to verify.
-        """
         cad = self.dataset_service.get_cad()
         if cad is None or cad.empty:
             return []

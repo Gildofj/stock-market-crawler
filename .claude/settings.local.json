@@ -12,7 +12,9 @@
       "Bash(git stash *)",
       "PowerShell(uv run *)",
       "Bash(Select-Object -First 15)",
-      "WebFetch(domain:brapi.dev)"
+      "WebFetch(domain:brapi.dev)",
+      "Bash(git *)",
+      "Bash(grep -E \"\\\\.\\(py\\)$\")"
     ]
   }
 }

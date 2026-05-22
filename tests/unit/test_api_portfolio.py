@@ -90,9 +90,6 @@ async def _seed_news(
     return news
 
 
-# --- input validation -------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_snapshot_rejects_empty_symbols(override_db):
     response = client.get("/api/v1/portfolio/snapshot?symbols=")
@@ -117,9 +114,6 @@ async def test_snapshot_requires_api_key(override_db):
     bare_client = TestClient(app)
     response = bare_client.get("/api/v1/portfolio/snapshot?symbols=PETR4")
     assert response.status_code == 401
-
-
-# --- happy path -------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -162,8 +156,6 @@ async def test_snapshot_returns_all_sections_for_known_symbols(
     assert petr_item["reliability"]["reliability_grade"] == "AAA"
     assert len(petr_item["news"]) == 10
     titles = [n["title"] for n in petr_item["news"]]
-    # news are returned by published_at desc, and seed loop creates them with increasing offset.
-    # So index 0 is newest (PETR headline 0), index 9 is oldest (PETR headline 9).
     assert titles[0] == "PETR headline 0"
 
     assert vale_item["symbol"] == "VALE3"
@@ -262,9 +254,6 @@ async def test_snapshot_returns_only_latest_fundamental_per_company(
     assert response.json()["items"][0]["fundamentals"]["p_l"] == "4.20"
 
 
-# --- regression: query budget ----------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_snapshot_issues_constant_query_count(db_session: AsyncSession, override_db, engine):
     """N+1 regression net. The endpoint must issue exactly four bulk
@@ -283,7 +272,6 @@ async def test_snapshot_issues_constant_query_count(db_session: AsyncSession, ov
     def _record(conn, cursor, statement, params, context, executemany):
         captured.append(statement)
 
-    # engine is AsyncEngine, need to access the underlying sync engine for events
     sync_engine = engine.sync_engine
     event.listen(sync_engine, "before_cursor_execute", _record)
     try:

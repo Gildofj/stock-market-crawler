@@ -19,14 +19,12 @@ async def get_reliability_ranking(
     limit: int = Query(100, gt=0, le=500),
     grade: str | None = Query(None, description="Filter by grade: AAA, AA, A, B, C, D"),
 ):
-    """Returns companies ranked by reliability score (descending). Optionally filter by grade."""
     return await repo.get_ranking(limit=limit, grade_filter=grade)
 
 
 @router.get("/{symbol}", response_model=ReliabilityResponse)
 @cache(expire=1800, namespace="reliability:detail")
 async def get_company_reliability(symbol: str, repo: ReliabilityRepoDep):
-    """Returns the reliability score and grade for a specific company by ticker symbol."""
     record = await repo.get_by_symbol(symbol)
     if not record:
         raise HTTPException(

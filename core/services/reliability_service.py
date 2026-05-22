@@ -19,26 +19,10 @@ from core.services.reliability_config import (
 
 
 class ReliabilityService:
-    """
-    Computes the Company Reliability Ranking based on four weighted criteria:
-      1. Profit consistency   — 35% (yfinance annual net income + cagr_profit_5y proxy)
-      2. Debt control         — 30% (liquid_debt_ebitda current + historical snapshots)
-      3. TAG ALONG coverage   — 20% (derived from companies.segment B3 code)
-      4. Perennial sector     — 15% (keyword classification of companies.sector)
-    """
-
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
-
     async def compute_and_save(self, company_id: uuid.UUID) -> CompanyReliability | None:
-        """
-        Main entry point. Orchestrates scoring and upserts one row per company.
-        Must be called after the crawl has already persisted fresh Fundamental data.
-        """
         stmt_company = select(Company).filter(Company.id == company_id)
         result_company = await self.db.execute(stmt_company)
         company = result_company.scalars().first()
@@ -84,17 +68,7 @@ class ReliabilityService:
             reliability_grade=reliability_grade,
         )
 
-    # ------------------------------------------------------------------
-    # Data fetching
-    # ------------------------------------------------------------------
-
     def _fetch_profit_history(self, symbol: str) -> tuple[int, int]:
-        """
-        Queries yfinance for annual net income rows.
-        Returns (profitable_years_count, total_years_available).
-        Typically provides 4 years of data for B3 tickers.
-        Returns (0, 0) on any failure — caller applies conservative default.
-        """
         yf_symbol = f"{symbol}.SA" if not symbol.endswith(".SA") else symbol
         try:
             ticker = yf.Ticker(yf_symbol)
@@ -120,12 +94,6 @@ class ReliabilityService:
             return 0, 0
 
     async def _query_debt_history(self, company_id: uuid.UUID) -> tuple[int, int]:
-        """
-        Returns (compliant_count, total_count) across all fundamentals snapshots.
-        Compliant = liquid_debt_ebitda <= 2.0. Null values are excluded from both counts.
-        Financial companies (banks) often have null/inapplicable ratios — they are
-        handled by _score_debt_control returning a neutral score when current is None.
-        """
         stmt = (
             select(Fundamental.liquid_debt_ebitda)
             .filter(Fundamental.company_id == company_id)
@@ -140,20 +108,12 @@ class ReliabilityService:
         compliant = sum(1 for (v,) in records if float(v) <= 2.0)
         return compliant, total
 
-    # ------------------------------------------------------------------
-    # Derivation helpers
-    # ------------------------------------------------------------------
-
     def _derive_tag_along(self, segment: str | None) -> int:
         if not segment:
             return TAG_ALONG_DEFAULT
         return TAG_ALONG_BY_SEGMENT.get(segment.strip().upper(), TAG_ALONG_DEFAULT)
 
     def _classify_sector(self, sector: str | None) -> bool | None:
-        """
-        Returns True (perennial), False (cyclical), or None (unclassified).
-        Perennial takes precedence on keyword conflict.
-        """
         if not sector:
             return None
         sector_lower = sector.lower()
@@ -165,20 +125,12 @@ class ReliabilityService:
                 return False
         return None
 
-    # ------------------------------------------------------------------
-    # Scoring algorithms
-    # ------------------------------------------------------------------
-
     async def _score_profit_consistency(
         self,
         profitable_years: int,
         max_years: int,
         company_id: uuid.UUID,
     ) -> int:
-        """
-        Base score: (profitable_years / max_years) * 80
-        Bonus: +20 if latest cagr_profit_5y > 0 (proxy for missing years beyond yfinance window)
-        """
         if max_years == 0:
             return 0
 
@@ -204,11 +156,6 @@ class ReliabilityService:
         total_snapshots: int,
         company_id: uuid.UUID,
     ) -> int:
-        """
-        Primary: current liquid_debt_ebitda ratio → 80/40/0 pts
-        Consistency bonus: (compliant/total) * 20 pts when we have ≥2 historical snapshots
-        Returns 50 (neutral) when ratio is null — avoids penalising financial companies.
-        """
         stmt = (
             select(Fundamental.liquid_debt_ebitda)
             .filter(Fundamental.company_id == company_id)
@@ -252,10 +199,6 @@ class ReliabilityService:
             if score >= threshold:
                 return grade
         return "D"
-
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
 
     async def _upsert(self, company_id: uuid.UUID, **fields: object) -> CompanyReliability | None:
         stmt = select(CompanyReliability).filter(CompanyReliability.company_id == company_id)

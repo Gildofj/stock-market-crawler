@@ -36,8 +36,6 @@ class _FakeSession:
         self.bind = type("obj", (object,), {"dialect": type("obj", (object,), {"name": "sqlite"})})
 
     def add_all(self, objects: Iterable[object]) -> None:
-        # The service only ever passes reconciliation rows; narrow at the
-        # test boundary so assertions can introspect typed attributes.
         for obj in objects:
             assert isinstance(obj, LakeIndicatorReconciliation)
             self.saved.append(obj)
@@ -64,7 +62,7 @@ def _result(**indicators) -> CrawlResult:
 @pytest.mark.asyncio
 async def test_emit_returns_zero_when_no_snapshot():
     session = _FakeSession()
-    result = _result(p_l=10.0)  # CVM has data, but yahoo did not report
+    result = _result(p_l=10.0)
 
     written = await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
@@ -110,7 +108,6 @@ async def test_emit_flags_dy_outlier_when_yahoo_returns_percent():
     row = next(r for r in session.saved if r.indicator == "dy")
     assert row.source_value_normalised == pytest.approx(500.0)
     assert row.is_outlier is True
-    # delta = (500 - 5) / 5 = 99
     assert row.delta_pct == pytest.approx(99.0)
 
 
@@ -138,7 +135,6 @@ async def test_emit_handles_missing_cvm_value():
     doesn't pollute outlier dashboards.
     """
     session = _FakeSession()
-    # No cvm_value: don't set p_l on the result
     result = _result(snapshot={"forwardPE": 18.0})
 
     await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
@@ -156,14 +152,13 @@ async def test_emit_handles_zero_cvm_value():
     but a non-zero yahoo value is still suspicious — flag it.
     """
     session = _FakeSession()
-    # dy=0.0 means "no dividends paid" by project convention.
     result = _result(dy=0.0, snapshot={"dividendYield": 0.04})
 
     await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "dy")
     assert row.delta_abs == pytest.approx(4.0)
-    assert row.delta_pct is None  # division by zero avoided
+    assert row.delta_pct is None
     assert row.is_outlier is True
 
 
@@ -171,7 +166,6 @@ async def test_emit_handles_zero_cvm_value():
 async def test_emit_within_threshold_not_flagged():
     """A delta below the configured threshold is recorded but not flagged."""
     session = _FakeSession()
-    # delta = (10.5 - 10) / 10 = 0.05 = 5% < threshold (20%)
     result = _result(p_l=10.0, snapshot={"forwardPE": 10.5})
 
     await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
@@ -203,7 +197,6 @@ async def test_emit_multiple_rows_in_one_run():
     written = await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     indicators_seen = [row.indicator for row in session.saved]
-    # 2 rows for p_l (forwardPE, trailingPE), 1 each for p_vp, dy, market_cap
     assert written == 5
     assert indicators_seen.count("p_l") == 2
     assert "p_vp" in indicators_seen

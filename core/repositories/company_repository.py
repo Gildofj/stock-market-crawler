@@ -1,5 +1,3 @@
-"""Persistence + queries for the Company aggregate."""
-
 from __future__ import annotations
 
 import uuid
@@ -28,20 +26,16 @@ class CompanyRepository:
         return result.scalars().first()
 
     async def get_many_by_symbols(self, symbols: list[str]) -> list[Company]:
-        """Bulk lookup for the batch portfolio snapshot endpoint."""
         if not symbols:
             return []
         result = await self.db.execute(select(Company).filter(Company.symbol.in_(symbols)))
         return list(result.scalars().all())
 
     async def get_all_symbols(self) -> set[str]:
-        """Every symbol persisted — used by spiders that need to detect
-        mentions of known tickers in free text."""
         result = await self.db.execute(select(Company.symbol))
         return set(result.scalars().all())
 
     async def get_existing_symbols(self, symbols: list[str]) -> set[str]:
-        """Subset of ``symbols`` already present — single round-trip."""
         if not symbols:
             return set()
         result = await self.db.execute(select(Company.symbol).filter(Company.symbol.in_(symbols)))
@@ -52,11 +46,6 @@ class CompanyRepository:
         return list(result.scalars().all())
 
     async def search(self, query: str, limit: int = 10) -> list[Company]:
-        """Symbol/name search with PostgreSQL trigram fuzzy matching when
-        available; falls back to plain ``ilike`` on SQLite (used in tests).
-
-        Ranking priority: exact symbol → substring → trigram similarity.
-        """
         is_postgres = self.db.bind.dialect.name == "postgresql"
 
         if is_postgres:
@@ -89,9 +78,6 @@ class CompanyRepository:
         return list(result.scalars().all())
 
     async def get_or_create(self, company_data: CompanySchema) -> Company:
-        """Returns the existing row or creates one. For metadata fields a
-        flaky upstream may forget (name, sector, logo_url, ...), a previously
-        populated value is never overwritten with None."""
         existing = await self.get_by_symbol(company_data.symbol)
 
         if existing is None:

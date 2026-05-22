@@ -21,20 +21,6 @@ from ..spiders.cvm_spider import CVMSpider
 
 
 class CrawlerEngine:
-    """Orchestrates the per-ticker fundamentals pipeline.
-
-    The engine talks to two clean-room data sources:
-
-    1. ``B3Spider`` (yfinance) — historical prices, current quote, market cap
-       and shares outstanding. Prices are facts (Lei 9.610/98 Art. 8º) and
-       carry no copyright exposure.
-    2. ``CVMSpider`` — raw standardized statements from CVM Dados Abertos.
-       Indicators (P/L, P/VP, ROE, ROIC, EV/EBITDA, margins, debt ratios,
-       Graham, Bazin) are computed locally from these line items using
-       :mod:`core.services.financial_calculator`, so we never depend on
-       proprietary methodologies maintained by third-party platforms.
-    """
-
     def __init__(
         self,
         db: AsyncSession,
@@ -66,7 +52,6 @@ class CrawlerEngine:
         )
 
     async def run_batch_async(self, symbols: list[str]) -> list[CrawlResult]:
-        """Run the price + fundamentals pipeline across a batch of tickers."""
         logger.info(f"Engine: Starting batch enrichment for {len(symbols)} tickers")
 
         results_dict = await self.b3_spider.crawl_batch_async(symbols)
@@ -103,7 +88,6 @@ class CrawlerEngine:
         await self.request_manager.close()
 
     def _calculate_advanced_metrics(self, result: CrawlResult) -> None:
-        """Compute Graham / Bazin fair-value targets and a quality score."""
         current_price = result.prices[-1].close if result.prices else None
         bvps = (
             current_price / result.p_vp
@@ -160,6 +144,19 @@ class CrawlerEngine:
         res = await self.company_repo.db.execute(stmt)
         self._source_ids = {row[0]: row[1] for row in res.all()}
 
+    _CORE_INDICATOR_FIELDS: tuple[str, ...] = (
+        "p_l",
+        "p_vp",
+        "ev_ebitda",
+        "roe",
+        "roic",
+        "net_margin",
+        "liquid_debt_ebitda",
+        "debt_to_equity",
+        "market_cap",
+        "eps",
+    )
+
     async def _save_to_db(self, result: CrawlResult) -> None:
         await self._ensure_source_ids()
 
@@ -187,31 +184,42 @@ class CrawlerEngine:
                 price.source_id = yfinance_id
             await self.price_repo.save_bulk(company_id, result.prices)
 
-        fundamental_schema = FundamentalSchema(
-            p_l=result.p_l,
-            p_vp=result.p_vp,
-            ev_ebitda=result.ev_ebitda,
-            roe=result.roe,
-            roic=result.roic,
-            net_margin=result.net_margin,
-            dy=result.dy,
-            liquid_debt_ebitda=result.liquid_debt_ebitda,
-            cagr_revenue_5y=result.cagr_revenue_5y,
-            cagr_profit_5y=result.cagr_profit_5y,
-            debt_to_equity=result.debt_to_equity,
-            market_cap=result.market_cap,
-            eps=result.eps,
-            valuation_graham=result.valuation_graham,
-            valuation_bazin=result.valuation_bazin,
-            quality_score=result.quality_score,
-            primary_source_id=result.primary_source_id,
-            contributing_sources=result.contributing_sources,
-            provenance=result.provenance,
-        )
-        await self.fundamental_repo.save(company_id, fundamental_schema)
+        populated = [f for f in self._CORE_INDICATOR_FIELDS if getattr(result, f) is not None]
+        if not populated:
+            logger.error(
+                "Engine: skipping fundamentals row for "
+                f"ticker={result.symbol} reason=no_fundamentals_computed "
+                f"indicators_populated=0 indicators_total={len(self._CORE_INDICATOR_FIELDS)}"
+            )
+        else:
+            fundamental_schema = FundamentalSchema(
+                p_l=result.p_l,
+                p_vp=result.p_vp,
+                ev_ebitda=result.ev_ebitda,
+                roe=result.roe,
+                roic=result.roic,
+                net_margin=result.net_margin,
+                dy=result.dy,
+                liquid_debt_ebitda=result.liquid_debt_ebitda,
+                cagr_revenue_5y=result.cagr_revenue_5y,
+                cagr_profit_5y=result.cagr_profit_5y,
+                debt_to_equity=result.debt_to_equity,
+                market_cap=result.market_cap,
+                eps=result.eps,
+                valuation_graham=result.valuation_graham,
+                valuation_bazin=result.valuation_bazin,
+                quality_score=result.quality_score,
+                primary_source_id=result.primary_source_id,
+                contributing_sources=result.contributing_sources,
+                provenance=result.provenance,
+            )
+            await self.fundamental_repo.save(company_id, fundamental_schema)
+            logger.info(
+                f"Engine: fundamentals persisted ticker={result.symbol} "
+                f"indicators_populated={len(populated)} "
+                f"indicators_total={len(self._CORE_INDICATOR_FIELDS)}"
+            )
 
-        # Reconciliation rows — observational only. Must never break the
-        # crawl: any failure is logged and swallowed.
         try:
             await self.reconciliation_service.emit(company_id, result)
         except Exception as exc:

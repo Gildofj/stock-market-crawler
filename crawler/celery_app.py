@@ -17,8 +17,7 @@ from core.telemetry import setup_tracing
 setup_logging()
 setup_tracing("celery-worker")
 
-# Side-effect import: registers task_prerun/postrun + worker_process_init signals.
-from crawler import celery_signals  # noqa: E402, F401
+from crawler import celery_signals  # noqa: E402, F401 - Motivo: Side-effect
 
 app = Celery(
     "stock_market_crawler",
@@ -32,8 +31,6 @@ app = Celery(
 )
 
 app.conf.update(
-    # No code path calls AsyncResult.get(); disabling the backend cuts Redis
-    # command volume by ~half.
     result_backend=None,
     task_ignore_result=True,
     task_store_errors_even_if_ignored=False,
@@ -49,23 +46,17 @@ app.conf.update(
     worker_concurrency=2,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
-    # 200 MB ceiling fits worker-hot (concurrency=2) + worker-lake
-    # (concurrency=1) under ~900 MB on the 1 GB e2-micro.
     worker_max_memory_per_child=200_000,
     worker_send_task_events=False,
     worker_enable_remote_control=False,
     worker_disable_rate_limits=True,
     worker_hijack_root_logger=False,
-    # Default redirect captures sys.stdout into the `celery.redirected` logger
-    # at WARNING level, silently dropping INFO-level JSON written by
-    # core.logging._gcp_sink and creating a feedback loop on WARNING+.
     worker_redirect_stdouts=False,
     broker_pool_limit=10,
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=None,
     broker_heartbeat=None,
     broker_transport_options={
-        # Must exceed the longest task; RI PDF parses can take minutes.
         "visibility_timeout": 3600,
         "socket_keepalive": True,
         "polling_interval": 0.5,
@@ -84,10 +75,8 @@ app.conf.update(
     task_routes={
         "crawler.tasks.crawl_ticker_task": {"queue": "crawler"},
         "crawler.tasks.crawl_news_task": {"queue": "lake"},
-        # crawl_ri_task runs as a Cloud Run Job, not via Celery — intentionally unrouted.
         "crawler.tasks.crawl_macro_data_task": {"queue": "macro"},
     },
-    # Hours are UTC (Brazil = UTC-3). RI crawl is on Cloud Scheduler, not here.
     beat_schedule={
         "lake-news-hourly": {
             "task": "crawler.tasks.crawl_news_task",

@@ -1,10 +1,3 @@
-"""OpenTelemetry tracing setup.
-
-``setup_tracing(service_name)`` is idempotent per ``service_name``. Must be
-re-run inside Celery prefork children because ``BatchSpanProcessor``'s daemon
-thread does not survive ``fork`` (see :mod:`crawler.celery_signals`).
-"""
-
 from __future__ import annotations
 
 import importlib
@@ -25,13 +18,16 @@ def setup_tracing(service_name: str) -> None:
         return
 
     try:
-        # opentelemetry is an optional extra ("observability"); type ignored to pass
-        # checks in environments where it's not installed.
-        from opentelemetry import trace  # type: ignore
-        from opentelemetry.sdk.resources import Resource  # type: ignore
-        from opentelemetry.sdk.trace import TracerProvider  # type: ignore
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor  # type: ignore
-        from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased  # type: ignore
+        from opentelemetry import trace  # type: ignore - Motivo: Tipagem externa
+        from opentelemetry.sdk.resources import Resource  # type: ignore - Motivo: Tipagem externa
+        from opentelemetry.sdk.trace import TracerProvider  # type: ignore - Motivo: Tipagem externa
+        from opentelemetry.sdk.trace.export import (
+            BatchSpanProcessor,  # type: ignore - Motivo: Tipagem externa
+        )
+        from opentelemetry.sdk.trace.sampling import (  # type: ignore - Motivo: Tipagem externa
+            ParentBased,
+            TraceIdRatioBased,
+        )
     except ImportError:
         logger.warning(
             "OTEL_ENABLED=true but opentelemetry SDK not installed. "
@@ -75,20 +71,21 @@ def _build_exporter() -> Any:
     backend = settings.OTEL_EXPORTER
     try:
         if backend == "otlp":
-            # opentelemetry is an optional extra ("observability")
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (  # type: ignore - Motivo: Tipagem externa
                 OTLPSpanExporter,
             )
 
             return OTLPSpanExporter()
         if backend == "gcp":
-            # opentelemetry is an optional extra ("observability")
-            from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter  # type: ignore
+            from opentelemetry.exporter.cloud_trace import (
+                CloudTraceSpanExporter,  # type: ignore - Motivo: Tipagem externa
+            )
 
             return CloudTraceSpanExporter(project_id=settings.GCP_PROJECT_ID)
 
-        # opentelemetry is an optional extra ("observability")
-        from opentelemetry.sdk.trace.export import ConsoleSpanExporter  # type: ignore
+        from opentelemetry.sdk.trace.export import (
+            ConsoleSpanExporter,  # type: ignore - Motivo: Tipagem externa
+        )
 
         return ConsoleSpanExporter()
     except ImportError as exc:
@@ -118,12 +115,10 @@ def _instrument(label: str, module: str, klass: str) -> None:
 
 
 def shutdown_tracing() -> None:
-    """Flush pending spans. Call from the Cloud Run Job entrypoint before exit."""
     if _CONFIGURED_FOR is None:
         return
     try:
-        # opentelemetry is an optional extra ("observability")
-        from opentelemetry import trace  # type: ignore
+        from opentelemetry import trace  # type: ignore - Motivo: Tipagem externa
 
         provider = trace.get_tracer_provider()
         shutdown = getattr(provider, "shutdown", None)

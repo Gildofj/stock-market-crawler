@@ -53,18 +53,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Stock Market Crawler API",
-    description="""
-    High-performance API for serving Brazilian financial market data.
-
-    ## Features
-    * **Companies**: List and details of companies listed on B3.
-    * **Fundamentals**: Updated financial fundamentals and indicators.
-    * **Prices**: Historical and real-time stock quotes.
-    * **Reliability (LagoAI)**: Company reliability rankings and market insights.
-
-    ---
-    Developed by gildofj.dev.
-    """,
+    description="High-performance API for serving Brazilian financial market data.",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -73,9 +62,7 @@ app = FastAPI(
         "name": "gildofj.dev",
         "url": "https://gildofj.dev",
     },
-    license_info={
-        "name": "MIT",
-    },
+    license_info={"name": "MIT"},
 )
 
 tags_metadata = [
@@ -133,13 +120,9 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Blocks direct access to the Render URL — all traffic must come via Cloudflare.
 if os.getenv("ENV") == "production":
     app.add_middleware(CloudflareMiddleware)
 
-# Registered last so it becomes the OUTERMOST middleware in Starlette's wrap
-# order: every request (including those rejected by Cloudflare/CORS) gets a
-# request_id bound into the logging context.
 app.add_middleware(CorrelationMiddleware)
 
 api_dependencies = [Depends(require_api_key)]
@@ -152,7 +135,6 @@ app.include_router(news.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(investor_relations.router, prefix="/api/v1", dependencies=api_dependencies)
 app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
 
-# Intentionally public (no api_key) so anyone can audit active data sources.
 app.include_router(sources.router, prefix="/api/v1")
 
 

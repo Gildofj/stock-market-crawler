@@ -1,21 +1,3 @@
-"""Correlation-ID middleware.
-
-Reads ``X-Request-Id`` from the incoming request (or ``Cf-Ray`` when Cloudflare
-is in front), generates a UUID4 when neither is present, binds the value to
-:data:`core.context.request_id_var` so every log line emitted while serving
-the request carries the same ``request_id``, and echoes it back on the
-response so callers can quote it when reporting issues.
-
-Implemented as a pure ASGI middleware rather than ``BaseHTTPMiddleware`` to
-sidestep the long-standing Starlette issue where ``ContextVar`` tokens set in
-the middleware coroutine are not visible to the downstream handler running in
-a different anyio task.
-
-Should be registered **last** in ``api/main.py`` so it becomes the outermost
-middleware — that way every request, including those rejected by CORS or by
-``CloudflareMiddleware``, still gets a correlation id in its logs.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -30,8 +12,6 @@ _CF_HEADER = b"cf-ray"
 
 
 class CorrelationMiddleware:
-    """Pure ASGI middleware that attaches a per-request correlation id."""
-
     def __init__(self, app: ASGIApp, header_name: str = "x-request-id") -> None:
         self.app = app
         self._header = header_name.lower().encode("ascii")
@@ -73,7 +53,5 @@ def _wrap_send(send: Send, header: bytes, value: bytes) -> Send:
             message["headers"] = existing
         await send(message)
 
-    # `Send` is a Callable[[Message], Awaitable[None]] — confirm the alias to
-    # keep type-checkers from widening on the closure.
     typed: Callable[[Message], Awaitable[None]] = send_with_header
     return typed

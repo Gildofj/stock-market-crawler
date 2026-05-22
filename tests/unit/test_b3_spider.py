@@ -38,7 +38,6 @@ def _info_dict():
         "industry": "Heavy Industry",
         "quoteType": "EQUITY",
         "website": "https://flow.example",
-        # Numeric fields — captured as a snapshot, NOT written to result.X.
         "forwardPE": 12.5,
         "trailingPE": 13.0,
         "priceToBook": 2.1,
@@ -76,26 +75,22 @@ async def test_b3_spider_does_not_write_fundamentals(mocker, _info_dict, _histor
 
     result = await B3Spider().crawl_ticker("FLOW3")
 
-    # Metadata: populated
     assert result.name == "Flow Corp SA"
     assert result.sector == "Industrials"
     assert result.sub_sector == "Heavy Industry"
     assert result.segment == "EQUITY"
     assert result.website == "https://flow.example"
 
-    # Prices: populated
     assert len(result.prices) == 2
     assert result.prices[-1].close == pytest.approx(11.8)
 
-    # Shares: populated via the documented API
     assert result.shares_outstanding == 1_000_000.0
 
-    # Numeric indicators: STILL NONE — CVMSpider will fill these later.
     assert result.p_l is None
     assert result.p_vp is None
     assert result.ev_ebitda is None
     assert result.roe is None
-    assert result.dy is None  # default field value, not 0.0
+    assert result.dy is None
     assert result.net_margin is None
     assert result.liquid_debt_ebitda is None
     assert result.debt_to_equity is None
@@ -115,12 +110,11 @@ async def test_b3_spider_captures_info_snapshot(mocker, _info_dict, _history_df)
 
     snapshot = result.yahoo_info_indicators
     assert snapshot is not None
-    assert snapshot["dividendYield"] == 0.05  # raw decimal, untouched
+    assert snapshot["dividendYield"] == 0.05
     assert snapshot["returnOnEquity"] == 0.18
     assert snapshot["marketCap"] == 5_000_000_000.0
     assert snapshot["forwardPE"] == 12.5
     assert snapshot["debtToEquity"] == 65.0
-    # Textual metadata stays out of the snapshot — only numeric.
     assert "longName" not in snapshot
 
 
@@ -154,7 +148,7 @@ async def test_b3_spider_handles_get_shares_full_failure(mocker, _info_dict, _hi
 
     assert result.shares_outstanding is None
     assert result.yahoo_info_indicators is not None
-    assert len(result.prices) == 2  # history still populated
+    assert len(result.prices) == 2
 
 
 @pytest.mark.asyncio
@@ -182,7 +176,6 @@ async def test_b3_spider_returns_empty_result_for_delisted(mocker, _info_dict):
 
     assert result.prices == []
     assert result.yahoo_info_indicators is None
-    # Empty default — no info was read because history short-circuit fired.
     assert result.name is None
 
 

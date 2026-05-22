@@ -1,22 +1,3 @@
-"""Universal fundamental indicator formulas.
-
-Every function in this module implements a standard textbook formula
-applied to raw accounting line items + market price. The formulas are
-public-domain math (no IP protection) and do not depend on any
-proprietary methodology, weighting, or filter from third-party platforms.
-
-Inputs come from two clean-room sources:
-
-* Raw financial statements extracted from CVM open data (DFP/ITR).
-* Current price and shares outstanding from the price spider (B3/yfinance).
-
-Each function is pure (no I/O, no logging side effects) and returns ``None``
-when an input is missing or would produce a degenerate result (e.g. division
-by zero, negative book value for ``sqrt`` in Graham). This keeps the calculator
-trivially testable and lets the orchestrator decide whether to skip
-persistence or substitute a sentinel.
-"""
-
 from __future__ import annotations
 
 import math
@@ -25,15 +6,6 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RawFinancials:
-    """Container for the raw line items needed to derive every universal indicator.
-
-    All values are in BRL (or the company's reporting currency) and use the
-    direct sign convention (positive = inflow/asset, negative = outflow/liability).
-    None means the input is unavailable for that period — the calculator will
-    skip indicators that depend on it.
-    """
-
-    # --- Income statement (TTM or annual) ---
     revenue: float | None = None
     gross_profit: float | None = None
     ebit: float | None = None
@@ -43,7 +15,6 @@ class RawFinancials:
     pretax_income: float | None = None
     financial_result: float | None = None
 
-    # --- Balance sheet (latest period) ---
     total_assets: float | None = None
     current_assets: float | None = None
     cash_and_equivalents: float | None = None
@@ -53,16 +24,13 @@ class RawFinancials:
     long_term_debt: float | None = None
     equity: float | None = None
 
-    # --- Dividend stream ---
     dividends_paid_ttm: float | None = None
 
-    # --- Market data ---
     current_price: float | None = None
     shares_outstanding: float | None = None
 
 
 def _safe_div(numerator: float | None, denominator: float | None) -> float | None:
-    """Return numerator/denominator, or None if either input is missing or denominator is zero."""
     if numerator is None or denominator is None or denominator == 0:
         return None
     return numerator / denominator
@@ -101,14 +69,12 @@ def net_debt(debt: float | None, cash: float | None) -> float | None:
 
 
 def pl_ratio(price: float | None, earnings_per_share: float | None) -> float | None:
-    """P/L = Price / EPS. Returns None when EPS <= 0 (formula loses interpretability)."""
     if earnings_per_share is None or earnings_per_share <= 0:
         return None
     return _safe_div(price, earnings_per_share)
 
 
 def pvp_ratio(price: float | None, book_value_per_share: float | None) -> float | None:
-    """P/VP = Price / Book Value per Share. Returns None when BVPS <= 0."""
     if book_value_per_share is None or book_value_per_share <= 0:
         return None
     return _safe_div(price, book_value_per_share)
@@ -128,7 +94,6 @@ def ev_ebitda(
 
 
 def roe(net_income: float | None, equity: float | None) -> float | None:
-    """Return on Equity in percent."""
     ratio = _safe_div(net_income, equity)
     return ratio * 100 if ratio is not None else None
 
@@ -141,17 +106,6 @@ def roic(
     debt: float | None,
     cash: float | None,
 ) -> float | None:
-    """Return on Invested Capital in percent.
-
-    ``ROIC = NOPAT / Invested Capital``
-    * ``NOPAT = EBIT * (1 - effective tax rate)``
-    * ``Invested Capital = Equity + Total Debt - Cash``
-
-    Effective tax rate is derived from the income statement when the inputs
-    are available; otherwise we apply a conservative 34% (the headline
-    Brazilian corporate rate). When tax inputs are unrealistic (negative
-    pretax income, tax credit > expense), we fall back to the headline rate.
-    """
     if ebit_value is None or equity is None:
         return None
 
@@ -193,7 +147,6 @@ def dividend_yield(
     shares: float | None,
     price: float | None,
 ) -> float | None:
-    """DY in percent. dividends_paid is the absolute TTM amount; we divide by shares."""
     dps = _safe_div(dividends_paid, shares)
     return _multiplied_ratio(dps, price)
 
@@ -214,11 +167,6 @@ def current_ratio(current_assets: float | None, current_liabilities: float | Non
 
 
 def cagr(start_value: float | None, end_value: float | None, years: int) -> float | None:
-    """Universal CAGR in percent: (end/start)^(1/years) - 1.
-
-    Returns None when inputs are missing, signs disagree (sign flip makes the
-    formula meaningless), or values are non-positive. Years must be >= 1.
-    """
     if start_value is None or end_value is None or years < 1:
         return None
     if start_value <= 0 or end_value <= 0:
@@ -229,7 +177,6 @@ def cagr(start_value: float | None, end_value: float | None, years: int) -> floa
 def graham_fair_value(
     earnings_per_share: float | None, book_value_per_share: float | None
 ) -> float | None:
-    """Graham number: sqrt(22.5 * EPS * BVPS). Undefined when either is non-positive."""
     if earnings_per_share is None or book_value_per_share is None:
         return None
     if earnings_per_share <= 0 or book_value_per_share <= 0:
@@ -240,7 +187,6 @@ def graham_fair_value(
 def bazin_fair_value(
     annual_dividend_per_share: float | None, target_yield: float = 0.06
 ) -> float | None:
-    """Bazin: Annual DPS / target yield (Bazin uses 6% as the income hurdle)."""
     if annual_dividend_per_share is None or annual_dividend_per_share <= 0:
         return None
     if target_yield <= 0:
@@ -249,15 +195,12 @@ def bazin_fair_value(
 
 
 def _multiplied_ratio(numerator: float | None, denominator: float | None) -> float | None:
-    """Helper for percent ratios (margin, yield)."""
     ratio = _safe_div(numerator, denominator)
     return ratio * 100 if ratio is not None else None
 
 
 @dataclass(frozen=True)
 class ComputedIndicators:
-    """Output of :func:`compute_all` — every universal indicator we surface."""
-
     market_cap: float | None
     eps: float | None
     bvps: float | None
@@ -279,12 +222,6 @@ class ComputedIndicators:
 
 
 def compute_all(raw: RawFinancials) -> ComputedIndicators:
-    """Compute every universal indicator from a :class:`RawFinancials` snapshot.
-
-    Indicators with missing inputs are silently set to None — the orchestrator
-    persists only fields that came out non-null, preserving the database NULLs
-    that downstream consumers already handle.
-    """
     debt = total_debt(raw.short_term_debt, raw.long_term_debt)
     cash = cash_position(raw.cash_and_equivalents, raw.short_term_investments)
     mkt_cap = market_cap(raw.current_price, raw.shares_outstanding)

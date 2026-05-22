@@ -21,8 +21,8 @@ def enqueue_all() -> None:
     logger.info("Enqueuing LagoAI lake jobs (news + RI)...")
     _assert_redis_broker()
 
-    crawl_news_task.delay()  # type: ignore[attr-defined]
-    crawl_ri_task.delay()  # type: ignore[attr-defined]
+    crawl_news_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
+    crawl_ri_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
 
     logger.info("LagoAI lake jobs enqueued.")
 

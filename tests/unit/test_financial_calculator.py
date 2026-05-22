@@ -84,8 +84,6 @@ def test_pvp_ratio_only_positive_bvps():
 
 
 def test_ev_ebitda_includes_net_debt():
-    # market_cap=1000, debt=300, cash=100, ebitda=200
-    # EV = 1000 + (300-100) = 1200 -> 1200/200 = 6.0
     assert ev_ebitda(1000, 300, 100, 200) == 6.0
 
 
@@ -102,28 +100,20 @@ def test_roe_percent():
 
 
 def test_roic_uses_effective_tax_when_available():
-    # ebit=200, income_tax=40, pretax=200 -> rate 0.2 -> nopat = 200 * 0.8 = 160
-    # invested capital = equity(1000) + debt(300) - cash(100) = 1200
-    # ROIC = 160 / 1200 = 13.333...%
     result = roic(200, 40, 200, 1000, 300, 100)
     assert result == pytest.approx(13.333, rel=1e-3)
 
 
 def test_roic_falls_back_to_headline_rate():
-    # No tax inputs -> assume 34% Brazilian headline rate
-    # nopat = 200 * 0.66 = 132, invested capital = 1200 -> 11.0%
     result = roic(200, None, None, 1000, 300, 100)
     assert result == pytest.approx(11.0, rel=1e-3)
 
 
 def test_roic_returns_none_for_invalid_invested_capital():
-    # equity + debt - cash = 0 -> divide-by-zero territory
     assert roic(200, 40, 200, 0, 0, 0) is None
 
 
 def test_roic_falls_back_to_equity_plus_debt_when_cash_dominates():
-    # equity=100, debt=50, cash=500 -> first attempt = -350; fallback = 150
-    # nopat = 200 * 0.66 = 132 -> 132 / 150 = 88.0%
     assert roic(200, None, None, 100, 50, 500) == pytest.approx(88.0, rel=1e-3)
 
 
@@ -139,13 +129,10 @@ def test_margins_percent():
 
 
 def test_dividend_yield_percent():
-    # dividends_paid=10_000, shares=1_000 -> DPS=10
-    # price=200 -> DY = 10/200 = 5%
     assert dividend_yield(10_000, 1000, 200) == pytest.approx(5.0)
 
 
 def test_net_debt_to_ebitda():
-    # debt=300, cash=100 -> net debt=200, ebitda=100 -> ratio=2.0
     assert net_debt_to_ebitda(300, 100, 100) == 2.0
 
 
@@ -160,7 +147,6 @@ def test_current_ratio():
 
 
 def test_cagr_universal_formula():
-    # (200/100)^(1/4) - 1 = 0.1892... -> 18.92%
     assert cagr(100, 200, 4) == pytest.approx(18.9207, rel=1e-3)
 
 
@@ -173,7 +159,6 @@ def test_cagr_handles_invalid_inputs():
 
 
 def test_graham_fair_value():
-    # sqrt(22.5 * 5 * 10) = sqrt(1125) ~ 33.541
     assert graham_fair_value(5, 10) == pytest.approx(math.sqrt(1125))
     assert graham_fair_value(-1, 10) is None
     assert graham_fair_value(0, 10) is None
@@ -218,11 +203,9 @@ def test_compute_all_pipes_indicators_through():
     assert result.bvps == pytest.approx(10.0)
     assert result.p_l == pytest.approx(20.0 / 1.5)
     assert result.p_vp == pytest.approx(2.0)
-    # net debt = 300 - 150 = 150 -> EV = 2000 + 150 = 2150; EV/EBITDA = 2150/300
     assert result.ev_ebitda == pytest.approx(2150.0 / 300.0)
     assert result.roe == pytest.approx(15.0)
     assert result.net_margin == pytest.approx(15.0)
-    # DY: dps = 0.3, price=20 -> 0.3/20 = 1.5%
     assert result.dy == pytest.approx(1.5)
     assert result.current_ratio == pytest.approx(2.0)
     assert result.debt_to_equity == pytest.approx(0.3)
@@ -230,9 +213,8 @@ def test_compute_all_pipes_indicators_through():
 
 
 def test_compute_all_handles_missing_inputs_gracefully():
-    raw = RawFinancials()  # everything None
+    raw = RawFinancials()
     result = compute_all(raw)
-    # Every indicator should be None without raising
     assert result.p_l is None
     assert result.p_vp is None
     assert result.roe is None

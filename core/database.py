@@ -3,17 +3,14 @@ from sqlalchemy.orm import declarative_base
 
 from core.config import settings
 
-# Global variables for lazy initialization
 _engine = None
 _AsyncSessionLocal = None
 Base = declarative_base()
 
 
 def get_engine():
-    """Lazy initialize the SQLAlchemy async engine."""
     global _engine
     if _engine is None:
-        # Re-read settings or get URL directly to ensure patch from main.py is applied
         db_url = settings.database_url
         _engine = create_async_engine(
             db_url,
@@ -31,7 +28,6 @@ def get_engine():
 
 
 def session_local() -> AsyncSession:
-    """Lazy initialize and return a new AsyncSession instance."""
     global _AsyncSessionLocal
     if _AsyncSessionLocal is None:
         _AsyncSessionLocal = async_sessionmaker(

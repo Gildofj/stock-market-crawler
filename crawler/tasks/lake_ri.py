@@ -1,13 +1,3 @@
-"""RI document collection task.
-
-Runs in two contexts:
-* As a Celery task (legacy local/dev path) — still routable via the `lake` queue.
-* As a standalone Cloud Run Job entrypoint via ``python -m crawler.tasks.lake_ri``,
-  which is how the production schedule invokes it (1x/day). The job uses the same
-  container image as the workers but bypasses Celery entirely — no Redis hop, no
-  beat coupling, dedicated RAM per execution so pdfplumber spikes can't OOM the VM.
-"""
-
 import asyncio
 
 from celery.exceptions import SoftTimeLimitExceeded
@@ -22,7 +12,6 @@ from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
 
 
 async def _run_ri_crawl(days_back: int = 30) -> int:
-    """Pure crawl logic, callable from Celery or standalone."""
     db = session_local()
     try:
         company_repo = CompanyRepository(db)
@@ -45,7 +34,6 @@ async def _run_ri_crawl(days_back: int = 30) -> int:
     time_limit=1800,
 )
 def crawl_ri_task(self, days_back: int = 30):
-    """Collect CVM RI documents (ITR / DFP / IPE) for watched companies."""
     task_logger = logger.bind(task="lake.ri", task_id=self.request.id)
     task_logger.info(f"Starting RI document collection (days_back={days_back})...")
     try:
@@ -57,7 +45,6 @@ def crawl_ri_task(self, days_back: int = 30):
 
 
 def main() -> None:
-    """Cloud Run Job entrypoint. Reads days_back from $RI_DAYS_BACK (default 7)."""
     import os
 
     from core.logging import setup_logging
@@ -73,8 +60,6 @@ def main() -> None:
         asyncio.run(_run_ri_crawl(days_back=days_back))
         job_logger.info("RI crawl completed.")
     finally:
-        # Cloud Run Jobs send SIGTERM on completion. Flush pending spans
-        # synchronously so the trace isn't truncated at container shutdown.
         shutdown_tracing()
 
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Fetch a secret from Google Secret Manager using the GCE metadata server.
 
 Used by [scripts/worker_entrypoint.sh](scripts/worker_entrypoint.sh) on the

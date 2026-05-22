@@ -32,9 +32,6 @@ def _build_issuer_index(symbols: set[str]) -> dict[str, set[str]]:
 
 
 class NewsSpider:
-    """Collects financial news from Brazilian RSS feeds and tags every sibling
-    ticker of any issuer mentioned (a story citing PETR4 also gets PETR3)."""
-
     FEEDS: dict[str, str] = {
         "infomoney": "https://www.infomoney.com.br/feed/",
         "valor": "https://valor.globo.com/rss/",

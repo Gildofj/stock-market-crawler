@@ -10,7 +10,6 @@ from api.main import app
 from core.models.models import Company, LakeNews, LakeNewsTicker, LakeRIDocument, StockPrice
 
 
-# Mock Database setup
 @pytest.fixture
 def client(mocker):
     mocker.patch.dict(os.environ, {"API_KEY": "test"})
@@ -49,7 +48,6 @@ async def test_get_news_by_company_id(client, mock_repos, mocker):
             sentiment="positive",
         )
     ]
-    # Simulate tickers relation
     mock_news[0].tickers = [LakeNewsTicker(ticker="PETR4")]
 
     mock_company_repo.get.return_value = mocker.AsyncMock(return_value=mock_company)()
@@ -84,7 +82,6 @@ async def test_get_investor_relations(client, mock_repos, mocker):
     mock_company_repo.get.return_value = mock_company
     mock_lake_service.get_ri_documents_by_ticker.return_value = mock_ri
 
-    # Ensure they are AsyncMocks
     mock_company_repo.get = mocker.AsyncMock(return_value=mock_company)
     mock_lake_service.get_ri_documents_by_ticker = mocker.AsyncMock(return_value=mock_ri)
 

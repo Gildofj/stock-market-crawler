@@ -1,5 +1,3 @@
-"""Persistence + queries for the Fundamental aggregate."""
-
 from __future__ import annotations
 
 import uuid
@@ -19,8 +17,6 @@ class FundamentalRepository:
         self.db = db
 
     async def save(self, company_id: uuid.UUID, payload: FundamentalSchema) -> Fundamental:
-        """Persist a fresh fundamentals snapshot. Each call is a new row
-        (history is append-only, ordered by ``collected_at``)."""
         fundamental = Fundamental(company_id=company_id, **payload.model_dump())
         self.db.add(fundamental)
         try:
@@ -44,12 +40,6 @@ class FundamentalRepository:
     async def get_latest_for_companies(
         self, company_ids: list[uuid.UUID]
     ) -> dict[uuid.UUID, Fundamental]:
-        """Most recent ``Fundamental`` per company in a single query.
-
-        Uses ``GROUP BY company_id`` + ``MAX(collected_at)`` joined back to
-        the source rows — dialect-safe for PostgreSQL (prod) and SQLite
-        (tests), unlike ``DISTINCT ON`` or window functions.
-        """
         if not company_ids:
             return {}
 

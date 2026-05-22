@@ -1,8 +1,3 @@
-"""ContextVars read by the loguru patcher in :mod:`core.logging` so a single
-``request_id`` or ``task_id`` groups every log emitted during that
-request/task across SQLAlchemy, httpx and the crawler engine.
-"""
-
 from __future__ import annotations
 
 from contextvars import ContextVar

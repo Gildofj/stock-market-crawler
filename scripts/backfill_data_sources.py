@@ -35,7 +35,6 @@ from core.database import session_local
 
 async def _execute(db: AsyncSession, sql: str, *, dry_run: bool, label: str) -> int:
     if dry_run:
-        # In dry-run we count what would change but don't write.
         count_sql = sql.replace("UPDATE", "SELECT count(*) FROM").split("SET")[0]
         try:
             res = await db.execute(text(count_sql))

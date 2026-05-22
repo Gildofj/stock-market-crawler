@@ -1,5 +1,3 @@
-"""Persistence + queries for the StockPrice aggregate."""
-
 from __future__ import annotations
 
 import uuid
@@ -20,7 +18,6 @@ class PriceRepository:
         self.db = db
 
     async def save_bulk(self, company_id: uuid.UUID, prices: list[StockPriceSchema]) -> None:
-        """Idempotent bulk upsert: duplicates on (time, company_id) are skipped."""
         if not prices:
             return
 

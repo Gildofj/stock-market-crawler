@@ -17,9 +17,6 @@ router = APIRouter(
 @router.get("/{company_id}", response_model=FundamentalSchema)
 @cache(expire=3600, namespace="fundamentals:latest")
 async def get_latest_fundamentals(company_id: uuid.UUID, repo: FundamentalRepoDep):
-    """
-    Retrieves the most recent fundamental indicators for a company by its internal ID.
-    """
     fundamentals = await repo.get_latest(company_id)
 
     if not fundamentals:

@@ -39,7 +39,6 @@ def _clear_cache_between_tests():
     InMemoryBackend._store.clear()
 
 
-# Use a fast in-memory SQLite for core logic tests
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 

@@ -1,15 +1,3 @@
-"""Reconciliation: upstream third-party feeds vs CVM-derived clean-room calc.
-
-Emits one append-only row per indicator into ``lake_indicator_reconciliation``
-for QA dashboards and ML drift calibration. The source of truth in the
-``fundamentals`` table remains the CVM-derived value — this service is
-observational only and must never feed back into ``CrawlResult``.
-
-Today the only upstream feed is the ``yfinance Ticker.info`` dict (carried on
-``CrawlResult.yahoo_info_indicators``). Adding a new feed = appending a new
-mapping list and bumping the ``source_slug``.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -26,41 +14,21 @@ from ..models.contract import CrawlResult
 
 
 class _SessionLike(Protocol):
-    """Minimal AsyncSession surface needed by the service.
-
-    Declaring the dependency as a Protocol lets unit tests pass a lightweight
-    fake without subclassing the real Session — and keeps the import surface
-    of this module narrow (no engine, no autoflush plumbing).
-    """
-
     async def commit(self) -> None: ...
     def add_all(self, instances: Iterable[object]) -> None: ...
 
 
-# Relative deviation (|yahoo - cvm| / |cvm|) above which we flag the row as
-# an outlier and log a warning. 20% is generous enough to absorb timing
-# skew between yfinance (real-time) and CVM (quarterly DFP filings) while
-# still catching unit-scale bugs like the 100x dividendYield issue.
 OUTLIER_THRESHOLD_PCT = 0.20
 
 
 @dataclass(frozen=True)
 class _IndicatorMap:
-    """Mapping from one upstream field to a project indicator + normaliser."""
-
     source_field: str
     project_indicator: str
     normalise: Callable[[float], float]
 
 
 def _to_percent(value: float) -> float:
-    """Convert a decimal-form rate (0.05) to the project's percent convention (5.0).
-
-    yfinance has historically returned rate-like fields in decimal but is
-    known to flip silently. We always assume decimal here and let the ML
-    model in lake_indicator_reconciliation learn the actual scale from the
-    time series of deltas vs CVM.
-    """
     return value * 100
 
 
@@ -84,20 +52,12 @@ _YAHOO_INFO_MAPS: tuple[_IndicatorMap, ...] = (
 
 
 class ReconciliationService:
-    """Persists one reconciliation row per (ticker, indicator) per run."""
-
     SOURCE_SLUG = "yfinance_info"
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
     async def emit(self, company_id: uuid.UUID, result: CrawlResult) -> int:
-        """Emit reconciliation rows for every indicator the upstream reported.
-
-        Returns the number of rows inserted. Failures are logged but never
-        propagated — this is an observational path and must not break the
-        crawl.
-        """
         snapshot = result.yahoo_info_indicators
         if not snapshot:
             return 0
@@ -140,7 +100,6 @@ class ReconciliationService:
             await self.db.commit()
             return len(rows)
         except Exception as exc:
-            # Observational only - don't break the caller.
             logger.warning(f"Reconciliation persistence failed for {result.symbol}: {exc}")
             return 0
 
@@ -152,8 +111,6 @@ class ReconciliationService:
             return None, None, False
         delta_abs = upstream - cvm
         if cvm == 0:
-            # Can't form a meaningful relative delta; flag as outlier when
-            # the upstream insists there's something there.
             return delta_abs, None, abs(delta_abs) > 0
         delta_pct = delta_abs / abs(cvm)
         return delta_abs, delta_pct, abs(delta_pct) > OUTLIER_THRESHOLD_PCT

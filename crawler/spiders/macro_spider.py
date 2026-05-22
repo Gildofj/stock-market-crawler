@@ -7,11 +7,6 @@ from crawler.services.request_manager import RequestManager
 
 
 class MacroSpider:
-    """
-    Scrapes macroeconomic data from the Brazilian Central Bank (BCB) API.
-    Essential for ML features like Interest Rates (SELIC) and Inflation (IPCA).
-    """
-
     SELIC_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json"
     IPCA_URL = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json"
 
@@ -24,9 +19,6 @@ class MacroSpider:
             return
         logger.info("Fetching macroeconomic indicators from BCB...")
 
-        # BCB daily series (like SELIC) require a date window (max 10 years)
-        # We'll fetch the last 90 days to ensure we get the latest data,
-        # especially for monthly indicators like IPCA which are dated on the 1st of the month.
         end_date = datetime.now().strftime("%d/%m/%Y")
         start_date = (datetime.now() - timedelta(days=90)).strftime("%d/%m/%Y")
 

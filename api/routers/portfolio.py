@@ -28,11 +28,6 @@ router = APIRouter(
 
 
 def _parse_symbols(raw: str) -> list[str]:
-    """Split, trim, upper-case and de-duplicate the CSV `symbols` query param.
-
-    Preserves first-occurrence order so the response items match what the
-    caller intuitively expects when echoing back the requested list.
-    """
     seen: set[str] = set()
     parsed: list[str] = []
     for chunk in raw.split(","):
@@ -71,23 +66,6 @@ async def get_portfolio_snapshot(
     symbols: str = Query(..., description="Comma-separated tickers (max 50). Case-insensitive."),
     news_per_symbol: int = Query(10, gt=0, le=20),
 ) -> PortfolioSnapshotResponse:
-    """Returns company + fundamentals + reliability + top-N news per symbol.
-
-    This endpoint aggregates data from multiple domains to provide a complete
-    view for a user's portfolio or watchlist.
-
-    Indicators included:
-    - **P/L**: Price-to-Earnings ratio.
-    - **DY**: Dividend Yield (%).
-    - **ROE**: Return on Equity (%).
-    - **ROIC**: Return on Invested Capital (%).
-    - **EV/EBITDA**: Enterprise Value to EBITDA ratio.
-    - **Reliability Score**: Composite score (0-100) based on profit consistency and debt.
-    - **News**: Most recent market intelligence tagged with the symbol.
-
-    Replaces the dashboard N×4 round-trip pattern with one request that
-    issues 4 bulk SQL queries (independent of the symbol count).
-    """
     parsed = _parse_symbols(symbols)
     if not parsed:
         raise HTTPException(status_code=422, detail="symbols query param cannot be empty")

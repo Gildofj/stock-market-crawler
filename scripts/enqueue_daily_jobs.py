@@ -24,11 +24,9 @@ def enqueue_all():
     logger.info("Starting to enqueue daily jobs...")
     _assert_redis_broker()
 
-    # 1. Enqueue Macro Data Task
     logger.info("Enqueuing macro data task...")
-    crawl_macro_data_task.delay()  # type: ignore[attr-defined]
+    crawl_macro_data_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
 
-    # 2. Fetch Tickers
     ticker_service = TickerService()
     all_tickers = ticker_service.get_all_tickers()
 
@@ -40,7 +38,7 @@ def enqueue_all():
 
     count = 0
     for symbol in all_tickers:
-        crawl_ticker_task.delay(symbol)  # type: ignore[attr-defined]
+        crawl_ticker_task.delay(symbol)  # type: ignore[attr-defined] - Motivo: Celery dinâmico
         count += 1
         if count % 50 == 0:
             logger.info(f"Enqueued {count}/{len(all_tickers)} tickers...")

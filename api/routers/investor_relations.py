@@ -33,11 +33,6 @@ async def get_investor_relations_by_company_id(
     lake: LakeServiceDep,
     limit: Annotated[int, Query(gt=0, le=100)] = 10,
 ) -> list[InvestorRelationLink]:
-    """
-    Retrieves the latest Investor Relations documents (ITR, DFP, IPE) for a company.
-
-    Includes documents from CVM (Brazilian SEC) with categories and original PDF links.
-    """
     company = await repo.get(company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")

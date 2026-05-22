@@ -16,14 +16,6 @@ from crawler.services.request_manager import RequestManager
 
 
 class RISpider:
-    """Collects Brazilian RI documents (ITR/DFP/IPE) from CVM open data.
-
-    PDFs are *not* mirrored. Persisted records keep the upstream CVM URL
-    (``pdf_url``) and a length-capped text excerpt extracted in-memory; both
-    the public R2 mirror and the bucket key are intentionally unset. See
-    DISCLAIMER.md for the rationale.
-    """
-
     IPE_URL_TEMPLATE = (
         "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/ipe_cia_aberta_{year}.csv"
     )
@@ -50,7 +42,6 @@ class RISpider:
             logger.warning(f"RISpider: failed to fetch IPE index for {year}: {e}")
             return None
         try:
-            # pandas.read_csv is sync, but small network-bound overhead here
             return await asyncio.to_thread(
                 lambda: pd.read_csv(io.BytesIO(response.content), sep=";", encoding="latin-1")
             )
@@ -107,8 +98,6 @@ class RISpider:
     async def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
         import uuid
 
-        # Operator kill-switch: disabling 'cvm' in data_sources halts new
-        # collection without a deploy. Existing rows are unaffected.
         if not await get_source_registry().is_enabled("cvm"):
             logger.info("RISpider: 'cvm' source disabled — skipping crawl.")
             return 0
@@ -144,15 +133,15 @@ class RISpider:
             return 0
 
         df["__cnpj"] = df["CNPJ_Companhia"].astype(str).str.replace(r"\D", "", regex=True)
-        filtered: pd.DataFrame = df[df["__cnpj"].isin(list(cnpjs))]  # type: ignore[assignment]
+        filtered: pd.DataFrame = df[df["__cnpj"].isin(list(cnpjs))]  # type: ignore[assignment] - Motivo: Injeção mock
 
         date_col = "Data_Entrega" if "Data_Entrega" in filtered.columns else None
         if date_col:
             filtered = filtered.assign(__date=pd.to_datetime(filtered[date_col], errors="coerce"))
-            filtered = filtered[filtered["__date"].dt.date >= cutoff]  # type: ignore[assignment]
+            filtered = filtered[filtered["__date"].dt.date >= cutoff]  # type: ignore[assignment] - Motivo: Injeção mock
 
         if "Categoria" in filtered.columns:
-            filtered = filtered[  # type: ignore[assignment]
+            filtered = filtered[  # type: ignore[assignment] - Motivo: Injeção mock
                 filtered["Categoria"].isin(list(self.TARGET_CATEGORIES))
             ]
 
@@ -170,9 +159,6 @@ class RISpider:
                 str(pdf_url_raw) if pdf_url_raw and pd.notna(pdf_url_raw) else None
             )
 
-            # PDFs are fetched only to extract the text excerpt; the bytes are
-            # never mirrored. The upstream CVM URL is the only redistributable
-            # reference we keep.
             text: str | None = None
             if pdf_url:
                 pdf_bytes = await self._fetch_pdf_bytes(pdf_url)
@@ -189,7 +175,6 @@ class RISpider:
                 pdf_url=pdf_url,
                 text_excerpt=text,
                 reference_date=self._coerce_date(ref_value),
-                r2_public_url=None,
                 source_id=cvm_source_id,
             )
 
@@ -197,9 +182,7 @@ class RISpider:
             company_id = company.id if company else None
 
             try:
-                await self.lake_service.upsert_ri_document(
-                    payload, company_id=company_id, r2_key=None
-                )
+                await self.lake_service.upsert_ri_document(payload, company_id=company_id)
                 persisted += 1
             except Exception as e:
                 logger.error(f"RISpider: failed to persist {doc_id}: {e}")

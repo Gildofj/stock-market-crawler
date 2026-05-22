@@ -18,12 +18,6 @@ from core.services.source_registry import SourceNotFoundError, get_source_regist
 
 
 async def _resolve_source_id(slug: str | None) -> uuid.UUID | None:
-    """Best-effort lookup of a slug → data_sources.id. Returns None on miss.
-
-    Persistence stays nullable on purpose: a missing slug is a soft signal
-    (e.g. enrichment from a legacy spider that hasn't been wired yet), not
-    a reason to drop the row.
-    """
     if not slug:
         return None
     try:
@@ -110,18 +104,6 @@ class LakeService:
     async def get_news_by_tickers(
         self, tickers: list[str], per_ticker_limit: int = 10
     ) -> dict[str, list[LakeNews]]:
-        """Bulk news lookup for the portfolio snapshot endpoint.
-
-        Single `.in_()` query + Python-side bucketing keeps the round-trip
-        count at 1 and stays dialect-agnostic (no window functions, so it
-        runs identically on PostgreSQL and SQLite). One news row that is
-        tagged with multiple tickers in the request will appear in every
-        matching bucket — that is the correct behavior for dashboards.
-
-        The hard `limit` on the SQL side is a defensive overfetch cap that
-        prevents pathological responses if a single ticker has thousands of
-        recent news.
-        """
         if not tickers:
             return {}
         tickers_u = [t.upper() for t in tickers]
@@ -147,7 +129,6 @@ class LakeService:
         self,
         payload: LakeRIDocumentInternalSchema,
         company_id: uuid.UUID | None = None,
-        r2_key: str | None = None,
         source_slug: str = "cvm",
     ) -> LakeRIDocument:
         stmt = select(LakeRIDocument).filter(LakeRIDocument.doc_id == payload.doc_id)
@@ -164,10 +145,6 @@ class LakeService:
             existing.ticker = payload.ticker.upper()
             if source_id is not None and existing.source_id is None:
                 existing.source_id = source_id
-            if r2_key is not None:
-                existing.r2_key = r2_key
-            if payload.r2_public_url is not None:
-                existing.r2_public_url = payload.r2_public_url
             if company_id is not None:
                 existing.company_id = company_id
             try:
@@ -187,8 +164,6 @@ class LakeService:
             pdf_url=payload.pdf_url,
             text_excerpt=payload.text_excerpt,
             reference_date=payload.reference_date,
-            r2_key=r2_key,
-            r2_public_url=payload.r2_public_url,
             source_id=source_id,
         )
         self.db.add(document)
