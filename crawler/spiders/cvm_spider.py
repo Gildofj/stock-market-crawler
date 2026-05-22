@@ -231,9 +231,7 @@ class CVMSpider(BaseSpider):
         if cad is None or "CNPJ_CIA" not in cad.columns or "CD_CVM" not in cad.columns:
             self._cnpj_to_cd_cvm = {}
             return self._cnpj_to_cd_cvm
-        cnpj_digits = (
-            cad["CNPJ_CIA"].fillna("").astype(str).str.replace(r"\D", "", regex=True)
-        )
+        cnpj_digits = cad["CNPJ_CIA"].fillna("").astype(str).str.replace(r"\D", "", regex=True)
         cd_cvm_series = cad["CD_CVM"].astype(str)
         self._cnpj_to_cd_cvm = {
             cnpj: code for cnpj, code in zip(cnpj_digits, cd_cvm_series, strict=False) if cnpj
