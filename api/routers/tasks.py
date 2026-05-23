@@ -57,3 +57,38 @@ async def trigger_ri(request: Request, days_back: int = 30):
     _verify_task_auth(request)
     await crawl_ri_task(days_back)
     return {"status": "success", "task": "ri"}
+
+
+@router.post("/enqueue-daily")
+async def enqueue_daily(request: Request):
+    """
+    Enqueues the daily batch of tasks (Macro + all active tickers).
+    This runs entirely inside Cloud Run so it inherits the correct IAM permissions.
+    """
+    _verify_task_auth(request)
+    
+    from crawler.services.ticker_service import TickerService
+    from core.services.cloud_tasks_service import CloudTasksService
+    from loguru import logger
+    
+    tasks_service = CloudTasksService()
+    ticker_service = TickerService()
+    
+    logger.info("Discovering active tickers...")
+    all_tickers = ticker_service.get_all_tickers()
+    
+    if not all_tickers:
+        return {"status": "error", "detail": "No tickers found to enqueue."}
+        
+    logger.info("Enqueuing macro data task...")
+    tasks_service.enqueue_task("/_tasks/macro-data")
+    
+    logger.info(f"Enqueuing {len(all_tickers)} ticker tasks...")
+    count = 0
+    for symbol in all_tickers:
+        tasks_service.enqueue_task(f"/_tasks/ticker/{symbol}")
+        count += 1
+        if count % 50 == 0:
+            logger.info(f"Enqueued {count}/{len(all_tickers)} tickers...")
+            
+    return {"status": "success", "enqueued": len(all_tickers) + 1}
