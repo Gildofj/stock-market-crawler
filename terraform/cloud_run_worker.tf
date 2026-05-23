@@ -67,6 +67,24 @@ resource "google_cloud_run_v2_service" "worker" {
         name  = "R2_RI_PUBLIC_BASE_URL"
         value = var.r2_ri_public_base_url
       }
+      env {
+        name = "CRAWLER_HTTP_PROXY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.app["webshare-proxy-url"].secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "CRAWLER_HTTPS_PROXY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.app["webshare-proxy-url"].secret_id
+            version = "latest"
+          }
+        }
+      }
       resources {
         limits = {
           cpu    = "1"
