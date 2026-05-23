@@ -66,23 +66,24 @@ async def enqueue_daily(request: Request):
     This runs entirely inside Cloud Run so it inherits the correct IAM permissions.
     """
     _verify_task_auth(request)
-    
-    from crawler.services.ticker_service import TickerService
-    from core.services.cloud_tasks_service import CloudTasksService
+
     from loguru import logger
-    
+
+    from core.services.cloud_tasks_service import CloudTasksService
+    from crawler.services.ticker_service import TickerService
+
     tasks_service = CloudTasksService()
     ticker_service = TickerService()
-    
+
     logger.info("Discovering active tickers...")
     all_tickers = ticker_service.get_all_tickers()
-    
+
     if not all_tickers:
         return {"status": "error", "detail": "No tickers found to enqueue."}
-        
+
     logger.info("Enqueuing macro data task...")
     tasks_service.enqueue_task("/_tasks/macro-data")
-    
+
     logger.info(f"Enqueuing {len(all_tickers)} ticker tasks...")
     count = 0
     for symbol in all_tickers:
@@ -90,5 +91,5 @@ async def enqueue_daily(request: Request):
         count += 1
         if count % 50 == 0:
             logger.info(f"Enqueued {count}/{len(all_tickers)} tickers...")
-            
+
     return {"status": "success", "enqueued": len(all_tickers) + 1}
