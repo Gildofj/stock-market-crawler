@@ -26,9 +26,9 @@ jobs:
           echo "::add-mask::$DATABASE_URL"
           echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
 
-      - name: Resolve Cloud Run Worker URL
+      - name: Resolve Cloud Run API URL
         run: |
-          URL=$(gcloud run services describe stock-market-worker \
+          URL=$(gcloud run services describe stock-market-api \
             --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --format="value(status.url)")
