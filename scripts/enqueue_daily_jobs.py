@@ -24,15 +24,15 @@ def enqueue_all():
     logger.info("Starting to enqueue daily jobs...")
     _assert_redis_broker()
 
-    logger.info("Enqueuing macro data task...")
-    crawl_macro_data_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
-
     ticker_service = TickerService()
     all_tickers = ticker_service.get_all_tickers()
 
     if not all_tickers:
         logger.error("No tickers found to enqueue.")
         return
+
+    logger.info("Enqueuing macro data task...")
+    crawl_macro_data_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
 
     logger.info(f"Enqueuing crawl tasks for {len(all_tickers)} tickers...")
 
