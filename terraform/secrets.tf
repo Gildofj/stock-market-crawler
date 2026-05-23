@@ -37,7 +37,6 @@ resource "google_secret_manager_secret_version" "app_bootstrap" {
 locals {
   secret_consumers = {
     api_runtime = google_service_account.api_runtime_sa.email
-    worker_vm   = google_service_account.worker_sa.email
     ri_job      = google_service_account.ri_job_sa.email
   }
 

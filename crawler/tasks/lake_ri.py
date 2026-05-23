@@ -1,14 +1,10 @@
-import asyncio
-
-from celery.exceptions import SoftTimeLimitExceeded
 from loguru import logger
 
 from core.database import session_local
 from core.repositories import CompanyRepository
 from core.services.lake_service import LakeService
-from crawler.celery_app import app
 from crawler.spiders.ri_spider import RISpider
-from crawler.tasks._shared import _TRANSIENT_ERRORS, request_manager
+from crawler.tasks._shared import request_manager
 
 
 async def _run_ri_crawl(days_back: int = 30) -> int:
@@ -21,30 +17,18 @@ async def _run_ri_crawl(days_back: int = 30) -> int:
     finally:
         await db.close()
 
-
-@app.task(
-    name="crawler.tasks.crawl_ri_task",
-    bind=True,
-    autoretry_for=_TRANSIENT_ERRORS,
-    retry_backoff=True,
-    retry_backoff_max=600,
-    retry_jitter=True,
-    max_retries=3,
-    soft_time_limit=1500,
-    time_limit=1800,
-)
-def crawl_ri_task(self, days_back: int = 30):
-    task_logger = logger.bind(task="lake.ri", task_id=self.request.id)
+async def crawl_ri_task(days_back: int = 30):
+    task_logger = logger.bind(task="lake.ri")
     task_logger.info(f"Starting RI document collection (days_back={days_back})...")
     try:
-        persisted = asyncio.run(_run_ri_crawl(days_back=days_back))
+        persisted = await _run_ri_crawl(days_back=days_back)
         task_logger.info(f"RI document collection completed ({persisted} docs).")
-    except SoftTimeLimitExceeded:
-        task_logger.warning("Soft time limit hit during RI crawl; aborting.")
+    except Exception as e:
+        task_logger.error(f"RI document collection failed: {e}")
         raise
 
-
 def main() -> None:
+    import asyncio
     import os
 
     from core.logging import setup_logging

@@ -4,8 +4,6 @@ from typing import Literal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_DEFAULT_REDIS_URL = "redis://localhost:6379/0"
-
 
 class Settings(BaseSettings):
     DATABASE_URL: str | None = None
@@ -39,22 +37,6 @@ class Settings(BaseSettings):
 
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-    REDIS_URL: str = _DEFAULT_REDIS_URL
-    REDIS_HOST: str | None = None
-    REDIS_PASSWORD: str | None = None
-    REDIS_PORT: int = 6379
-    REDIS_DB: int = 0
-
-    @property
-    def redis_url(self) -> str:
-        url = self.REDIS_URL
-        if url == _DEFAULT_REDIS_URL and self.REDIS_HOST and self.REDIS_PASSWORD:
-            url = f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-        if url.startswith("rediss://") and "ssl_cert_reqs" not in url:
-            separator = "&" if "?" in url else "?"
-            return f"{url}{separator}ssl_cert_reqs=CERT_REQUIRED"
-        return url
-
     R2_ACCOUNT_ID: str | None = None
     R2_API_TOKEN: str | None = None
     R2_BUCKET_RI_DOCS: str = "ri-docs"
@@ -86,7 +68,6 @@ class Settings(BaseSettings):
     OTEL_ENABLED: bool = False
     OTEL_EXPORTER: Literal["console", "otlp", "gcp"] = "console"
     OTEL_SAMPLE_RATIO: float = 1.0
-    OTEL_INSTRUMENT_REDIS: bool = False
 
     @field_validator("GCP_PROJECT_ID", mode="before")
     @classmethod
@@ -101,13 +82,6 @@ class Settings(BaseSettings):
     CRAWLER_HTTPS_PROXY: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-
-    @field_validator("REDIS_URL", mode="before")
-    @classmethod
-    def _coerce_empty_redis_url(cls, value: str | None) -> str:
-        if value is None or (isinstance(value, str) and not value.strip()):
-            return _DEFAULT_REDIS_URL
-        return value
 
 
 settings = Settings()

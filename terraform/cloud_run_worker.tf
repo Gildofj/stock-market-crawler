@@ -1,13 +1,7 @@
-# Replaces the default project compute SA so permissions can be scoped tightly.
-resource "google_service_account" "api_runtime_sa" {
-  account_id   = "cloud-run-api-sa"
-  display_name = "Cloud Run runtime SA for stock-market-api"
-}
-
-resource "google_cloud_run_v2_service" "api" {
-  name     = "stock-market-api"
+resource "google_cloud_run_v2_service" "worker" {
+  name     = "stock-market-worker"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
     service_account = google_service_account.api_runtime_sa.email
@@ -29,14 +23,6 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "ENV"
         value = "production"
-      }
-      env {
-        name  = "CLOUD_RUN_URL"
-        value = google_cloud_run_v2_service.worker.uri
-      }
-      env {
-        name  = "ALLOWED_ORIGINS"
-        value = var.allowed_origins
       }
       env {
         name = "API_KEY"
@@ -79,9 +65,7 @@ resource "google_cloud_run_v2_service" "api" {
       }
       resources {
         limits = {
-          cpu = "1"
-          # 1Gi (vs 512Mi) handles pandas spreadsheet parsing in /carteira
-          # and pdfplumber sidecars; free tier still covers ~100h/mo.
+          cpu    = "1"
           memory = "1Gi"
         }
         cpu_idle          = true
@@ -108,13 +92,4 @@ resource "google_cloud_run_v2_service" "api" {
     google_secret_manager_secret_version.app_bootstrap,
     google_secret_manager_secret_iam_member.accessor,
   ]
-}
-
-# Unauthenticated at GCP edge; Cloudflare in front handles access control.
-resource "google_cloud_run_service_iam_member" "noauth" {
-  location = google_cloud_run_v2_service.api.location
-  project  = google_cloud_run_v2_service.api.project
-  service  = google_cloud_run_v2_service.api.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
 }

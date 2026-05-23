@@ -125,11 +125,11 @@ jobs:
             --quiet
 
   deploy-worker:
-    name: Roll Celery worker VM
+    name: Deploy Worker to Cloud Run
     runs-on: ubuntu-latest
     needs: build-and-push
     env:
-      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
+      IMAGE_REF: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ vars.AR_REPO }}/stock-market-crawler:${{ github.sha }}
     steps:
       - uses: google-github-actions/auth@v2
         with:
@@ -137,30 +137,19 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Update COS container metadata
+      - name: Deploy Cloud Run worker revision
         run: |
-          gcloud compute instances update-container "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
+          if [[ -z "${IMAGE_REF}" || "${IMAGE_REF}" == *":" ]]; then
+            echo "::error::IMAGE_REF is empty or has no tag: '${IMAGE_REF}'"
+            exit 1
+          fi
+          # `^@^` delimiter lets us pass commas inside an env var value.
+          gcloud run deploy stock-market-worker \
+            --image="${IMAGE_REF}" \
+            --region="${{ vars.GCP_REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --container-image="${IMAGE}" \
-            --container-env="REDIS_HOST=localhost,PYTHONPATH=/app,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},R2_BUCKET_RI_DOCS=ri-docs,R2_BUCKET_PORTFOLIOS=portfolios,R2_RI_PUBLIC_BASE_URL=${{ vars.R2_RI_PUBLIC_BASE_URL }},LOG_FORMAT=gcp,DEPLOYMENT_ENV=production,SERVICE_VERSION=${{ github.sha }},OTEL_ENABLED=true,OTEL_EXPORTER=gcp,OTEL_SAMPLE_RATIO=0.1" \
-            --container-command="/app/scripts/worker_entrypoint.sh" \
-            --clear-container-args \
+            --update-env-vars="^@^LOG_FORMAT=gcp@DEPLOYMENT_ENV=production@SERVICE_VERSION=${{ github.sha }}@OTEL_ENABLED=true@OTEL_EXPORTER=gcp@OTEL_SAMPLE_RATIO=0.1" \
             --quiet
-
-      - name: Verify worker is healthy
-        run: |
-          sleep 30
-          gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            | tail -n 200 | grep -iE "ready|celery" || echo "Worker logs not yet in serial output, checking again in 30s..."
-
-          sleep 30
-          gcloud compute instances get-serial-port-output "${{ vars.WORKER_VM_NAME }}" \
-            --zone="${{ vars.GCP_ZONE }}" \
-            --project="${{ secrets.GCP_PROJECT_ID }}" \
-            | tail -n 500 | grep -iE "ready|celery" || (echo "Worker health check timed out" && exit 1)
 
   deploy-ri-job:
     name: Update RI Cloud Run Job

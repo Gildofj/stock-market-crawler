@@ -1,12 +1,11 @@
 import os
 from contextlib import asynccontextmanager
 
-import redis.asyncio as redis
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi_cache import FastAPICache
-from fastapi_cache.backends.redis import RedisBackend
+from fastapi_cache.backends.inmemory import InMemoryBackend
 from loguru import logger
 
 from core.logging import setup_logging
@@ -24,6 +23,7 @@ from .routers import (
     prices,
     reliability,
     sources,
+    tasks,
 )
 from .security import CloudflareMiddleware, require_api_key
 
@@ -38,13 +38,8 @@ if not os.getenv("API_KEY"):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    try:
-        r = redis.from_url(redis_url, encoding="utf8", decode_responses=True)
-        FastAPICache.init(RedisBackend(r), prefix="stock-api-cache")
-        logger.info("API initialized with Redis Cache.")
-    except Exception as e:
-        logger.error(f"Failed to initialize Redis: {e}")
+    FastAPICache.init(InMemoryBackend(), prefix="stock-api-cache")
+    logger.info("API initialized with InMemory Cache.")
 
     await init_rate_limiter()
     yield
@@ -136,6 +131,7 @@ app.include_router(investor_relations.router, prefix="/api/v1", dependencies=api
 app.include_router(portfolio.router, prefix="/api/v1", dependencies=api_dependencies)
 
 app.include_router(sources.router, prefix="/api/v1")
+app.include_router(tasks.router)
 
 
 @app.get("/health")

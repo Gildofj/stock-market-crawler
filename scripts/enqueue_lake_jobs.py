@@ -1,28 +1,17 @@
-import sys
 import time
 
 from loguru import logger
 
-from core.config import settings
-from crawler.tasks import crawl_news_task, crawl_ri_task
-
-
-def _assert_redis_broker() -> None:
-    broker = settings.REDIS_URL
-    if not broker.startswith(("redis://", "rediss://")):
-        logger.error(
-            "REDIS_URL must point to a Redis broker (redis:// or rediss://), but resolved to {!r}.",
-            broker,
-        )
-        sys.exit(1)
+from core.services.cloud_tasks_service import CloudTasksService
 
 
 def enqueue_all() -> None:
     logger.info("Enqueuing LagoAI lake jobs (news + RI)...")
-    _assert_redis_broker()
 
-    crawl_news_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
-    crawl_ri_task.delay()  # type: ignore[attr-defined] - Motivo: Celery dinâmico
+    tasks_service = CloudTasksService()
+
+    tasks_service.enqueue_task("/_tasks/news")
+    tasks_service.enqueue_task("/_tasks/ri")
 
     logger.info("LagoAI lake jobs enqueued.")
 

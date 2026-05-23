@@ -7,9 +7,3 @@ resource "google_artifact_registry_repository" "crawler_images" {
   depends_on = [google_project_service.artifactregistry]
 }
 
-resource "google_artifact_registry_repository_iam_member" "worker_reader" {
-  location   = google_artifact_registry_repository.crawler_images.location
-  repository = google_artifact_registry_repository.crawler_images.name
-  role       = "roles/artifactregistry.reader"
-  member     = "serviceAccount:${google_service_account.worker_sa.email}"
-}

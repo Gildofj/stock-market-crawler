@@ -1,10 +1,8 @@
-import os
 
 from fastapi import Request, Response
 from fastapi_limiter.depends import RateLimiter
 from loguru import logger
-from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate, RedisBucket
-from redis.asyncio import from_url
+from pyrate_limiter import Duration, InMemoryBucket, Limiter, Rate
 
 _default_rates = [Rate(60, Duration.MINUTE)]
 _strict_rates = [Rate(10, Duration.MINUTE)]
@@ -15,19 +13,9 @@ _strict_limiter: Limiter | None = None
 
 async def init_rate_limiter() -> None:
     global _default_limiter, _strict_limiter
-
-    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    try:
-        connection = from_url(redis_url, encoding="utf8", decode_responses=True)
-        default_bucket = await RedisBucket.init(_default_rates, connection, "rl:default")  # type: ignore[misc] - Motivo: Assinatura assíncrona não mapeada estaticamente.
-        strict_bucket = await RedisBucket.init(_strict_rates, connection, "rl:strict")  # type: ignore[misc] - Motivo: Assinatura assíncrona não mapeada estaticamente.
-        _default_limiter = Limiter(default_bucket)
-        _strict_limiter = Limiter(strict_bucket)
-        logger.info("Rate limiter initialized (Redis backend).")
-    except Exception as e:
-        logger.warning(f"Falling back to in-memory rate limiter ({e}).")
-        _default_limiter = Limiter(InMemoryBucket(_default_rates))
-        _strict_limiter = Limiter(InMemoryBucket(_strict_rates))
+    _default_limiter = Limiter(InMemoryBucket(_default_rates))
+    _strict_limiter = Limiter(InMemoryBucket(_strict_rates))
+    logger.info("Rate limiter initialized (InMemory backend).")
 
 
 async def close_rate_limiter() -> None:
