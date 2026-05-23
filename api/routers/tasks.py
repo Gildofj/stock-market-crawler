@@ -7,6 +7,7 @@ from crawler.tasks.ticker import crawl_ticker_task
 
 router = APIRouter(prefix="/_tasks", tags=["Internal Tasks"])
 
+
 def _verify_task_auth(request: Request) -> None:
     """
     Verify that the request comes from Google Cloud Tasks or is authenticated.
@@ -20,6 +21,7 @@ def _verify_task_auth(request: Request) -> None:
 
     # Se for acionado por outro meio (ex: curl local), verifica a API_KEY do admin
     import os
+
     expected_api_key = os.getenv("API_KEY")
     auth_header = request.headers.get("Authorization", "")
 

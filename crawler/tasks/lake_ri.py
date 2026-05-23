@@ -17,6 +17,7 @@ async def _run_ri_crawl(days_back: int = 30) -> int:
     finally:
         await db.close()
 
+
 async def crawl_ri_task(days_back: int = 30):
     task_logger = logger.bind(task="lake.ri")
     task_logger.info(f"Starting RI document collection (days_back={days_back})...")
@@ -26,6 +27,7 @@ async def crawl_ri_task(days_back: int = 30):
     except Exception as e:
         task_logger.error(f"RI document collection failed: {e}")
         raise
+
 
 def main() -> None:
     import asyncio
