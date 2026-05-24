@@ -1,7 +1,5 @@
 FROM python:3.12-slim-bookworm
 
-RUN apt-get update && apt-get install -y redis-server && rm -rf /var/lib/apt/lists/*
-
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
@@ -16,9 +14,6 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev --extra observability
 
 COPY . .
-
-# COPY can drop the +x bit when the repo was checked out on Windows.
-RUN chmod +x /app/scripts/worker_entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 

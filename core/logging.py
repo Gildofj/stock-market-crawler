@@ -151,11 +151,7 @@ def setup_logging() -> None:
         "uvicorn",
         "uvicorn.access",
         "uvicorn.error",
-        "celery",
-        "celery.beat",
-        "celery.worker",
         "sqlalchemy.engine",
-        "kombu",
     ):
         std_logger = logging.getLogger(name)
         std_logger.handlers = [intercept]

@@ -1,10 +1,10 @@
-"""Celery tasks split by domain.
+"""Background task functions split by domain.
 
 Tasks live in per-domain modules but are re-exported here so that
 ``from crawler.tasks import crawl_ticker_task`` keeps working for callers
-(scripts/, tests/). Task names registered with Celery are explicit
-(``name="crawler.tasks.crawl_*"``), so queue messages are unaffected by
-the physical layout.
+(scripts/, tests/, api/routers/tasks.py). Each function is an async
+coroutine invoked over HTTP by Cloud Tasks via the worker's ``/_tasks/*``
+endpoints.
 """
 
 from crawler.tasks.lake_news import crawl_news_task

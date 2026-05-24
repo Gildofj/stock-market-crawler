@@ -5,11 +5,11 @@
 locals {
   app_secrets = {
     "database-url"       = var.database_url
-    "redis-password"     = var.redis_password
     "api-key"            = var.api_key
     "r2-account-id"      = var.r2_account_id
     "r2-api-token"       = var.r2_api_token
     "webshare-proxy-url" = var.webshare_proxy_url
+    "brapi-token"        = var.brapi_token
   }
 }
 
@@ -25,9 +25,12 @@ resource "google_secret_manager_secret" "app" {
 }
 
 resource "google_secret_manager_secret_version" "app_bootstrap" {
-  for_each    = local.app_secrets
-  secret      = google_secret_manager_secret.app[each.key].id
-  secret_data = each.value
+  for_each = local.app_secrets
+  secret   = google_secret_manager_secret.app[each.key].id
+  # Secret Manager rejects empty payloads, so substitute a single space for
+  # unset optional secrets (brapi_token, webshare_proxy_url, r2_*). The app
+  # treats whitespace-only env vars as None — see core/config.py validator.
+  secret_data = each.value == "" ? " " : each.value
 
   lifecycle {
     ignore_changes = [secret_data, enabled]
@@ -36,8 +39,9 @@ resource "google_secret_manager_secret_version" "app_bootstrap" {
 
 locals {
   secret_consumers = {
-    api_runtime = google_service_account.api_runtime_sa.email
-    ri_job      = google_service_account.ri_job_sa.email
+    api_runtime          = google_service_account.api_runtime_sa.email
+    ri_job               = google_service_account.ri_job_sa.email
+    refresh_universe_job = google_service_account.refresh_universe_job_sa.email
   }
 
   secret_iam_bindings = {

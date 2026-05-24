@@ -18,7 +18,6 @@ Tempo in dev). The stack stays inside the GCP free tier:
 | `OTEL_ENABLED` | `false` | `false` (flip on demand) | Global kill switch |
 | `OTEL_EXPORTER` | `console` | `gcp` | `console`, `otlp` (Tempo), `gcp` (Cloud Trace) |
 | `OTEL_SAMPLE_RATIO` | `1.0` | `0.1` | `ParentBased(TraceIdRatioBased)` |
-| `OTEL_INSTRUMENT_REDIS` | `false` | `false` | Opt-in — Redis broker polling explodes span volume |
 | `DEPLOYMENT_ENV` | `development` | `production` | OTel resource + log attribute |
 | `SERVICE_VERSION` | `dev` | git SHA | OTel resource + log `serviceContext` |
 | `GCP_PROJECT_ID` | from `GOOGLE_CLOUD_PROJECT` | — | Fully-qualifies the log↔trace link |
@@ -54,9 +53,9 @@ quota usage is observable.
    `deployment.environment=production` and `service.version=<sha>`.
 3. **Bump sampling.** If span volume looks healthy (< 80k spans/hour leaves
    ample headroom under 2.5M/month), bump to `0.1`.
-4. **Worker.** Same flip on the GCE VM:
-   `gcloud compute instances update-container <name> --container-env=...,OTEL_ENABLED=true,...`
-   then restart the container.
+4. **Worker.** Same flip on the Cloud Run worker:
+   `gcloud run services update stock-market-worker --update-env-vars=OTEL_ENABLED=true,OTEL_SAMPLE_RATIO=0.05`
+   The new revision rolls automatically.
 5. **RI Cloud Run Job.** Edit env at the job level; flush is handled by
    `shutdown_tracing()` in [crawler/tasks/lake_ri.py](../crawler/tasks/lake_ri.py)
    so traces survive the SIGTERM at completion.
@@ -111,7 +110,7 @@ Example: count failed RI document parses per company.
 ## Troubleshooting
 
 **No traces appearing in Tempo (dev):**
-* Confirm the FastAPI/Celery container is on the same docker network as
+* Confirm the api/worker containers are on the same docker network as
   `tempo` — `docker compose ps` should show all on `stock-market-crawler_default`.
 * `OTEL_EXPORTER_OTLP_ENDPOINT` must point to `http://tempo:4317` (compose
   service name, not `localhost`).
@@ -122,13 +121,6 @@ Example: count failed RI document parses per company.
 * `OTEL_ENABLED=false` means the OTel patcher in `core.logging` is a no-op
   for trace fields — `request_id` still appears via
   `CorrelationMiddleware`. To get `trace_id` in logs, enable tracing.
-
-**Celery worker spans truncated mid-task:**
-* The prefork fork breaks the `BatchSpanProcessor` daemon thread; the
-  `worker_process_init` handler in [crawler/celery_signals.py](../crawler/celery_signals.py)
-  re-runs `setup_tracing()` in each child to rebuild it. If you see this,
-  confirm the import side-effect at the top of `crawler/celery_app.py` is
-  still present.
 
 **Spans for `/health` flooding Cloud Trace:**
 * `OTEL_PYTHON_FASTAPI_EXCLUDED_URLS` in the deploy.yml api job already

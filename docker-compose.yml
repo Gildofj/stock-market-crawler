@@ -33,18 +33,6 @@ services:
       db:
         condition: service_healthy
 
-  redis:
-    image: redis:alpine
-    container_name: stock_market_crawler_redis
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   loki:
     image: grafana/loki:latest
     container_name: stock_market_crawler_loki
@@ -68,7 +56,10 @@ services:
       - loki
 
   tempo:
-    image: grafana/tempo:latest
+    # Pinned to the latest 2.x stable. `:latest` currently resolves to
+    # v3.0.0-rc.1 which broke the YAML schema for `ingester`/`compactor`.
+    # Bump after Tempo 3.0 GA + a stable example config is published upstream.
+    image: grafana/tempo:2.10.5
     container_name: stock_market_crawler_tempo
     restart: unless-stopped
     command: -config.file=/etc/tempo/tempo.yaml
@@ -79,6 +70,25 @@ services:
       - ./grafana/tempo/tempo.yaml:/etc/tempo/tempo.yaml
       - tempo_data:/var/tempo
 
+  # Local Cloud Tasks emulator (community: aertje/cloud-tasks-emulator).
+  # Speaks the same gRPC API as Google Cloud Tasks and delivers tasks via
+  # HTTP with X-CloudTasks-* headers, applying retry_config/rate_limits.
+  # OIDC tokens are NOT validated — keep this binding 127.0.0.1 only.
+  cloud-tasks-emulator:
+    image: ghcr.io/aertje/cloud-tasks-emulator:latest
+    container_name: stock_market_crawler_tasks_emulator
+    restart: unless-stopped
+    command:
+      - -host=0.0.0.0
+      - -port=8123
+      - -queue=projects/local-project/locations/us-central1/queues/crawler-queue
+    ports:
+      - "127.0.0.1:8123:8123"
+
+  # Public-facing API (mirrors Cloud Run service "stock-market-api").
+  # Enqueues work into the worker via CLOUD_RUN_URL. With GCP_PROJECT_ID
+  # unset, CloudTasksService falls back to no-op logging — call /_tasks/*
+  # endpoints directly on the worker for end-to-end local testing.
   api:
     build: .
     container_name: stock_market_crawler_api
@@ -87,67 +97,89 @@ services:
       - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
-      - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - ENV=development
       - LOG_FORMAT=human
       - DEPLOYMENT_ENV=development
+      - API_KEY=${API_KEY:-dev-api-key}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - CLOUD_RUN_URL=http://worker:8000
+      - CLOUD_TASKS_QUEUE=${CLOUD_TASKS_QUEUE:-crawler-queue}
+      - CLOUD_TASKS_LOCATION=${CLOUD_TASKS_LOCATION:-us-central1}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-local-project}
+      - CLOUD_TASKS_EMULATOR_HOST=${CLOUD_TASKS_EMULATOR_HOST:-cloud-tasks-emulator:8123}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_API_TOKEN=${R2_API_TOKEN:-}
+      - R2_BUCKET_RI_DOCS=${R2_BUCKET_RI_DOCS:-ri-docs}
+      - R2_BUCKET_PORTFOLIOS=${R2_BUCKET_PORTFOLIOS:-portfolios}
+      - R2_RI_PUBLIC_BASE_URL=${R2_RI_PUBLIC_BASE_URL:-}
+      - CRAWLER_HTTP_PROXY=${CRAWLER_HTTP_PROXY:-}
+      - CRAWLER_HTTPS_PROXY=${CRAWLER_HTTPS_PROXY:-}
       - OTEL_ENABLED=true
       - OTEL_EXPORTER=otlp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
 
-  # Hot worker: high-cadence queues + embedded beat scheduler.
-  # Beat is intentionally only on this process (Celery requires a single scheduler).
-  worker-hot:
+  # Internal worker (mirrors Cloud Run service "stock-market-worker").
+  # Same image/entrypoint as the API; in production it's a separate Cloud Run
+  # service reached only by Cloud Tasks via /_tasks/*. Locally we keep it
+  # isolated on the docker network — not published to the host.
+  worker:
     build: .
-    container_name: stock_market_crawler_worker_hot
-    command: celery -A crawler.celery_app worker --beat --loglevel=info --concurrency=2 -Q crawler,default,macro -n hot@%h
+    container_name: stock_market_crawler_worker
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    expose:
+      - "8000"
     environment:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
-      - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
+      - ENV=development
       - LOG_FORMAT=human
       - DEPLOYMENT_ENV=development
+      - API_KEY=${API_KEY:-dev-api-key}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_API_TOKEN=${R2_API_TOKEN:-}
+      - R2_BUCKET_RI_DOCS=${R2_BUCKET_RI_DOCS:-ri-docs}
+      - R2_BUCKET_PORTFOLIOS=${R2_BUCKET_PORTFOLIOS:-portfolios}
+      - R2_RI_PUBLIC_BASE_URL=${R2_RI_PUBLIC_BASE_URL:-}
+      - CRAWLER_HTTP_PROXY=${CRAWLER_HTTP_PROXY:-}
+      - CRAWLER_HTTPS_PROXY=${CRAWLER_HTTPS_PROXY:-}
       - OTEL_ENABLED=true
       - OTEL_EXPORTER=otlp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
     depends_on:
       db:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     restart: unless-stopped
 
-  # Lake worker: lighter parser workloads (RSS news). RI is NOT consumed here —
-  # it runs as a Cloud Run Job in production (see terraform/cloud_run_job.tf).
-  worker-lake:
+  # RI Cloud Run Job — runs ad-hoc, not on `docker compose up`.
+  # Trigger with: docker compose run --rm ri-job
+  ri-job:
     build: .
-    container_name: stock_market_crawler_worker_lake
-    command: celery -A crawler.celery_app worker --loglevel=info --concurrency=1 -Q lake -n lake@%h
+    container_name: stock_market_crawler_ri_job
+    profiles: ["jobs"]
+    command: python -m crawler.tasks.lake_ri
     environment:
       - DATABASE_URL=postgresql://crawler_user:crawler_pass@db:5432/stock_market_crawler_data
-      - REDIS_URL=redis://redis:6379/0
       - PYTHONPATH=/app
       - LOG_FORMAT=human
       - DEPLOYMENT_ENV=development
-      - OTEL_ENABLED=true
-      - OTEL_EXPORTER=otlp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
-      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - RI_DAYS_BACK=${RI_DAYS_BACK:-7}
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID:-}
+      - R2_API_TOKEN=${R2_API_TOKEN:-}
+      - R2_BUCKET_RI_DOCS=${R2_BUCKET_RI_DOCS:-ri-docs}
+      - R2_RI_PUBLIC_BASE_URL=${R2_RI_PUBLIC_BASE_URL:-}
+      - CRAWLER_HTTP_PROXY=${CRAWLER_HTTP_PROXY:-}
+      - CRAWLER_HTTPS_PROXY=${CRAWLER_HTTPS_PROXY:-}
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    restart: unless-stopped
 
 volumes:
   postgres_data:

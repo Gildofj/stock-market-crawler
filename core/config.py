@@ -14,8 +14,20 @@ class Settings(BaseSettings):
     DB_PORT: int = 5432
     DB_NAME: str = "stock_market_crawler_data"
 
-    DB_POOL_SIZE: int = 2
-    DB_MAX_OVERFLOW: int = 3
+    # Sized for Supabase free tier behind Supavisor transaction pooler (port 6543):
+    # the pooler multiplexes a small app-side pool onto fewer real Postgres
+    # connections, so 5+10=15 per service × 2 services = 30 total stays well
+    # under the free-tier ceiling. Aligned with cloud_tasks.tf max_concurrent_dispatches.
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    # Hard cap on any single query at the Postgres level (ms). Stops a runaway
+    # query from holding a pool slot forever; pairs with pool_timeout=30s.
+    DB_STATEMENT_TIMEOUT_MS: int = 30_000
+
+    # Optional Brapi API token. The free public endpoint returns 401 on every
+    # call — without a token, _resolve_via_brapi is skipped entirely so we
+    # don't spam the upstream and pollute logs with 401 warnings.
+    BRAPI_TOKEN: str | None = None
 
     @property
     def database_url(self) -> str:
@@ -75,6 +87,24 @@ class Settings(BaseSettings):
         if value:
             return value
         return os.getenv("GOOGLE_CLOUD_PROJECT")
+
+    @field_validator(
+        "BRAPI_TOKEN",
+        "R2_ACCOUNT_ID",
+        "R2_API_TOKEN",
+        "R2_RI_PUBLIC_BASE_URL",
+        "CRAWLER_HTTP_PROXY",
+        "CRAWLER_HTTPS_PROXY",
+        mode="before",
+    )
+    @classmethod
+    def _blank_to_none(cls, value: str | None) -> str | None:
+        # Secret Manager bootstrap writes a single space for unset optional
+        # secrets (terraform/secrets.tf); normalise back to None so truthy
+        # checks like `if settings.BRAPI_TOKEN:` behave as expected.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     CRAWLER_CONTACT_EMAIL: str = ""
 

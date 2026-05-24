@@ -39,10 +39,34 @@ variable "webshare_proxy_url" {
   default     = ""
 }
 
-variable "redis_password" {
-  description = "Password for the self-hosted Redis instance on GCE"
+# Brapi API token for CVM ticker → cd_cvm fallback resolution. Without it the
+# fallback is skipped silently (see crawler/spiders/cvm_spider.py).
+variable "brapi_token" {
+  description = "Brapi (https://brapi.dev) API token used to resolve unmapped tickers via CNPJ lookup."
   type        = string
   sensitive   = true
+  default     = ""
+}
+
+# DB pool tuning — exposed as plain vars (not secrets) so they can be tweaked
+# per environment without rebuilding the container image. Defaults match
+# core/config.py for Supabase free tier behind Supavisor transaction pooler.
+variable "db_pool_size" {
+  description = "SQLAlchemy pool_size per service instance. Keep small when behind a connection pooler (Supavisor multiplexes)."
+  type        = number
+  default     = 5
+}
+
+variable "db_max_overflow" {
+  description = "SQLAlchemy max_overflow — connections beyond pool_size allowed under burst."
+  type        = number
+  default     = 10
+}
+
+variable "db_statement_timeout_ms" {
+  description = "Postgres statement_timeout in ms. Hard kill for runaway queries that would otherwise hold a pool slot indefinitely."
+  type        = number
+  default     = 30000
 }
 
 variable "allowed_origins" {
@@ -100,8 +124,3 @@ variable "r2_ri_public_base_url" {
   default     = ""
 }
 
-variable "operator_ip_ranges" {
-  description = "List of operator IP ranges allowed to SSH into the VM"
-  type        = list(string)
-  default     = ["10.0.0.0/8"] # Replace locally in .tfvars
-}

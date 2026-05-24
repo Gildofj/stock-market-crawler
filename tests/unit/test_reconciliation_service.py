@@ -72,13 +72,14 @@ async def test_emit_returns_zero_when_no_snapshot():
 
 
 @pytest.mark.asyncio
-async def test_emit_records_consistent_dy_decimal_form():
-    """Yahoo returns dividendYield in decimal form (0.05). After normalising
-    to percent (5.0) it matches the CVM-derived 5.0 — no outlier.
+async def test_emit_records_consistent_dy_percent_form():
+    """Since yfinance 1.x, dividendYield is already a percentage (5.0 == 5%),
+    so the mapping uses _identity. A snapshot of 5.0 against a CVM-derived
+    5.0 produces no delta.
     """
     session = _FakeSession()
     company_id = uuid.uuid4()
-    result = _result(dy=5.0, snapshot={"dividendYield": 0.05})
+    result = _result(dy=5.0, snapshot={"dividendYield": 5.0})
 
     written = await ReconciliationService(cast(AsyncSession, session)).emit(company_id, result)
 
@@ -86,7 +87,7 @@ async def test_emit_records_consistent_dy_decimal_form():
     row = session.saved[0]
     assert row.indicator == "dy"
     assert row.source_field == "dividendYield"
-    assert row.source_value_raw == pytest.approx(0.05)
+    assert row.source_value_raw == pytest.approx(5.0)
     assert row.source_value_normalised == pytest.approx(5.0)
     assert row.cvm_value == pytest.approx(5.0)
     assert row.delta_abs == pytest.approx(0.0)
@@ -95,20 +96,20 @@ async def test_emit_records_consistent_dy_decimal_form():
 
 
 @pytest.mark.asyncio
-async def test_emit_flags_dy_outlier_when_yahoo_returns_percent():
-    """If yfinance silently flips to returning percent (5.0) instead of
-    decimal (0.05), the normaliser multiplies it again and produces 500%.
-    Reconciliation must flag this — exactly the user-reported symptom.
+async def test_emit_flags_dy_outlier_when_yahoo_returns_decimal():
+    """If yfinance ever regresses to the pre-1.x decimal form (0.05 for 5%),
+    the identity mapping will surface it as a huge negative delta vs. the
+    CVM-derived percent value — exactly what reconciliation should flag.
     """
     session = _FakeSession()
-    result = _result(dy=5.0, snapshot={"dividendYield": 5.0})
+    result = _result(dy=5.0, snapshot={"dividendYield": 0.05})
 
     await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
     row = next(r for r in session.saved if r.indicator == "dy")
-    assert row.source_value_normalised == pytest.approx(500.0)
+    assert row.source_value_normalised == pytest.approx(0.05)
     assert row.is_outlier is True
-    assert row.delta_pct == pytest.approx(99.0)
+    assert row.delta_pct == pytest.approx(-0.99)
 
 
 @pytest.mark.asyncio
@@ -152,7 +153,7 @@ async def test_emit_handles_zero_cvm_value():
     but a non-zero yahoo value is still suspicious — flag it.
     """
     session = _FakeSession()
-    result = _result(dy=0.0, snapshot={"dividendYield": 0.04})
+    result = _result(dy=0.0, snapshot={"dividendYield": 4.0})
 
     await ReconciliationService(cast(AsyncSession, session)).emit(uuid.uuid4(), result)
 
@@ -189,7 +190,7 @@ async def test_emit_multiple_rows_in_one_run():
             "forwardPE": 10.0,
             "trailingPE": 11.0,
             "priceToBook": 2.0,
-            "dividendYield": 0.05,
+            "dividendYield": 5.0,
             "marketCap": 1_000_000_000.0,
         },
     )

@@ -1,5 +1,6 @@
 import asyncio
 import io
+import zipfile
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -17,11 +18,15 @@ from crawler.services.request_manager import RequestManager
 
 class RISpider:
     IPE_URL_TEMPLATE = (
-        "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/ipe_cia_aberta_{year}.csv"
+        "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/IPE/DADOS/ipe_cia_aberta_{year}.zip"
     )
 
     TARGET_CATEGORIES = {"ITR", "DFP", "FORMULARIO_DE_REFERENCIA", "FATO_RELEVANTE"}
     MAX_TEXT_CHARS = 10_000
+
+    # CVM Dados Abertos publishes IPE going back to 2010. Cold-start runs walk
+    # from here forward; subsequent runs resume from the latest persisted year.
+    EARLIEST_IPE_YEAR = 2010
 
     def __init__(
         self,
@@ -35,23 +40,36 @@ class RISpider:
 
     async def _fetch_index_csv(self, year: int) -> pd.DataFrame | None:
         url = self.IPE_URL_TEMPLATE.format(year=year)
+        logger.info(f"RISpider: fetching IPE index for {year} ({url})")
         try:
-            response = await self.request_manager.get_async(url, timeout=60)
+            response = await self.request_manager.get_async(url, timeout=60, binary=True)
             response.raise_for_status()
         except Exception as e:
             logger.warning(f"RISpider: failed to fetch IPE index for {year}: {e}")
             return None
+
+        def _parse_zip() -> pd.DataFrame:
+            with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                expected = f"ipe_cia_aberta_{year}.csv"
+                csv_name = (
+                    expected
+                    if expected in archive.namelist()
+                    else next((n for n in archive.namelist() if n.endswith(".csv")), None)
+                )
+                if csv_name is None:
+                    raise ValueError(f"no CSV inside IPE archive for {year}")
+                with archive.open(csv_name) as fh:
+                    return pd.read_csv(fh, sep=";", encoding="latin-1")
+
         try:
-            return await asyncio.to_thread(
-                lambda: pd.read_csv(io.BytesIO(response.content), sep=";", encoding="latin-1")
-            )
+            return await asyncio.to_thread(_parse_zip)
         except Exception as e:
-            logger.error(f"RISpider: could not parse IPE CSV for {year}: {e}")
+            logger.error(f"RISpider: could not parse IPE archive for {year}: {e}")
             return None
 
     async def _fetch_pdf_bytes(self, pdf_url: str) -> bytes | None:
         try:
-            response = await self.request_manager.get_async(pdf_url, timeout=90)
+            response = await self.request_manager.get_async(pdf_url, timeout=90, binary=True)
             response.raise_for_status()
         except Exception as e:
             logger.warning(f"RISpider: failed to download PDF {pdf_url}: {e}")
@@ -95,7 +113,43 @@ class RISpider:
                 return str(row[column])
         return None
 
-    async def crawl_recent(self, days_back: int = 30, year: int | None = None) -> int:
+    async def _resolve_year_range(
+        self,
+        today: date,
+        days_back: int | None,
+        year: int | None,
+    ) -> tuple[list[int], date, str]:
+        if year is not None:
+            return [year], date(year, 1, 1), "year"
+
+        if days_back is not None:
+            cutoff = today - timedelta(days=days_back)
+            return list(range(cutoff.year, today.year + 1)), cutoff, "days_back"
+
+        # Incremental: the current-year CSV is mutable (CVM appends new filings
+        # throughout the year), so the cursor must be per-day, not per-year.
+        latest_delivered = await self.lake_service.get_latest_ri_delivered_date()
+        if latest_delivered is None:
+            start_year = self.EARLIEST_IPE_YEAR
+            cutoff = date(start_year, 1, 1)
+            logger.info(
+                f"RISpider: cold start — lake_ri_document has no delivered_at; "
+                f"fetching from EARLIEST_IPE_YEAR={start_year}."
+            )
+        else:
+            start_year = latest_delivered.year
+            cutoff = latest_delivered + timedelta(days=1)
+            logger.info(
+                f"RISpider: incremental — latest delivered_at={latest_delivered}; "
+                f"fetching rows with Data_Entrega >= {cutoff}."
+            )
+        return list(range(start_year, today.year + 1)), cutoff, "incremental"
+
+    async def crawl_recent(
+        self,
+        days_back: int | None = None,
+        year: int | None = None,
+    ) -> int:
         import uuid
 
         if not await get_source_registry().is_enabled("cvm"):
@@ -109,49 +163,85 @@ class RISpider:
             logger.warning(f"RISpider: could not fetch 'cvm' source_id, lineage will be null: {e}")
             cvm_source_id = None
 
-        cutoff = datetime.utcnow().date() - timedelta(days=days_back)
-        target_year = year or datetime.utcnow().year
+        today = datetime.utcnow().date()
+        years_to_fetch, cutoff, mode = await self._resolve_year_range(today, days_back, year)
 
-        dfs = []
-        df_current = await self._fetch_index_csv(target_year)
-        if df_current is not None and not df_current.empty:
-            dfs.append(df_current)
+        logger.info(
+            f"RISpider: crawl_recent(mode={mode}, days_back={days_back}, year={year}) "
+            f"cutoff={cutoff} years_to_fetch={years_to_fetch}"
+        )
 
-        if year is None and (cutoff.year < target_year or df_current is None):
-            df_prev = await self._fetch_index_csv(target_year - 1)
-            if df_prev is not None and not df_prev.empty:
-                dfs.append(df_prev)
+        dfs: list[pd.DataFrame] = []
+        for y in years_to_fetch:
+            df_year = await self._fetch_index_csv(y)
+            if df_year is None:
+                logger.warning(f"RISpider: skipping {y} — IPE CSV unavailable.")
+                continue
+            if df_year.empty:
+                logger.info(f"RISpider: IPE CSV for {y} is empty.")
+                continue
+            logger.info(f"RISpider: loaded {len(df_year)} rows from IPE CSV {y}.")
+            dfs.append(df_year)
 
         if not dfs:
+            logger.error(
+                f"RISpider: no IPE CSV available for any of {years_to_fetch}; aborting."
+            )
             return 0
 
         df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
+        logger.info(f"RISpider: concatenated {len(df)} raw rows across {len(dfs)} CSV(s).")
 
         cnpjs = watched_cnpjs()
         if "CNPJ_Companhia" not in df.columns:
-            logger.warning("RISpider: unexpected CSV schema, skipping.")
+            logger.error(
+                f"RISpider: unexpected CSV schema (no CNPJ_Companhia). "
+                f"columns={list(df.columns)}"
+            )
             return 0
 
         df["__cnpj"] = df["CNPJ_Companhia"].astype(str).str.replace(r"\D", "", regex=True)
         filtered: pd.DataFrame = df[df["__cnpj"].isin(list(cnpjs))]  # type: ignore[assignment] - Motivo: Injeção mock
+        logger.info(
+            f"RISpider: {len(filtered)} rows matched the {len(cnpjs)} watched CNPJs "
+            f"(out of {len(df)} total)."
+        )
 
         date_col = "Data_Entrega" if "Data_Entrega" in filtered.columns else None
         if date_col:
             filtered = filtered.assign(__date=pd.to_datetime(filtered[date_col], errors="coerce"))
+            before_date = len(filtered)
             filtered = filtered[filtered["__date"].dt.date >= cutoff]  # type: ignore[assignment] - Motivo: Injeção mock
+            logger.info(
+                f"RISpider: {len(filtered)} rows pass date filter (>= {cutoff}); "
+                f"dropped {before_date - len(filtered)}."
+            )
 
         if "Categoria" in filtered.columns:
+            before_cat = len(filtered)
             filtered = filtered[  # type: ignore[assignment] - Motivo: Injeção mock
                 filtered["Categoria"].isin(list(self.TARGET_CATEGORIES))
             ]
+            logger.info(
+                f"RISpider: {len(filtered)} rows pass category filter "
+                f"({self.TARGET_CATEGORIES}); dropped {before_cat - len(filtered)}."
+            )
 
+        if filtered.empty:
+            logger.warning("RISpider: 0 rows survived filters; nothing to persist.")
+            return 0
+
+        skipped_no_doc_id = 0
+        skipped_no_ticker = 0
         persisted = 0
         for _, row in filtered.iterrows():
             doc_id = self._doc_id(row)
             if not doc_id:
+                skipped_no_doc_id += 1
                 continue
             ticker = resolve_ticker(str(row["__cnpj"]))
             if not ticker:
+                skipped_no_ticker += 1
                 continue
 
             pdf_url_raw = row.get("Link_Download") or row.get("Link_Documento")
@@ -166,6 +256,7 @@ class RISpider:
                     text = await self._extract_pdf_text(pdf_bytes, pdf_url)
 
             ref_value = row.get("Data_Referencia") or (row.get(date_col) if date_col else None)
+            delivered_value = row.get(date_col) if date_col else None
 
             payload = LakeRIDocumentInternalSchema(
                 doc_id=doc_id,
@@ -175,6 +266,7 @@ class RISpider:
                 pdf_url=pdf_url,
                 text_excerpt=text,
                 reference_date=self._coerce_date(ref_value),
+                delivered_at=self._coerce_date(delivered_value),
                 source_id=cvm_source_id,
             )
 
@@ -187,5 +279,9 @@ class RISpider:
             except Exception as e:
                 logger.error(f"RISpider: failed to persist {doc_id}: {e}")
 
-        logger.info(f"RISpider: persisted {persisted} RI documents.")
+        logger.info(
+            f"RISpider: persisted {persisted} RI documents "
+            f"(skipped_no_doc_id={skipped_no_doc_id}, "
+            f"skipped_no_ticker={skipped_no_ticker})."
+        )
         return persisted

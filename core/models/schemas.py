@@ -30,6 +30,10 @@ class CompanySchema(BaseModel):
     logo_url: str | None = None
     website: str | None = None
     is_active: int = 1
+    cnpj: str | None = None
+    cd_cvm: str | None = None
+    asset_type: str | None = None
+    underlying_ticker: str | None = None
 
 
 class FundamentalSchema(BaseModel):
@@ -51,6 +55,7 @@ class FundamentalSchema(BaseModel):
     valuation_graham: float | None = None
     valuation_bazin: float | None = None
     quality_score: int | None = None
+    asset_type: str = "EQUITY"
     primary_source_id: uuid.UUID | None = None
     contributing_sources: list[str] = Field(default_factory=list)
     provenance: dict[str, str] | None = Field(default_factory=dict)
@@ -89,6 +94,7 @@ class LakeRIDocumentSchema(BaseModel):
     title: str
     pdf_url: str | None = None
     reference_date: date | None = None
+    delivered_at: date | None = None
     pdf_source: str = "CVM (dados.cvm.gov.br)"
     source_id: uuid.UUID | None = None
 

@@ -5,13 +5,9 @@ image_name   = "gcr.io/your-gcp-project-id/stock-market-crawler:latest"
 # External Infrastructure (Secrets)
 database_url = "postgresql://user:pass@db.supabase.co:6543/postgres"
 
-# Redis Configuration (Self-hosted on GCE)
-redis_url      = "redis://:STRONG_PASSWORD_HERE@VM_PUBLIC_IP:6379/0"
-redis_password = "STRONG_PASSWORD_HERE"
-
 # API authentication — generated with `openssl rand -hex 32`.
 # Must match the API_KEY GitHub Actions secret used by deploy.yml.
-api_key = "replace-with-openssl-rand-base64-32"
+api_key = "replace-with-openssl-rand-hex-32"
 
 # Optional Customizations
 region          = "us-central1"
@@ -31,5 +27,12 @@ r2_bucket_ri_docs     = "ri-docs"
 r2_bucket_portfolios  = "portfolios"
 r2_ri_public_base_url = ""
 
-#AUTH
-api_key = "STRONG KEY"
+# Brapi (https://brapi.dev) — fallback CNPJ resolver for unmapped tickers.
+# Leave blank to disable the fallback (CVMSpider skips it silently).
+brapi_token = "kHaTnZY6uaousWzrsChc7F"
+
+# DB pool tuning (defaults match Supabase free tier behind Supavisor).
+# Bump only if Supabase tier is upgraded.
+# db_pool_size            = 5
+# db_max_overflow         = 10
+# db_statement_timeout_ms = 30000

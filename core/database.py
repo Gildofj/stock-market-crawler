@@ -19,9 +19,16 @@ def get_engine():
             pool_timeout=30,
             pool_recycle=1800,
             pool_pre_ping=True,
+            # LIFO favours recently-released connections, keeping the working
+            # set "hot" under bursty Cloud Tasks fan-out and letting idle
+            # connections age out via pool_recycle.
+            pool_use_lifo=True,
             connect_args={
                 "statement_cache_size": 0,
                 "prepared_statement_cache_size": 0,
+                "server_settings": {
+                    "statement_timeout": str(settings.DB_STATEMENT_TIMEOUT_MS),
+                },
             },
         )
     return _engine

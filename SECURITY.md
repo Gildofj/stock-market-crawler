@@ -77,15 +77,15 @@ This section is published as a transparency aid for auditors, downstream operato
 
 - **CORS**: production deployments require an explicit `ALLOWED_ORIGINS` allowlist (sanitised in commit `51de321`). Wildcard origins are not accepted when `ENV=production`.
 - **Cloudflare middleware** (`api/security.py`): when `ENV=production`, requests must originate from Cloudflare IP ranges and carry `cf-connecting-ip`. Bypass paths are limited to `/`, `/health`, `/docs`, `/redoc`, `/openapi.json`, `/favicon.ico`.
-- **Rate limiting** (`api/limiter.py`): 10 requests per minute global default via `pyrate-limiter` backed by Redis. Falls back to in-process memory if Redis is unreachable.
-- **Compression & transport**: `GZipMiddleware` enabled; deployment via Render terminates TLS at the edge.
+- **Rate limiting** (`api/limiter.py`): 10 requests per minute global default via `pyrate-limiter` with an in-process `InMemoryBucket`. Cloud Run min-instances stays at 0 and Cloudflare handles edge L7 protections.
+- **Compression & transport**: `GZipMiddleware` enabled; TLS terminates at Cloudflare, then Cloud Run.
 - **Response models**: all routers serialise through Pydantic v2 schemas in `api/schemas.py` — ORM objects are never returned directly.
 
 ### Secrets management
 
 - Secrets are loaded exclusively from environment variables via `pydantic-settings` (`crawler/services/config.py`).
 - `.env` is `.gitignore`d; only `.env.example` (no real values) ships in the repo.
-- Production deployments inject `DATABASE_URL`, `REDIS_URL`, `ALLOWED_ORIGINS`, and `ENV` via the platform secret store (Render dashboard, GitHub Actions secrets).
+- Production deployments inject `DATABASE_URL`, `API_KEY`, `ALLOWED_ORIGINS`, and `ENV` via Google Secret Manager (consumed by Cloud Run at startup); GitHub Actions reads them through `gcloud secrets versions access` only at deploy time.
 - Supabase connections use the **transaction-mode pooler (port 6543)** — see `docs/DEPLOYMENT.md` — which reduces blast radius if a single client misbehaves.
 
 ### Data layer

@@ -51,7 +51,7 @@ endif
 
 # --- TARGETS ---
 
-.PHONY: help install up down test lint format clean build build-no-cache install-uv-user install-uv-project start tf-init tf-plan tf-apply docker-push-gcp
+.PHONY: help install up down test lint format clean build build-no-cache install-uv-user install-uv-project start tf-init tf-plan tf-apply docker-push-gcp db-migrate db-makemigrations db-downgrade
 
 ## Show this help message
 help:
@@ -81,7 +81,7 @@ install:
 	@echo "Syncing dependencies..."
 	@$(SYNC)
 
-## Start Docker infrastructure (Database, Redis, Grafana, Worker)
+## Start Docker infrastructure (Database, Grafana, API, Worker, Tasks Emulator)
 up:
 	@echo "Starting infrastructure (Cleaning old containers)..."
 	@docker-compose up -d --remove-orphans
@@ -89,6 +89,25 @@ up:
 ## Stop Docker infrastructure
 down:
 	@docker-compose down
+
+## [DB] Run database migrations inside Docker
+db-migrate:
+	@echo "Running database migrations..."
+	@docker-compose exec api alembic upgrade head
+
+## [DB] Create a new migration. Usage: make db-makemigrations m="migration name"
+db-makemigrations:
+ifeq ($(m),)
+	@echo Error: Migration message is required. Use 'make db-makemigrations m="Message"'
+	@exit 1
+endif
+	@echo "Creating new migration..."
+	@docker-compose exec api alembic revision --autogenerate -m "$(m)"
+
+## [DB] Downgrade database by 1 revision
+db-downgrade:
+	@echo "Downgrading database..."
+	@docker-compose exec api alembic downgrade -1
 
 ## [TERRAFORM] Initialize GCP Infrastructure
 tf-init:

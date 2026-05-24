@@ -72,6 +72,12 @@ class Company(Base):
     is_active: Mapped[int] = mapped_column(Integer, default=1)
     logo_url: Mapped[str | None] = mapped_column(String(500))
     website: Mapped[str | None] = mapped_column(String(255))
+    # Asset taxonomy — populated by the refresh_universe Cloud Run Job from Brapi.
+    # Drives CrawlerEngine.run_for_ticker dispatch to the right spider.
+    cnpj: Mapped[str | None] = mapped_column(String(14), index=True)
+    cd_cvm: Mapped[str | None] = mapped_column(String(20))
+    asset_type: Mapped[str | None] = mapped_column(String(20), index=True)
+    underlying_ticker: Mapped[str | None] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -133,6 +139,11 @@ class Fundamental(Base):
     valuation_graham: Mapped[float | None] = mapped_column(Numeric(12, 4))
     valuation_bazin: Mapped[float | None] = mapped_column(Numeric(12, 4))
     quality_score: Mapped[int | None] = mapped_column(Integer)
+    # EQUITY | FII | BDR | ETF | UNIT — discriminator so cross-asset queries
+    # can filter on metrics that make sense for each instrument class.
+    asset_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="EQUITY", server_default="EQUITY", index=True
+    )
     primary_source_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
     )
@@ -250,6 +261,7 @@ class LakeRIDocument(Base):
     pdf_url: Mapped[str | None] = mapped_column(String(1000))
     text_excerpt: Mapped[str | None] = mapped_column(Text)
     reference_date: Mapped[date | None] = mapped_column(Date)
+    delivered_at: Mapped[date | None] = mapped_column(Date, index=True)
     source_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("data_sources.id", ondelete="SET NULL")
     )
@@ -287,7 +299,7 @@ class LakeIndicatorReconciliation(Base):
     source_value_normalised: Mapped[float | None] = mapped_column(Numeric(30, 8))
     cvm_value: Mapped[float | None] = mapped_column(Numeric(30, 8))
     delta_abs: Mapped[float | None] = mapped_column(Numeric(30, 8))
-    delta_pct: Mapped[float | None] = mapped_column(Numeric(10, 4))
+    delta_pct: Mapped[float | None] = mapped_column(Numeric(20, 8))
     is_outlier: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     collected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True

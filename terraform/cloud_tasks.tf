@@ -3,8 +3,10 @@ resource "google_cloud_tasks_queue" "crawler_queue" {
   location = var.region
 
   rate_limits {
-    max_dispatches_per_second = 10
-    max_concurrent_dispatches = 30
+    # Aligned with worker DB pool capacity (DB_POOL_SIZE + DB_MAX_OVERFLOW = 15,
+    # but two services share the Supabase free-tier ceiling).
+    max_dispatches_per_second = 5
+    max_concurrent_dispatches = 10
   }
 
   retry_config {

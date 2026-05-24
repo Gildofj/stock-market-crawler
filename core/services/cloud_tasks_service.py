@@ -14,11 +14,26 @@ class CloudTasksService:
         self.location = os.getenv("CLOUD_TASKS_LOCATION", "us-central1")
         self.queue = os.getenv("CLOUD_TASKS_QUEUE", "crawler-queue")
         self.base_url = os.getenv("CLOUD_RUN_URL", "http://localhost:8000")
+        # When set, talks to a local emulator (aertje/cloud-tasks-emulator) via
+        # plaintext gRPC. The emulator does not validate OIDC, so tokens are
+        # also skipped on the produced tasks.
+        self.emulator_host = os.getenv("CLOUD_TASKS_EMULATOR_HOST")
         self.client = None
 
         if self.project:
             try:
-                self.client = tasks_v2.CloudTasksClient()
+                if self.emulator_host:
+                    import grpc
+                    from google.cloud.tasks_v2.services.cloud_tasks.transports import (
+                        CloudTasksGrpcTransport,
+                    )
+
+                    channel = grpc.insecure_channel(self.emulator_host)
+                    self.client = tasks_v2.CloudTasksClient(
+                        transport=CloudTasksGrpcTransport(channel=channel)
+                    )
+                else:
+                    self.client = tasks_v2.CloudTasksClient()
                 self.parent = self.client.queue_path(self.project, self.location, self.queue)
             except Exception as e:
                 logger.warning(f"Could not initialize CloudTasksClient: {e}")
@@ -34,19 +49,20 @@ class CloudTasksService:
             logger.info(f"[Local Fallback] Enqueuing task to {url} with payload {payload}")
             return
 
-        service_account_email = f"cloud-run-api-sa@{self.project}.iam.gserviceaccount.com"
-        task = {
+        task: dict[str, Any] = {
             "http_request": {
                 "http_method": tasks_v2.HttpMethod.POST,
                 "url": url,
                 "headers": {"Content-type": "application/json"},
-                # Se a API estiver protegida pelo IAM do Cloud Run:
-                "oidc_token": {
-                    "service_account_email": service_account_email,
-                    "audience": self.base_url,
-                },
             }
         }
+
+        if not self.emulator_host:
+            service_account_email = f"cloud-run-api-sa@{self.project}.iam.gserviceaccount.com"
+            task["http_request"]["oidc_token"] = {
+                "service_account_email": service_account_email,
+                "audience": self.base_url,
+            }
 
         if payload is not None:
             task["http_request"]["body"] = json.dumps(payload).encode()

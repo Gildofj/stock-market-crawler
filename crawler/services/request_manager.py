@@ -179,7 +179,13 @@ class RequestManager:
 
         return self._session.get(url, headers=headers, **kwargs)  # type: ignore - Motivo: Tipagem externa
 
-    async def get_async(self, url: str, max_retries: int = 3, **kwargs: Any) -> ResponseProtocol:
+    async def get_async(
+        self,
+        url: str,
+        max_retries: int = 3,
+        binary: bool = False,
+        **kwargs: Any,
+    ) -> ResponseProtocol:
         headers = self._get_headers(url)
         if "headers" in kwargs:
             headers.update(kwargs.pop("headers"))
@@ -196,6 +202,12 @@ class RequestManager:
                         await asyncio.sleep(wait_time)
                         continue
 
+                    if binary:
+                        logger.warning(
+                            f"Tier 1 async blocked for {url} (binary=True; "
+                            "skipping nodriver fallback)."
+                        )
+                        return response  # type: ignore - Motivo: Tipagem externa
                     logger.warning(
                         f"Tier 1 async blocked for {url}. Falling back to Tier 2 (nodriver)."
                     )
@@ -207,6 +219,12 @@ class RequestManager:
                     await asyncio.sleep((attempt + 1) * 2)
                     continue
 
+                if binary:
+                    # nodriver returns HTML; useless for downloading PDFs/ZIPs/CSVs.
+                    logger.warning(
+                        f"Tier 1 async failed for {url}: {e}. binary=True; not falling back."
+                    )
+                    raise
                 logger.warning(
                     f"Tier 1 async failed for {url}: {e}. Falling back to Tier 2 (nodriver)."
                 )

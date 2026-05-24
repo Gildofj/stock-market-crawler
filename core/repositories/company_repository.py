@@ -9,7 +9,18 @@ from core.models.models import Company
 from core.models.schemas import CompanySchema
 
 _PRESERVE_IF_NULL_FIELDS = frozenset(
-    {"name", "sector", "sub_sector", "segment", "logo_url", "website"}
+    {
+        "name",
+        "sector",
+        "sub_sector",
+        "segment",
+        "logo_url",
+        "website",
+        "cnpj",
+        "cd_cvm",
+        "asset_type",
+        "underlying_ticker",
+    }
 )
 
 
@@ -24,6 +35,28 @@ class CompanyRepository:
     async def get_by_symbol(self, symbol: str) -> Company | None:
         result = await self.db.execute(select(Company).filter(Company.symbol == symbol))
         return result.scalars().first()
+
+    async def get_taxonomy(self, symbol: str) -> dict[str, str | None] | None:
+        """Returns cached asset taxonomy for a symbol (cd_cvm, asset_type, etc).
+
+        Used by CrawlerEngine to short-circuit Brapi lookups when the
+        refresh_universe job has already cached the mapping.
+        """
+        stmt = select(
+            Company.cnpj,
+            Company.cd_cvm,
+            Company.asset_type,
+            Company.underlying_ticker,
+        ).filter(Company.symbol == symbol)
+        row = (await self.db.execute(stmt)).first()
+        if row is None:
+            return None
+        return {
+            "cnpj": row.cnpj,
+            "cd_cvm": row.cd_cvm,
+            "asset_type": row.asset_type,
+            "underlying_ticker": row.underlying_ticker,
+        }
 
     async def get_many_by_symbols(self, symbols: list[str]) -> list[Company]:
         if not symbols:

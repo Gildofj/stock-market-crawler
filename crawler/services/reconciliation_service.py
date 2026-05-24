@@ -42,7 +42,8 @@ _YAHOO_INFO_MAPS: tuple[_IndicatorMap, ...] = (
     _IndicatorMap("priceToBook", "p_vp", _identity),
     _IndicatorMap("enterpriseToEbitda", "ev_ebitda", _identity),
     _IndicatorMap("returnOnEquity", "roe", _to_percent),
-    _IndicatorMap("dividendYield", "dy", _to_percent),
+    # yfinance >=0.2.51 returns dividendYield as a percentage (e.g. 8.72), not a fraction.
+    _IndicatorMap("dividendYield", "dy", _identity),
     _IndicatorMap("profitMargins", "net_margin", _to_percent),
     _IndicatorMap("debtToEbitda", "liquid_debt_ebitda", _identity),
     _IndicatorMap("debtToEquity", "debt_to_equity", _identity),
@@ -100,6 +101,8 @@ class ReconciliationService:
             await self.db.commit()
             return len(rows)
         except Exception as exc:
+            # Roll back so the caller's session stays usable for subsequent stages.
+            await self.db.rollback()
             logger.warning(f"Reconciliation persistence failed for {result.symbol}: {exc}")
             return 0
 

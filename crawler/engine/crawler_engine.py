@@ -17,7 +17,9 @@ from ..services.metadata_resolver import MetadataResolver
 from ..services.reconciliation_service import ReconciliationService
 from ..services.request_manager import RequestManager
 from ..spiders.b3_spider import B3Spider
+from ..spiders.bdr_spider import BDRSpider
 from ..spiders.cvm_spider import CVMSpider
+from ..spiders.fii_spider import FIISpider
 
 
 class CrawlerEngine:
@@ -46,6 +48,8 @@ class CrawlerEngine:
         spiders = spiders or {}
         self.b3_spider = spiders.get("b3") or B3Spider()
         self.cvm_spider = spiders.get("cvm") or CVMSpider()
+        self.fii_spider = spiders.get("fii") or FIISpider()
+        self.bdr_spider = spiders.get("bdr") or BDRSpider()
         self.metadata_resolver = MetadataResolver(
             self.cvm_spider,
             LogoService(self.company_repo, request_manager=self.request_manager),
@@ -71,12 +75,35 @@ class CrawlerEngine:
 
     async def run_for_ticker_async(self, symbol: str) -> CrawlResult:
         logger.info(f"Engine: Starting async enrichment chain for {symbol}")
+        taxonomy = await self.company_repo.get_taxonomy(symbol) or {}
+        asset_type = (taxonomy.get("asset_type") or _infer_asset_type(symbol)).upper()
+
         result = await self.b3_spider.crawl_ticker(symbol)
-        await self.cvm_spider.enrich(result)
+        await self._enrich_by_asset_type(result, asset_type, taxonomy)
         await self.metadata_resolver.apply(result)
         self._calculate_advanced_metrics(result)
-        await self._save_to_db(result)
+        result.provenance.setdefault("asset_type", asset_type)
+        await self._save_to_db(result, asset_type=asset_type)
         return result
+
+    async def _enrich_by_asset_type(
+        self, result: CrawlResult, asset_type: str, taxonomy: dict
+    ) -> None:
+        if asset_type == "FII":
+            await self.fii_spider.enrich(result)
+            return
+        if asset_type == "BDR":
+            await self.bdr_spider.enrich(
+                result,
+                underlying=taxonomy.get("underlying_ticker"),
+            )
+            return
+        # Default path (EQUITY, UNIT, ETF and anything unrecognised): seed the
+        # CVM spider with any cached cd_cvm so it skips the Brapi roundtrip.
+        cd_cvm = taxonomy.get("cd_cvm")
+        if cd_cvm:
+            self.cvm_spider.seed_ticker_index({symbol_key(result.symbol): cd_cvm})
+        await self.cvm_spider.enrich(result)
 
     async def run_for_ticker(self, symbol: str) -> CrawlResult:
         logger.info(f"Engine: Starting enrichment chain for {symbol}")
@@ -157,7 +184,7 @@ class CrawlerEngine:
         "eps",
     )
 
-    async def _save_to_db(self, result: CrawlResult) -> None:
+    async def _save_to_db(self, result: CrawlResult, asset_type: str = "EQUITY") -> None:
         await self._ensure_source_ids()
 
         result.primary_source_id = self._source_ids.get("cvm")
@@ -174,6 +201,7 @@ class CrawlerEngine:
             logo_url=result.logo_url,
             website=result.website,
             is_active=result.is_active,
+            asset_type=asset_type,
         )
         company = await self.company_repo.get_or_create(company_schema)
         company_id = uuid.UUID(str(company.id))
@@ -189,6 +217,7 @@ class CrawlerEngine:
             logger.error(
                 "Engine: skipping fundamentals row for "
                 f"ticker={result.symbol} reason=no_fundamentals_computed "
+                f"asset_type={asset_type} "
                 f"indicators_populated=0 indicators_total={len(self._CORE_INDICATOR_FIELDS)}"
             )
         else:
@@ -209,6 +238,7 @@ class CrawlerEngine:
                 valuation_graham=result.valuation_graham,
                 valuation_bazin=result.valuation_bazin,
                 quality_score=result.quality_score,
+                asset_type=asset_type,
                 primary_source_id=result.primary_source_id,
                 contributing_sources=result.contributing_sources,
                 provenance=result.provenance,
@@ -216,13 +246,30 @@ class CrawlerEngine:
             await self.fundamental_repo.save(company_id, fundamental_schema)
             logger.info(
                 f"Engine: fundamentals persisted ticker={result.symbol} "
+                f"asset_type={asset_type} "
                 f"indicators_populated={len(populated)} "
                 f"indicators_total={len(self._CORE_INDICATOR_FIELDS)}"
             )
 
-        try:
-            await self.reconciliation_service.emit(company_id, result)
-        except Exception as exc:
-            logger.warning(f"reconciliation failed for {result.symbol}: {exc}")
+        # Reconciliation only makes sense for EQUITY (compares CVM vs yfinance).
+        if asset_type == "EQUITY":
+            try:
+                await self.reconciliation_service.emit(company_id, result)
+            except Exception as exc:
+                logger.warning(f"reconciliation failed for {result.symbol}: {exc}")
 
-        logger.debug(f"Engine: Persistence completed for {result.symbol}")
+
+def symbol_key(symbol: str) -> str:
+    return symbol.upper().replace(".SA", "")
+
+
+def _infer_asset_type(symbol: str) -> str:
+    """Fallback when companies.asset_type is null (cold start before
+    refresh_universe runs). Mirrors brapi_client._normalise_asset_type.
+    """
+    cleaned = symbol_key(symbol).rstrip("F")
+    if cleaned.endswith("11"):
+        return "FII"
+    if cleaned.endswith(("32", "33", "34", "35")):
+        return "BDR"
+    return "EQUITY"

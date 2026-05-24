@@ -34,7 +34,7 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
         name="Flow Corp",
         shares_outstanding=100.0,
         yahoo_info_indicators={
-            "dividendYield": 0.05,
+            "dividendYield": 5.0,
             "forwardPE": 10.0,
             "priceToBook": 2.0,
         },
@@ -85,6 +85,7 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
     recons = res.scalars().all()
     assert len(recons) == 3
     dy_row = next(r for r in recons if r.indicator == "dy")
+    assert float(dy_row.source_value_raw) == 5.0
     assert float(dy_row.source_value_normalised) == 5.0
     assert float(dy_row.cvm_value) == pytest.approx(0.545, rel=1e-3)
 

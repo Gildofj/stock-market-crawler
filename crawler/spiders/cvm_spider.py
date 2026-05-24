@@ -148,6 +148,22 @@ class CVMSpider(BaseSpider):
         index[clean_ticker] = resolved
         return resolved
 
+    def seed_ticker_index(self, mapping: dict[str, str]) -> None:
+        """Merge an external ticker→cd_cvm mapping into the in-memory index.
+
+        Callers (CrawlerEngine) use this to hydrate the cache from the
+        ``companies`` table populated by the refresh_universe job, avoiding a
+        Brapi roundtrip per ticker.
+        """
+        if not mapping:
+            return
+        index = self._load_ticker_index()
+        for ticker, cd_cvm in mapping.items():
+            if cd_cvm:
+                index[ticker.upper().replace(".SA", "")] = cd_cvm
+        # An external resolution invalidates any prior "unresolvable" cache hit.
+        self._unresolvable_tickers -= {t.upper().replace(".SA", "") for t in mapping}
+
     def _load_ticker_index(self) -> dict[str, str]:
         if self._ticker_index is not None:
             return self._ticker_index
@@ -190,9 +206,20 @@ class CVMSpider(BaseSpider):
         return self._cnpj_to_cd_cvm
 
     def _resolve_via_brapi(self, ticker: str) -> str | None:
+        from core.config import settings
+
+        if not settings.BRAPI_TOKEN:
+            # Brapi requires auth since 2024; without a token every call returns
+            # 401. Skipping silently avoids log spam on BDRs/FIIs that won't
+            # resolve anyway.
+            return None
+
         url = self.BRAPI_QUOTE_URL.format(ticker=ticker)
+        headers = {"Authorization": f"Bearer {settings.BRAPI_TOKEN}"}
         try:
-            response = self.dataset_service.request_manager.get(url, timeout=15)
+            response = self.dataset_service.request_manager.get(
+                url, timeout=15, headers=headers
+            )
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:

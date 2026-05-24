@@ -13,7 +13,7 @@ A high-performance stock market crawler and REST API for the Brazilian financial
 
 ## ✨ Features
 
-- **🚀 High Performance**: FastAPI + Uvicorn with Redis caching for sub-millisecond responses.
+- **🚀 High Performance**: FastAPI + Uvicorn with in-memory caching (`fastapi-cache2`) for sub-millisecond responses.
 - **⚡ Async Batch Crawling**: `asyncio` engine with sub-batches of 100 tickers, parallel enrichment (`Semaphore(15)`), and yfinance bulk price fetching — runs daily on a 10-chunk GitHub Actions matrix.
 - **🔗 Clean-room Enrichment Chain**: B3/yfinance for prices (facts — Lei 9.610/98 Art. 8º), then `CVMSpider` reads raw DFP/ITR statements from CVM Dados Abertos and the in-process `financial_calculator` derives every universal indicator (P/L, P/VP, ROE, ROIC, EV/EBITDA, margins, Graham, Bazin) using public-domain formulas.
 - **🌐 Tiered HTTP Client**: Tier-1 `curl_cffi` with rotating User-Agents and realistic headers; Tier-2 fallback to a headless browser (`nodriver`) for JS-heavy pages.

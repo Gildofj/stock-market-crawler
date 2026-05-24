@@ -53,10 +53,22 @@ async def trigger_news(request: Request):
 
 
 @router.post("/ri")
-async def trigger_ri(request: Request, days_back: int = 30):
+async def trigger_ri(
+    request: Request,
+    days_back: int | None = None,
+    year: int | None = None,
+):
     _verify_task_auth(request)
-    await crawl_ri_task(days_back)
-    return {"status": "success", "task": "ri"}
+    persisted = await crawl_ri_task(days_back=days_back, year=year)
+    mode = "year" if year is not None else ("days_back" if days_back is not None else "incremental")
+    return {
+        "status": "success",
+        "task": "ri",
+        "mode": mode,
+        "days_back": days_back,
+        "year": year,
+        "persisted": persisted,
+    }
 
 
 @router.post("/enqueue-daily")

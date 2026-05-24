@@ -1,11 +1,11 @@
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from core.exceptions import DatabaseError
 from core.models.models import LakeInsightCache, LakeNews, LakeNewsTicker, LakeRIDocument
@@ -33,7 +33,13 @@ class LakeService:
         self.db = db
 
     async def upsert_news(self, payload: LakeNewsSchema) -> LakeNews:
-        stmt = select(LakeNews).filter(LakeNews.url_hash == payload.url_hash)
+        # selectinload is mandatory: _sync_tickers iterates news.tickers, and async
+        # SQLAlchemy forbids lazy loading outside greenlet IO context.
+        stmt = (
+            select(LakeNews)
+            .options(selectinload(LakeNews.tickers))
+            .filter(LakeNews.url_hash == payload.url_hash)
+        )
         result = await self.db.execute(stmt)
         existing = result.scalars().first()
 
@@ -141,6 +147,8 @@ class LakeService:
             existing.text_excerpt = payload.text_excerpt
             existing.pdf_url = payload.pdf_url
             existing.reference_date = payload.reference_date
+            if payload.delivered_at is not None:
+                existing.delivered_at = payload.delivered_at
             existing.category = payload.category
             existing.ticker = payload.ticker.upper()
             if source_id is not None and existing.source_id is None:
@@ -164,6 +172,7 @@ class LakeService:
             pdf_url=payload.pdf_url,
             text_excerpt=payload.text_excerpt,
             reference_date=payload.reference_date,
+            delivered_at=payload.delivered_at,
             source_id=source_id,
         )
         self.db.add(document)
@@ -175,6 +184,17 @@ class LakeService:
             await self.db.rollback()
             logger.error(f"Insert RI doc failed for {payload.doc_id}: {exc}")
             raise DatabaseError("Failed to insert RI document") from exc
+
+    async def get_latest_ri_delivered_date(self) -> date | None:
+        """Delivery date (Data_Entrega) of the most recent persisted RI doc.
+
+        Used as the incremental cursor — the next crawl only processes rows
+        with a delivery date strictly greater than this. Returns None on a
+        cold start so the caller falls back to a full historical fetch.
+        """
+        stmt = select(func.max(LakeRIDocument.delivered_at))
+        result = await self.db.execute(stmt)
+        return result.scalar()
 
     async def get_ri_documents_by_ticker(self, ticker: str, limit: int = 3) -> list[LakeRIDocument]:
         stmt = (

@@ -1,10 +1,22 @@
-# Minimal Tempo config for local dev — single-binary mode, filesystem storage.
-# Receives OTLP/gRPC on 4317 from the FastAPI/Celery containers and serves the
-# query API on 3200 for the provisioned Grafana datasource.
+# Single-binary Tempo for local dev. Tracks the canonical example from upstream:
+# https://github.com/grafana/tempo/tree/main/example/docker-compose/local
+# Receives OTLP/gRPC on 4317 from the api/worker containers; query API on 3200
+# powers the provisioned Grafana datasource.
+
+stream_over_http_enabled: true
+
+target: all
 
 server:
   http_listen_port: 3200
   log_level: info
+
+query_frontend:
+  search:
+    duration_slo: 5s
+    throughput_bytes_slo: 1.1e+09
+  trace_by_id:
+    duration_slo: 5s
 
 distributor:
   receivers:
@@ -16,14 +28,11 @@ distributor:
           endpoint: 0.0.0.0:4318
 
 ingester:
-  trace_idle_period: 10s
-  max_block_bytes: 1_000_000
   max_block_duration: 5m
 
 compactor:
   compaction:
     block_retention: 24h
-    compacted_block_retention: 10m
 
 storage:
   trace:

@@ -1,6 +1,6 @@
 # Generic SA for HTTP-style Cloud Scheduler → Cloud Run (API) jobs.
-# Previous LagoAI lake schedulers were removed: news now runs from Celery beat
-# (celery_app.py), RI as a Cloud Run Job (cloud_run_job.tf).
+# RI is scheduled separately as a Cloud Run Job (see cloud_run_job.tf);
+# daily enqueue runs from the daily-sync.yml GitHub Action.
 
 resource "google_project_service" "cloudscheduler" {
   service            = "cloudscheduler.googleapis.com"

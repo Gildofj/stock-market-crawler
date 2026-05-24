@@ -1,0 +1,459 @@
+{
+  "info": {
+    "_postman_id": "8b3a7c2e-1f4d-4a9b-9d1e-stockcrawler01",
+    "name": "Stock Market Crawler",
+    "description": "Local-dev collection mirroring the prod Cloud Run + Cloud Tasks architecture.\n\n**Setup:**\n1. Create an Environment with `base_url=http://localhost:8000` and `api_key=dev-api-key` (or override the collection variables below).\n2. `docker compose up -d --build`\n\n**Folders:**\n- *Health & Metadata*: unauthenticated probes.\n- *Tasks — Manual (Bearer)*: hits `/_tasks/*` as an operator using the API key.\n- *Tasks — Cloud Tasks Header*: simulates a Cloud Tasks delivery to the worker.\n- *Tasks — Emulator Flow*: triggers the full api → emulator → worker pipeline.\n- *Reads — API v1*: standard read endpoints (X-API-Key auth).\n- *Negative*: auth rejection checks (expect 401).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000", "type": "string" },
+    { "key": "api_key", "value": "dev-api-key", "type": "string" },
+    { "key": "sample_symbol", "value": "PETR4", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health & Metadata",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": ["{{base_url}}"],
+              "path": [""]
+            }
+          }
+        },
+        {
+          "name": "OpenAPI spec",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/openapi.json",
+              "host": ["{{base_url}}"],
+              "path": ["openapi.json"]
+            }
+          }
+        },
+        {
+          "name": "Sources (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/sources",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "sources"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks - Manual (Bearer)",
+      "description": "Operator-style invocation of internal task endpoints. Uses the same API_KEY as the rest of the app via Authorization: Bearer.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{api_key}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Macro data",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/_tasks/macro-data",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "macro-data"]
+            }
+          }
+        },
+        {
+          "name": "Ticker (single symbol)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/_tasks/ticker/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "ticker", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "News",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/_tasks/news",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "news"]
+            }
+          }
+        },
+        {
+          "name": "RI (?days_back=7)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/_tasks/ri?days_back=7",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "ri"],
+              "query": [{ "key": "days_back", "value": "7" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks - Cloud Tasks Header",
+      "description": "Mirrors a real Cloud Tasks delivery. The presence of X-CloudTasks-QueueName satisfies _verify_task_auth without needing the API key.",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "Macro data",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-CloudTasks-QueueName", "value": "crawler-queue" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/_tasks/macro-data",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "macro-data"]
+            }
+          }
+        },
+        {
+          "name": "Ticker (single symbol)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-CloudTasks-QueueName", "value": "crawler-queue" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/_tasks/ticker/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "ticker", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "News",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-CloudTasks-QueueName", "value": "crawler-queue" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/_tasks/news",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "news"]
+            }
+          }
+        },
+        {
+          "name": "RI (?days_back=7)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "X-CloudTasks-QueueName", "value": "crawler-queue" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/_tasks/ri?days_back=7",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "ri"],
+              "query": [{ "key": "days_back", "value": "7" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks - Emulator Flow",
+      "description": "End-to-end: api enqueues into the Cloud Tasks emulator, which delivers to the worker over HTTP with retries/rate-limits applied. Watch `docker compose logs -f cloud-tasks-emulator worker`.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{api_key}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Enqueue daily batch",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/_tasks/enqueue-daily",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "enqueue-daily"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reads - API v1",
+      "description": "Standard read endpoints. All authenticated via X-API-Key header.",
+      "auth": {
+        "type": "apikey",
+        "apikey": [
+          { "key": "key", "value": "X-API-Key", "type": "string" },
+          { "key": "value", "value": "{{api_key}}", "type": "string" },
+          { "key": "in", "value": "header", "type": "string" }
+        ]
+      },
+      "item": [
+        {
+          "name": "Companies - list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "companies", ""]
+            }
+          }
+        },
+        {
+          "name": "Companies - search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/search?q=petro",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "companies", "search"],
+              "query": [{ "key": "q", "value": "petro" }]
+            }
+          }
+        },
+        {
+          "name": "Companies - detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "companies", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Fundamentals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/fundamentals/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "fundamentals", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Prices - history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/prices/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "prices", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Prices - quote",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/prices/quote/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "prices", "quote", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Prices - quotes batch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/prices/quotes?symbols=PETR4,VALE3,ITUB4",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "prices", "quotes"],
+              "query": [{ "key": "symbols", "value": "PETR4,VALE3,ITUB4" }]
+            }
+          }
+        },
+        {
+          "name": "News",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/news/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "news", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Investor Relations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/investor_relations/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "investor_relations", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Lake - snapshot",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/lake/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "lake", "{{sample_symbol}}"]
+            }
+          }
+        },
+        {
+          "name": "Lake - news",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/lake/{{sample_symbol}}/news",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "lake", "{{sample_symbol}}", "news"]
+            }
+          }
+        },
+        {
+          "name": "Lake - RI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/lake/{{sample_symbol}}/ri",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "lake", "{{sample_symbol}}", "ri"]
+            }
+          }
+        },
+        {
+          "name": "Lake - insight (POST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/lake/{{sample_symbol}}/insight",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "lake", "{{sample_symbol}}", "insight"]
+            }
+          }
+        },
+        {
+          "name": "Portfolio - snapshot",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/portfolio/snapshot?symbols=PETR4,VALE3",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "portfolio", "snapshot"],
+              "query": [{ "key": "symbols", "value": "PETR4,VALE3" }]
+            }
+          }
+        },
+        {
+          "name": "Reliability - ranking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reliability/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reliability", ""]
+            }
+          }
+        },
+        {
+          "name": "Reliability - detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/reliability/{{sample_symbol}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "reliability", "{{sample_symbol}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Negative",
+      "description": "Expect HTTP 401 on each — validates that auth gates are in place.",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "API v1 without X-API-Key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/companies/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "companies", ""]
+            }
+          }
+        },
+        {
+          "name": "Internal task without auth",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/_tasks/macro-data",
+              "host": ["{{base_url}}"],
+              "path": ["_tasks", "macro-data"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

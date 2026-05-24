@@ -1,228 +1,195 @@
-# 🚀 Deployment Guide
+# Deployment Guide
 
-This project is optimized for modern cloud environments, targeting **Render** for the API, **Supabase** (or Neon) for persistence, and **GitHub Actions** for automated crawling.
+This project runs entirely on the **GCP free tier**: a public Cloud Run API, an internal Cloud Run worker behind Cloud Tasks, a daily Cloud Run Job for RI crawling, and Supabase for persistence.
 
-## ☁️ Production Environment (GCP Free Tier)
+## Architecture
 
-This project supports a 100% Free Tier deployment on Google Cloud Platform, separating the API from the Worker.
+```
+                   GitHub Actions (daily-sync.yml, cron 02:00 UTC)
+                                    │
+                                    ▼
+                       Cloud Run API (stock-market-api)
+                       Ingress: public via Cloudflare
+                       Auth: X-API-Key header
+                                    │
+                                    ▼  (CloudTasksService.enqueue_task)
+                       Cloud Tasks queue (crawler-queue)
+                       rate: 10/s, max 5 retries, exponential backoff
+                                    │
+                                    ▼  (HTTP POST + OIDC)
+                       Cloud Run Worker (stock-market-worker)
+                       Ingress: internal only
+                       Receives /_tasks/* endpoints
 
-### 🏗️ Architecture
-- **API (Cloud Run)**: Serverless FastAPI backend.
-- **Worker (Compute Engine e2-micro)**: 24/7 Celery worker running on Container-Optimized OS (COS).
-- **Broker (Self-hosted Redis)**: Sidecar container on the GCE VM.
-- **Database (Supabase)**: External PostgreSQL.
+  Cloud Scheduler (07:00 BRT) ─▶ Cloud Run Job (lagoai-ri-crawl)
+                                  Runs python -m crawler.tasks.lake_ri
 
-### 🛠️ Infrastructure as Code (Terraform)
+  All workloads → Supabase PostgreSQL (transaction pooler, port 6543)
+```
 
-The `terraform/` directory contains the configuration to provision this setup.
+The API and the Worker run **the same container image**; only the Cloud Run service config differs (ingress + which env vars).
 
-1. **Prerequisites**:
-   - Install [Terraform](https://developer.hashicorp.com/terraform/downloads).
-   - Install [GCloud CLI](https://cloud.google.com/sdk/docs/install).
-   - Create a GCP Project and enable billing (required for Cloud Run, even if within free tier).
+## Prerequisites
 
-2. **Initialize & Apply**:
-   ```bash
-   cd terraform
-   terraform init
-   
-   # Create a terraform.tfvars file or pass variables via command line
-   terraform apply \
-     -var="project_id=YOUR_PROJECT_ID" \
-     -var="image_name=gcr.io/YOUR_PROJECT_ID/stock-market-crawler" \
-     -var="database_url=YOUR_SUPABASE_URL" \
-     -var="redis_url=redis://:YOUR_PASSWORD@VM_PUBLIC_IP:6379/0" \
-     -var="redis_password=YOUR_PASSWORD"
-   ```
+- A GCP project with billing enabled (required by Cloud Run; quota stays inside the free tier).
+- [Terraform](https://developer.hashicorp.com/terraform/downloads) and [gcloud CLI](https://cloud.google.com/sdk/docs/install).
+- A Supabase project (use the **transaction pooler** URL, port **6543**, to avoid exhausting the 15-connection session cap).
+- An Artifact Registry repository for the container image.
 
-### 🔑 Required GitHub Secrets & Variables
+## Infrastructure (Terraform)
 
-**Secrets** (`Settings → Secrets and variables → Actions → Secrets`):
+The `terraform/` directory provisions everything:
+
+- `cloud_run.tf` — public API service (`stock-market-api`).
+- `cloud_run_worker.tf` — internal worker service (`stock-market-worker`).
+- `cloud_run_job.tf` — RI crawler Job (`lagoai-ri-crawl`) + Cloud Scheduler trigger.
+- `cloud_tasks.tf` — `crawler-queue` + IAM (enqueuer, invoker).
+- `secrets.tf` — Secret Manager entries seeded from tfvars on first apply, then released (`ignore_changes = [secret_data]` so rotations happen via `gcloud secrets versions add`).
+- `artifact_registry.tf`, `scheduler.tf`, `main.tf`, `variables.tf`, `outputs.tf`.
+
+Apply:
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # fill in real values
+terraform init
+terraform apply
+```
+
+Required tfvars (see `terraform/variables.tf` for the full list):
+
+| Variable | Notes |
+|---|---|
+| `project_id` | GCP project id |
+| `image_name` | `<region>-docker.pkg.dev/<project>/<repo>/stock-market-crawler:latest` |
+| `database_url` | Supabase transaction-pooler URL (port 6543) |
+| `api_key` | Generate with `openssl rand -hex 32`. Must match the `API_KEY` GitHub secret |
+| `r2_account_id`, `r2_api_token` | Cloudflare R2 credentials (optional; portfolios bucket only) |
+| `webshare_proxy_url` | Proxy for crawler tier (optional) |
+| `allowed_origins`, `scheduler_timezone` | CORS allowlist and Scheduler TZ |
+
+## GitHub Actions
+
+Three workflows under `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| `deploy.yml` | Push to `main` (excl. `**.md`, `docs/**`); `workflow_dispatch` | Build image, deploy api + worker + RI job in parallel after a quality gate (ruff + pyright + pytest) |
+| `daily-sync.yml` | Cron `0 2 * * *` (UTC); `workflow_dispatch` | Resolves the API URL via `gcloud run services describe` and posts to `/_tasks/enqueue-daily` |
+| `migrations.yml` | Changes under `alembic/**` or `crawler/models/**`; `workflow_dispatch` | Fetches `DATABASE_URL` from Secret Manager and runs `alembic upgrade head` |
+
+### Required GitHub Secrets
 
 | Name | Description |
 |---|---|
-| `GCP_PROJECT_ID` | GCP project ID. |
-| `GCP_SA_KEY` | Service Account JSON key. Required IAM roles below. |
-| `DATABASE_URL` | Supabase Transaction Pooler URL (port **6543**). |
-| `REDIS_URL` | Redis URL (`redis://:password@ip:6379/0`). |
-| `REDIS_PASSWORD` | Password for the self-hosted Redis instance. |
+| `GCP_PROJECT_ID` | Target GCP project |
+| `GCP_SA_KEY` | Service Account JSON key (roles below) |
 
-**Variables** (`Settings → Secrets and variables → Actions → Variables` — non-sensitive):
+### Required GitHub Variables
 
 | Name | Example |
 |---|---|
 | `GCP_REGION` | `us-central1` |
-| `GCP_ZONE` | `us-central1-a` |
-| `AR_REPO` | `crawler-images` (Artifact Registry repo) |
+| `AR_REPO` | `crawler-images` |
 | `CLOUD_RUN_SERVICE` | `stock-market-api` |
-| `WORKER_VM_NAME` | `crawler-worker-vm` |
 
-**Required IAM roles on `GCP_SA_KEY`**:
+The Worker service name (`stock-market-worker`) and RI job name (`lagoai-ri-crawl`) are hard-coded in `deploy.yml` to match the Terraform resource names.
 
-| Role | Why |
+### Required IAM roles on `GCP_SA_KEY`
+
+| Role | Purpose |
 |---|---|
-| `roles/artifactregistry.writer` | Push images. |
-| `roles/run.admin` | Deploy Cloud Run revisions. |
-| `roles/iam.serviceAccountUser` | Act as the runtime SAs of Cloud Run / VM. |
-| `roles/compute.instanceAdmin.v1` | Describe & modify the worker VM. |
-| `roles/compute.osAdminLogin` | SSH as root into the VM (for `sudo apt` / `sudo docker`). |
-| `roles/iap.tunnelResourceAccessor` | **Only if the VM has no external IP** — also append `--tunnel-through-iap` to every `gcloud compute ssh` call. |
+| `roles/artifactregistry.writer` | Push images |
+| `roles/run.admin` | Deploy Cloud Run services and update Jobs |
+| `roles/iam.serviceAccountUser` | Act as the runtime SAs of Cloud Run services and the RI Job |
+| `roles/secretmanager.secretAccessor` | Read `database-url` (migrations) and `api-key` (daily-sync) |
 
-The **VM's own service account** additionally needs `roles/artifactregistry.reader` so it can pull images at deploy time.
-
-### 🔄 CI/CD Flow
-
-The repo ships three production workflows under `.github/workflows/`:
-
-| Workflow | Trigger | Purpose |
-|---|---|---|
-| `deploy.yml` | Push to `main` (excl. `**.md`, `docs/**`); `workflow_dispatch` | Build image, deploy API, roll worker. |
-| `bootstrap-worker-vm.yml` | `workflow_dispatch` only | One-time VM setup (OS Login + Docker). |
-| `migrations.yml` | Changes under `alembic/` or `crawler/models/` | Apply Alembic migrations against Supabase. |
-
-#### `deploy.yml` — three sequential jobs
+### Deploy flow
 
 ```
-                build-and-push (Artifact Registry)
-                   │
-        ┌──────────┴──────────┐
-        ▼                     ▼
-   deploy-api            deploy-worker
-   (Cloud Run)           (Compute Engine VM via SSH)
+  push to main
+      │
+      ▼
+  quality  ──▶  build-and-push  ──┬──▶  deploy-api
+                                  ├──▶  deploy-worker
+                                  └──▶  deploy-ri-job (+ smoke execute)
 ```
 
-1. **`build-and-push`** — Builds the Docker image on the GHA runner and pushes it to Artifact Registry. Tags both `:<sha>` and `:latest`. **Cloud Build is intentionally not used** (per-minute billing); never run `gcloud run deploy --source=...` or `gcloud builds submit`.
-2. **`deploy-api`** — `gcloud run deploy` with the immutable `:<sha>` tag. Image-only deploy, no source upload.
-3. **`deploy-worker`** — SSHes into `WORKER_VM_NAME`, mints a short-lived Artifact Registry access token, pulls the image, replaces the `celery-worker` container, and writes `/etc/celery-worker.env` (mode 600) from the `DATABASE_URL` / `REDIS_URL` secrets. Secrets are base64-encoded in transit so values with quotes/spaces survive the shell.
+All three deploy jobs run in parallel using the immutable `<sha>` image tag — no source upload, no Cloud Build (per-minute billing is intentionally avoided).
 
-> **Why SSH and not `gcloud compute instances update-container`?** The worker runs on a plain Debian VM, not a Container-Optimized OS (COS) container-VM, so `update-container` errors out with *"Instance doesn't have gce-container-declaration metadata key"*. GCP has also deprecated the container-startup-agent path, so SSH + Docker is the recommended replacement.
+## Authentication boundaries
 
-#### `bootstrap-worker-vm.yml` — one-time VM setup
+- **Public API** (`/api/v1/*`): `X-API-Key` header, validated by `api/security.py:require_api_key`. The same `API_KEY` is used by `daily-sync.yml` as a Bearer token when calling `/_tasks/enqueue-daily`.
+- **Internal task endpoints** (`/_tasks/*`): accept either a Bearer token matching `API_KEY` or the presence of the `X-CloudTasks-QueueName` header (set automatically by Cloud Tasks). See `api/routers/tasks.py:_verify_task_auth`.
+- **Cloud Run worker**: ingress is `INGRESS_TRAFFIC_INTERNAL_ONLY` + Cloud Tasks attaches an OIDC token. Direct internet access is blocked at the GCP edge.
 
-Run this **once** after creating the VM, before the first `deploy.yml` succeeds. Idempotent — safe to re-run after a teardown or partial failure. It:
+## Operating
 
-1. Enables OS Login on the instance (`enable-oslogin=TRUE` metadata).
-2. Installs `docker.io` from the distro repo if missing.
-3. Enables the Docker daemon at boot.
-4. Sanity-checks `docker pull hello-world`.
-
-Trigger it from **Actions → Bootstrap Worker VM → Run workflow**.
-
-#### How the worker stays in sync
-
-- Container name is fixed at `celery-worker`. The deploy step always `docker rm -f`s it before `docker run`ing — first run is a no-op, subsequent runs replace the previous instance.
-- `--restart unless-stopped` keeps the worker up across VM reboots.
-- After each deploy a verify step tails `docker logs --tail 100` for the celery `ready.` / `celery@` markers and fails the job if neither appears within 10 s.
-- `docker image prune -f` runs after every deploy so the e2-micro's 10 GB disk doesn't fill up with old image layers.
-
----
-
-## ☁️ Legacy: Production Environment (Render + Supabase)
-
-### 📄 render.yaml Configuration
-
-The `render.yaml` (Blueprint) defines the infrastructure:
-- **Service Type**: Web Service (Docker)
-- **Health Check**: `/health`
-
-### 🔑 Required Environment Variables
-
-Set these on Render and as GitHub Actions secrets:
-
-| Variable | Required | Description |
-|---|---|---|
-| `DATABASE_URL` | ✅ Yes | PostgreSQL connection string (Supabase transaction pooler — port **6543**). |
-| `REDIS_URL` | ✅ Yes | Redis connection string (rate limiting + caching). |
-| `ENV` | ✅ Yes | Set to `production` to enable strict CORS and the Cloudflare middleware. |
-| `ALLOWED_ORIGINS` | ✅ in prod | Comma-separated list of allowed CORS origins. Required when `ENV=production`. Example: `https://app.example.com,https://admin.example.com`. |
-| `LOG_LEVEL` | No | Defaults to `INFO`. |
-| `DB_POOL_SIZE` | No | SQLAlchemy in-process pool size. Defaults to `2`. Keep small when many parallel workers share the same Supabase project. |
-| `DB_MAX_OVERFLOW` | No | SQLAlchemy overflow connections. Defaults to `3`. |
-| `YF_HISTORY_PERIOD` | No | yfinance history window (used by the daily-sync workflow). Defaults to `1mo`. |
-
-### ⚠️ Supabase Free Tier — Pooler Mode Matters
-
-Supabase free projects expose two poolers:
-
-- **Session mode (port 5432)** — caps the whole project at **15 concurrent clients**. Easy to exhaust with parallel GHA chunks.
-- **Transaction mode (port 6543)** — releases the connection after every transaction; supports hundreds of clients.
-
-**Use port 6543** for both Render and GitHub Actions to avoid `EMAXCONNSESSION`. Copy it from *Supabase → Project Settings → Database → Connection string → Transaction*.
-
-The crawler keeps a deliberately small in-process pool (`DB_POOL_SIZE=2`, `DB_MAX_OVERFLOW=3` by default) so 10 parallel chunks stay well within Supabase's global cap.
-
-## 🛠️ Deployment Steps
-
-### 1. Database Setup (Supabase)
-1. Create a project on [Supabase](https://supabase.com/).
-2. Copy the **transaction-mode** connection string (port `6543`) from *Project Settings → Database*.
-3. Run migrations against the remote DB:
-   ```bash
-   DATABASE_URL="your-supabase-transaction-url" uv run alembic upgrade head
-   ```
-
-### 2. API Deployment (Render)
-1. Connect your GitHub repository to [Render](https://render.com/).
-2. Render auto-detects the `render.yaml` file.
-3. Go to the **Environment** tab and add `DATABASE_URL`, `REDIS_URL`, and `ENV=production`.
-4. Deploy. The `/health` endpoint is monitored by Render.
-
-### 3. Automated Crawler (GitHub Actions)
-
-The repo ships two workflows under `.github/workflows/`:
-
-- **`daily-sync.yml`** — Scheduled daily run. Uses a `strategy.matrix` with 10 chunks; each chunk processes `len(tickers) / 10` symbols in parallel runners. The exact cron expression lives in the workflow file.
-- **`migrations.yml`** — Manual/CI migration runner.
-
-Setup:
-1. Go to *Settings → Secrets and variables → Actions* in your GitHub repository.
-2. Add the secrets above (`DATABASE_URL`, `REDIS_URL`, …).
-3. The 10 parallel chunks will share the Supabase transaction pooler. If you need to throttle them, set `max-parallel` under `strategy:` in the workflow.
-
----
-
-## 🏗️ Local Development (Docker Compose)
+### Trigger work manually
 
 ```bash
-# Start all services (API, PostgreSQL, Redis, Grafana, Loki, Promtail)
-docker-compose up -d
+API_URL=$(gcloud run services describe stock-market-api --region=us-central1 --format='value(status.url)')
+API_KEY=$(gcloud secrets versions access latest --secret=api-key)
 
-# Apply migrations
-uv run alembic upgrade head
+# Daily batch (macro + all tickers via Cloud Tasks)
+curl -X POST -H "Authorization: Bearer $API_KEY" "$API_URL/_tasks/enqueue-daily"
 
-# Run crawler manually (full ticker set)
-uv run python main.py
-
-# Run a single shard (mimics one GHA chunk)
-uv run python main.py --chunk 0 --total-chunks 10
-
-# Run API in dev mode (with hot reload)
-uv run uvicorn api.main:app --reload
+# Single ticker (synchronous, on the worker)
+WORKER_URL=$(gcloud run services describe stock-market-worker --region=us-central1 --format='value(status.url)')
+gcloud auth print-identity-token --audiences="$WORKER_URL" | \
+  xargs -I {} curl -X POST -H "Authorization: Bearer {}" "$WORKER_URL/_tasks/ticker/PETR4"
 ```
 
-### Local Service Ports
+### Run the RI job ad-hoc
+
+```bash
+gcloud run jobs execute lagoai-ri-crawl --region=us-central1
+```
+
+### Rotate the API key
+
+```bash
+NEW_KEY=$(openssl rand -hex 32)
+echo -n "$NEW_KEY" | gcloud secrets versions add api-key --data-file=-
+# Re-deploy the API and worker to pick up the new revision.
+```
+
+### Rotate the database URL
+
+```bash
+echo -n "<new-url>" | gcloud secrets versions add database-url --data-file=-
+```
+
+Cloud Run services pick the new value on the next cold start; force a rollout with `gcloud run services update <name> --update-env-vars=ROLLOUT=$(date +%s)`.
+
+## Local Development
+
+See [docker-compose.yml](../docker-compose.yml) for the full local stack:
+
+- `db` — Postgres 17 on `127.0.0.1:5433`
+- `api` — FastAPI on `127.0.0.1:8000` (mirrors `stock-market-api`)
+- `worker` — same image, internal only (mirrors `stock-market-worker`)
+- `cloud-tasks-emulator` — `aertje/cloud-tasks-emulator` on `127.0.0.1:8123` (gRPC). The emulator delivers tasks with the same `X-CloudTasks-*` headers and retry semantics as the real service, so the api → emulator → worker path matches prod.
+- `ri-job` — profile `jobs`, run on demand with `docker compose run --rm ri-job`.
+- `grafana`, `loki`, `promtail`, `tempo` — observability stack.
+
+```bash
+make up
+docker compose exec api uv run alembic upgrade head
+curl http://localhost:8000/health
+```
+
+For request examples ready to import into Postman, see [docs/postman_collection.json](./postman_collection.json).
+
+## Service ports (local)
 
 | Service | Port | URL |
 |---|---|---|
-| FastAPI API | 8000 | http://localhost:8000/docs |
+| FastAPI (api) | 8000 | http://localhost:8000/docs |
 | PostgreSQL | 5433 | — |
-| Redis | 6379 | — |
 | Grafana | 3001 | http://localhost:3001 |
 | Loki | 3100 | — |
+| Tempo (HTTP) | 3200 | — |
+| Cloud Tasks emulator | 8123 | — |
 
-> PostgreSQL uses port **5433** (not 5432) to avoid conflicts with local PostgreSQL instances.
-
-### Useful Make Targets
-
-```bash
-make install     # uv sync
-make up          # docker-compose up -d
-make down        # docker-compose down
-make run-async   # run crawler (main.py)
-make start       # build + up + run-async (full local cycle)
-make test        # uv run pytest tests/ -v
-make lint        # uv run ruff check .
-make format      # uv run ruff format .
-make clean       # remove caches (pytest, ruff, __pycache__)
-make build       # docker-compose build
-```
+PostgreSQL uses port **5433** to avoid conflicts with a local Postgres on 5432.
