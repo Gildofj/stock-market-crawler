@@ -140,7 +140,6 @@ async def test_cvm_spider_overrides_preexisting_values():
     assert result.p_l < 20.0
 
 
-
 @pytest.mark.asyncio
 async def test_cvm_spider_baked_in_seed_survives_cad_outage(monkeypatch):
     """When ``dados.cvm.gov.br`` is unreachable, the CAD CSV download fails

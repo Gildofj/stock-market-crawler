@@ -47,7 +47,7 @@ def _is_stale(company: Company | None) -> bool:
     return age > timedelta(days=STALE_AFTER_DAYS)
 
 
-def _match_cvm_company(b3_issuer_name: str, cad_df: pd.DataFrame) -> dict | None:
+def _match_cvm_company(b3_issuer_name: str, cad_df: pd.DataFrame | None) -> dict | None:
     if not b3_issuer_name or cad_df is None or cad_df.empty:
         return None
 
@@ -60,7 +60,7 @@ def _match_cvm_company(b3_issuer_name: str, cad_df: pd.DataFrame) -> dict | None
         return {
             "cnpj": str(row.get("CNPJ_CIA", "")).replace(r"\D", ""),
             "cd_cvm": str(row.get("CD_CVM", "")).strip(),
-            "sector": str(row.get("SETOR_ATIV", "")).strip() or None
+            "sector": str(row.get("SETOR_ATIV", "")).strip() or None,
         }
 
     # Difflib match
@@ -79,7 +79,7 @@ def _match_cvm_company(b3_issuer_name: str, cad_df: pd.DataFrame) -> dict | None
         return {
             "cnpj": str(best_row.get("CNPJ_CIA", "")).replace(r"\D", ""),
             "cd_cvm": str(best_row.get("CD_CVM", "")).strip(),
-            "sector": str(best_row.get("SETOR_ATIV", "")).strip() or None
+            "sector": str(best_row.get("SETOR_ATIV", "")).strip() or None,
         }
 
     return None
@@ -90,7 +90,7 @@ async def _refresh_one(
     repo: CompanyRepository,
     b3_catalog: B3CatalogService,
     bdr_catalog: dict[str, tuple[str, float]],
-    cad_df: pd.DataFrame,
+    cad_df: pd.DataFrame | None,
 ) -> tuple[str, str]:
     df_catalog = b3_catalog._get_catalog()
     if df_catalog is None or df_catalog.empty:

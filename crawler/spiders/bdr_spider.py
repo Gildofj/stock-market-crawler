@@ -84,7 +84,6 @@ class BDRSpider(BaseSpider):
         result.provenance.setdefault("bdr_ratio", str(bdr_ratio or "unknown"))
 
 
-
 def _fetch_underlying_info(underlying_ticker: str) -> dict[str, Any]:
     try:
         ticker = yf.Ticker(underlying_ticker)

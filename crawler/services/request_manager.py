@@ -95,9 +95,7 @@ class RequestManager:
         # opening two redundant connection pools.
         if self.proxy:
             self._session_direct = requests.Session(impersonate="chrome124", timeout=30)
-            self._async_session_direct = requests.AsyncSession(
-                impersonate="chrome124", timeout=30
-            )
+            self._async_session_direct = requests.AsyncSession(impersonate="chrome124", timeout=30)
         else:
             self._session_direct = self._session
             self._async_session_direct = self._async_session
@@ -130,9 +128,7 @@ class RequestManager:
             headers["From"] = settings.CRAWLER_CONTACT_EMAIL
         return headers
 
-    def _tier2_or_response(
-        self, url: str, response: ResponseProtocol
-    ) -> ResponseProtocol:
+    def _tier2_or_response(self, url: str, response: ResponseProtocol) -> ResponseProtocol:
         from core.config import settings
 
         if not settings.ENABLE_TIER2_STEALTH:
@@ -141,9 +137,7 @@ class RequestManager:
                 "Tier 2 disabled by ENABLE_TIER2_STEALTH=false."
             )
             return response
-        logger.warning(
-            f"Tier 1 (curl_cffi) blocked for {url}. Falling back to Tier 2 (nodriver)."
-        )
+        logger.warning(f"Tier 1 (curl_cffi) blocked for {url}. Falling back to Tier 2 (nodriver).")
         return asyncio.run(self._nodriver_get(url))
 
     def _tier2_or_raise(self, url: str, exc: Exception) -> ResponseProtocol:
@@ -171,9 +165,7 @@ class RequestManager:
                 "Tier 2 disabled by ENABLE_TIER2_STEALTH=false."
             )
             return response
-        logger.warning(
-            f"Tier 1 async blocked for {url}. Falling back to Tier 2 (nodriver)."
-        )
+        logger.warning(f"Tier 1 async blocked for {url}. Falling back to Tier 2 (nodriver).")
         return await self._nodriver_get(url)
 
     async def _tier2_or_raise_async(self, url: str, exc: Exception) -> ResponseProtocol:
@@ -185,9 +177,7 @@ class RequestManager:
                 "ENABLE_TIER2_STEALTH=false; not retrying."
             )
             raise exc
-        logger.warning(
-            f"Tier 1 async failed for {url}: {exc}. Falling back to Tier 2 (nodriver)."
-        )
+        logger.warning(f"Tier 1 async failed for {url}: {exc}. Falling back to Tier 2 (nodriver).")
         return await self._nodriver_get(url)
 
     async def _nodriver_get(self, url: str) -> StealthResponse:
@@ -283,11 +273,7 @@ class RequestManager:
         if "headers" in kwargs:
             headers.update(kwargs.pop("headers"))
 
-        session = (
-            self._async_session_direct
-            if self._should_bypass(url)
-            else self._async_session
-        )
+        session = self._async_session_direct if self._should_bypass(url) else self._async_session
 
         await asyncio.sleep(random.uniform(0.5, 1.5))
 

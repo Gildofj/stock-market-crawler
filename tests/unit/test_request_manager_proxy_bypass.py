@@ -9,13 +9,15 @@ proxy is broken.
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
 
 from crawler.services.request_manager import RequestManager
 
 
 @pytest.fixture
-def proxied_manager() -> RequestManager:
+def proxied_manager() -> Generator[RequestManager, None, None]:
     manager = RequestManager(
         proxies=["http://user:pass@proxy.example.com:8080"],
         bypass_domains=frozenset({"dados.cvm.gov.br", "arquivos.b3.com.br"}),
@@ -33,9 +35,7 @@ def test_bypass_exact_match(proxied_manager: RequestManager):
 def test_bypass_subdomain_match(proxied_manager: RequestManager):
     # The bypass rule must also catch deeper subdomains so we don't accidentally
     # route api.dados.cvm.gov.br through the proxy when its parent is exempt.
-    assert (
-        proxied_manager._should_bypass("https://api.dados.cvm.gov.br/v1/cad") is True
-    )
+    assert proxied_manager._should_bypass("https://api.dados.cvm.gov.br/v1/cad") is True
 
 
 def test_no_bypass_for_unrelated_host(proxied_manager: RequestManager):

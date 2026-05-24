@@ -58,9 +58,7 @@ class B3BDRCatalogService:
 
         data = self._fetch_via_json()
         if not data:
-            logger.info(
-                "B3BDRCatalogService: JSON endpoint empty or failed; trying HTML fallback."
-            )
+            logger.info("B3BDRCatalogService: JSON endpoint empty or failed; trying HTML fallback.")
             data = self._fetch_via_html()
 
         if data:
@@ -112,7 +110,7 @@ class B3BDRCatalogService:
                     ratio = 1.0
                     try:
                         # Extract ratio "1 BDR = 2 Ações" etc.
-                        match = re.search(r'(\d+)', ratio_text)
+                        match = re.search(r"(\d+)", ratio_text)
                         if match:
                             ratio = float(match.group(1))
                     except Exception:

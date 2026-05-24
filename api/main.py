@@ -45,6 +45,7 @@ async def lifespan(app: FastAPI):
         import asyncio
 
         from crawler.tasks._shared import cvm_spider_singleton
+
         await asyncio.to_thread(cvm_spider_singleton._load_ticker_index)
         logger.info(f"CVM index pre-warmed: {len(cvm_spider_singleton._ticker_index or {})}")
     except Exception as exc:

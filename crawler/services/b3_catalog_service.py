@@ -95,9 +95,9 @@ class B3CatalogService:
                 if expected not in df.columns:
                     # Try by positional index if mapping failed
                     if expected == "ticker" and len(df.columns) > 0:
-                        df = df.rename(columns={df.columns[0]: "ticker"})
+                        df = df.rename(columns={str(df.columns[0]): "ticker"})
                     elif expected == "instrument_type" and len(df.columns) > 1:
-                        df = df.rename(columns={df.columns[1]: "instrument_type"})
+                        df = df.rename(columns={str(df.columns[1]): "instrument_type"})
                     else:
                         df[expected] = None
 

@@ -76,7 +76,10 @@ class CrawlerEngine:
     async def run_for_ticker_async(self, symbol: str) -> CrawlResult:
         logger.info(f"Engine: Starting async enrichment chain for {symbol}")
         taxonomy = await self.company_repo.get_taxonomy(symbol) or {}
-        asset_type = (taxonomy.get("asset_type") or _infer_asset_type(symbol)).upper()
+        raw_asset_type = taxonomy.get("asset_type")
+        asset_type = (
+            raw_asset_type if isinstance(raw_asset_type, str) else _infer_asset_type(symbol)
+        ).upper()
 
         result = await self.b3_spider.crawl_ticker(symbol)
         await self._enrich_by_asset_type(result, asset_type, taxonomy)

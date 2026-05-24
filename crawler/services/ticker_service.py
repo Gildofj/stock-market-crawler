@@ -118,7 +118,6 @@ class TickerService:
         logger.info(f"Successfully discovered {len(unique_tickers)} tickers.")
         return unique_tickers
 
-
     def _fetch_from_b3_instruments(self) -> list[str]:
         response = self.request_manager.get(self.B3_INSTRUMENTS_URL, timeout=30)
         response.raise_for_status()

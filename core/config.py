@@ -24,8 +24,6 @@ class Settings(BaseSettings):
     # query from holding a pool slot forever; pairs with pool_timeout=30s.
     DB_STATEMENT_TIMEOUT_MS: int = 30_000
 
-
-
     @property
     def database_url(self) -> str:
         current_url = os.getenv("DATABASE_URL") or self.DATABASE_URL
