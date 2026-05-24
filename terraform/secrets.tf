@@ -9,7 +9,6 @@ locals {
     "r2-account-id"      = var.r2_account_id
     "r2-api-token"       = var.r2_api_token
     "webshare-proxy-url" = var.webshare_proxy_url
-    "brapi-token"        = var.brapi_token
   }
 }
 
@@ -28,7 +27,7 @@ resource "google_secret_manager_secret_version" "app_bootstrap" {
   for_each = local.app_secrets
   secret   = google_secret_manager_secret.app[each.key].id
   # Secret Manager rejects empty payloads, so substitute a single space for
-  # unset optional secrets (brapi_token, webshare_proxy_url, r2_*). The app
+  # unset optional secrets (webshare_proxy_url, r2_*). The app
   # treats whitespace-only env vars as None — see core/config.py validator.
   secret_data = each.value == "" ? " " : each.value
 

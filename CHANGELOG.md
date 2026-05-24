@@ -24,8 +24,9 @@ When opening a pull request, add your entry under the `[Unreleased]` section usi
 
 ### Removed
 
+- **Breaking change: Brapi removed**. The `BrapiClient` and its usage across spiders (`CVMSpider`, `BDRSpider`, `FIISpider`, `refresh_universe`) have been removed. Ticker discovery now relies directly on B3 and CVM catalogs. BDR underlying tickers and FII data are sourced directly from B3 and yfinance.
 - **`FundamentusSpider` and `StatusInvestSpider`** — proprietary fundamentals scrapers. Their per-row numbers were facts (no IP protection), but the curated indicator databases they ship are protected as compilations under Lei 9.610/98. Indicators are now computed locally from raw CVM open data.
-- Logo and ticker-discovery fallbacks that scraped the proprietary aggregators. `LogoService` now resolves logos from each company's own website only; `TickerService` falls back to Brapi → B3 instruments CSV → CVM CAD → curated blue-chip list.
+- Logo and ticker-discovery fallbacks that scraped the proprietary aggregators. `LogoService` now resolves logos from each company's own website only; `TickerService` falls back to B3 instruments CSV → CVM CAD → curated blue-chip list.
 - `data_sources` rows for `fundamentus` and `statusinvest` (migration `e5f6a7b8c9d0`), replaced by a new `b3` row covering the public B3 arquivos endpoint.
 - **Celery, Redis broker, and Compute Engine worker VM.** Background tasks are now plain async HTTP endpoints invoked by Cloud Tasks; the VM, its SSH-based deploy, and the `bootstrap-worker-vm.yml` workflow are gone.
 - **R2 mirror columns** for RI documents (`i0d1e2f3g4h5_drop_r2_mirror_columns`). The canonical CVM URL is referenced directly; no PDFs are mirrored.

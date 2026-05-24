@@ -5,7 +5,7 @@ from core.repositories.company_repository import CompanyRepository
 from core.services.etl_service import ETLService
 from core.services.reliability_service import ReliabilityService
 from crawler.engine.crawler_engine import CrawlerEngine
-from crawler.tasks._shared import request_manager
+from crawler.tasks._shared import cvm_spider_singleton, request_manager
 
 
 async def crawl_ticker_task(symbol: str):
@@ -22,7 +22,7 @@ async def crawl_ticker_task(symbol: str):
 
     try:
         async with session_local() as crawl_db:
-            engine = CrawlerEngine(crawl_db, request_manager)
+            engine = CrawlerEngine(crawl_db, request_manager, spiders={"cvm": cvm_spider_singleton})
             await engine.run_for_ticker(symbol)
 
         async with session_local() as post_db:

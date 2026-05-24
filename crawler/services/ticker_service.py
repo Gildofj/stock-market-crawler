@@ -9,7 +9,6 @@ from .request_manager import RequestManager
 
 
 class TickerService:
-    BRAPI_URL = "https://brapi.dev/api/available"
     B3_INSTRUMENTS_URL = "https://arquivos.b3.com.br/apinegocios/tickercsv"
 
     BLUE_CHIPS = [
@@ -95,7 +94,6 @@ class TickerService:
 
         tickers: list[str] = []
         for source_name, fetcher in (
-            ("Brapi", self._fetch_from_brapi),
             ("B3 instruments CSV", self._fetch_from_b3_instruments),
             ("CVM CAD registry", self._fetch_from_cvm_cad),
         ):
@@ -120,11 +118,6 @@ class TickerService:
         logger.info(f"Successfully discovered {len(unique_tickers)} tickers.")
         return unique_tickers
 
-    def _fetch_from_brapi(self) -> list[str]:
-        response = self.request_manager.get(self.BRAPI_URL, timeout=20)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("stocks", [])
 
     def _fetch_from_b3_instruments(self) -> list[str]:
         response = self.request_manager.get(self.B3_INSTRUMENTS_URL, timeout=30)

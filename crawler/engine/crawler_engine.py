@@ -99,7 +99,7 @@ class CrawlerEngine:
             )
             return
         # Default path (EQUITY, UNIT, ETF and anything unrecognised): seed the
-        # CVM spider with any cached cd_cvm so it skips the Brapi roundtrip.
+        # CVM spider with any cached cd_cvm so it skips the CVM CAD roundtrip.
         cd_cvm = taxonomy.get("cd_cvm")
         if cd_cvm:
             self.cvm_spider.seed_ticker_index({symbol_key(result.symbol): cd_cvm})
@@ -265,7 +265,7 @@ def symbol_key(symbol: str) -> str:
 
 def _infer_asset_type(symbol: str) -> str:
     """Fallback when companies.asset_type is null (cold start before
-    refresh_universe runs). Mirrors brapi_client._normalise_asset_type.
+    refresh_universe runs).
     """
     cleaned = symbol_key(symbol).rstrip("F")
     if cleaned.endswith("11"):

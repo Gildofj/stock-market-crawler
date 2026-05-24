@@ -24,10 +24,7 @@ class Settings(BaseSettings):
     # query from holding a pool slot forever; pairs with pool_timeout=30s.
     DB_STATEMENT_TIMEOUT_MS: int = 30_000
 
-    # Optional Brapi API token. The free public endpoint returns 401 on every
-    # call — without a token, _resolve_via_brapi is skipped entirely so we
-    # don't spam the upstream and pollute logs with 401 warnings.
-    BRAPI_TOKEN: str | None = None
+
 
     @property
     def database_url(self) -> str:
@@ -89,7 +86,6 @@ class Settings(BaseSettings):
         return os.getenv("GOOGLE_CLOUD_PROJECT")
 
     @field_validator(
-        "BRAPI_TOKEN",
         "R2_ACCOUNT_ID",
         "R2_API_TOKEN",
         "R2_RI_PUBLIC_BASE_URL",
@@ -101,7 +97,7 @@ class Settings(BaseSettings):
     def _blank_to_none(cls, value: str | None) -> str | None:
         # Secret Manager bootstrap writes a single space for unset optional
         # secrets (terraform/secrets.tf); normalise back to None so truthy
-        # checks like `if settings.BRAPI_TOKEN:` behave as expected.
+        # checks behave as expected.
         # Also strip surrounding whitespace — `gcloud secrets versions add`
         # via stdin often appends \r\n, which httpx rejects as an illegal
         # header value when the secret is used in an Authorization header.
@@ -114,6 +110,29 @@ class Settings(BaseSettings):
 
     CRAWLER_HTTP_PROXY: str | None = None
     CRAWLER_HTTPS_PROXY: str | None = None
+
+    # Hostnames that bypass the residential proxy. Brazilian gov/exchange
+    # endpoints have no anti-bot defense and routing them through webshare
+    # only adds failure modes (e.g. 407 when the secret rotates).
+    CRAWLER_PROXY_BYPASS_DOMAINS: str = (
+        "dados.cvm.gov.br,arquivos.b3.com.br,api.bcb.gov.br,www3.bcb.gov.br,"
+        "sistemaswebb3-listados.b3.com.br,www.b3.com.br,"
+        "query1.finance.yahoo.com,query2.finance.yahoo.com"
+    )
+
+    @property
+    def proxy_bypass_set(self) -> frozenset[str]:
+        return frozenset(
+            host.strip().lower()
+            for host in self.CRAWLER_PROXY_BYPASS_DOMAINS.split(",")
+            if host.strip()
+        )
+
+    # Tier 2 stealth (nodriver headless browser) requires Chromium installed
+    # locally. The base Docker image is slim and has no browser — Tier 2 must
+    # stay off there. The dedicated Dockerfile.stealth opts in by exporting
+    # ENABLE_TIER2_STEALTH=true.
+    ENABLE_TIER2_STEALTH: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

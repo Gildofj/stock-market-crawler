@@ -107,8 +107,8 @@ GitHub Actions matrix [0..9] @ 02:00 UTC
 
 `crawler/services/request_manager.py` exposes a two-tier strategy that every spider uses:
 
-- **Tier 1 — `curl_cffi`**: Standard HTTP client with rotating User-Agents, realistic headers, jittered backoff, and exponential retries. Both sync and async sessions are pre-built.
-- **Tier 2 — `nodriver` (headless browser)**: Triggered when Tier 1 returns a non-success status or fails the retry budget. Useful for pages that require JavaScript execution or full DOM rendering. Configured to work inside CI/Docker/root environments.
+- **Tier 1 — `curl_cffi`**: Standard HTTP client with rotating User-Agents, realistic headers, jittered backoff, and exponential retries. Both sync and async sessions are pre-built. It natively bypasses proxy for trusted domestic domains (like CVM and B3) via `CRAWLER_PROXY_BYPASS_DOMAINS`.
+- **Tier 2 — `nodriver` (headless browser)**: Triggered when Tier 1 returns a non-success status or fails the retry budget. Useful for pages that require JavaScript execution or full DOM rendering. This tier is only active in the dedicated `stealth` Docker image (`ENABLE_TIER2_STEALTH=true`) to keep the base API/worker image slim.
 - **Concurrency guard**: A semaphore caps simultaneous browser launches to avoid OOM on small runners.
 
 This layered approach improves resilience against transient errors and lets the crawler handle pages that the lightweight client cannot render.

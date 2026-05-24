@@ -20,6 +20,12 @@ variable "image_name" {
   type        = string
 }
 
+variable "image_name_stealth" {
+  description = "The Docker image name for Tier 2 stealth tasks"
+  type        = string
+  default     = ""
+}
+
 variable "ar_repo" {
   description = "Artifact Registry repository id for crawler images (must match AR_REPO GitHub Variable)"
   type        = string
@@ -39,14 +45,7 @@ variable "webshare_proxy_url" {
   default     = ""
 }
 
-# Brapi API token for CVM ticker → cd_cvm fallback resolution. Without it the
-# fallback is skipped silently (see crawler/spiders/cvm_spider.py).
-variable "brapi_token" {
-  description = "Brapi (https://brapi.dev) API token used to resolve unmapped tickers via CNPJ lookup."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
+
 
 # DB pool tuning — exposed as plain vars (not secrets) so they can be tweaked
 # per environment without rebuilding the container image. Defaults match

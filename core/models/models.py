@@ -72,12 +72,15 @@ class Company(Base):
     is_active: Mapped[int] = mapped_column(Integer, default=1)
     logo_url: Mapped[str | None] = mapped_column(String(500))
     website: Mapped[str | None] = mapped_column(String(255))
-    # Asset taxonomy — populated by the refresh_universe Cloud Run Job from Brapi.
+    # Asset taxonomy — populated by the refresh_universe Cloud Run Job.
     # Drives CrawlerEngine.run_for_ticker dispatch to the right spider.
     cnpj: Mapped[str | None] = mapped_column(String(14), index=True)
     cd_cvm: Mapped[str | None] = mapped_column(String(20))
     asset_type: Mapped[str | None] = mapped_column(String(20), index=True)
     underlying_ticker: Mapped[str | None] = mapped_column(String(20))
+    # BDR ratio (units of BR share per foreign share). Used by BDRSpider to
+    # scale yfinance per-share metrics down to the BR-listed equivalent.
+    bdr_ratio: Mapped[float | None] = mapped_column(Numeric(10, 4))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

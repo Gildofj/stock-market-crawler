@@ -76,8 +76,6 @@ def _derive_ebit(
 
 
 class CVMSpider(BaseSpider):
-    BRAPI_QUOTE_URL = "https://brapi.dev/api/quote/{ticker}?modules=summaryProfile"
-
     def __init__(
         self,
         dataset_service: CVMDatasetService | None = None,
@@ -139,21 +137,15 @@ class CVMSpider(BaseSpider):
         hit = index.get(clean_ticker)
         if hit is not None:
             return hit
-        if clean_ticker in self._unresolvable_tickers:
-            return None
-        resolved = self._resolve_via_brapi(clean_ticker)
-        if resolved is None:
-            self._unresolvable_tickers.add(clean_ticker)
-            return None
-        index[clean_ticker] = resolved
-        return resolved
+        self._unresolvable_tickers.add(clean_ticker)
+        return None
 
     def seed_ticker_index(self, mapping: dict[str, str]) -> None:
         """Merge an external ticker→cd_cvm mapping into the in-memory index.
 
         Callers (CrawlerEngine) use this to hydrate the cache from the
         ``companies`` table populated by the refresh_universe job, avoiding a
-        Brapi roundtrip per ticker.
+        CVM CAD roundtrip per ticker.
         """
         if not mapping:
             return
@@ -204,44 +196,6 @@ class CVMSpider(BaseSpider):
             cnpj: code for cnpj, code in zip(cnpj_digits, cd_cvm_series, strict=False) if cnpj
         }
         return self._cnpj_to_cd_cvm
-
-    def _resolve_via_brapi(self, ticker: str) -> str | None:
-        from core.config import settings
-
-        if not settings.BRAPI_TOKEN:
-            # Brapi requires auth since 2024; without a token every call returns
-            # 401. Skipping silently avoids log spam on BDRs/FIIs that won't
-            # resolve anyway.
-            return None
-
-        url = self.BRAPI_QUOTE_URL.format(ticker=ticker)
-        headers = {"Authorization": f"Bearer {settings.BRAPI_TOKEN}"}
-        try:
-            response = self.dataset_service.request_manager.get(url, timeout=15, headers=headers)
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:
-            logger.warning(f"CVMSpider: Brapi lookup failed for {ticker}: {exc}")
-            return None
-
-        results = (payload or {}).get("results") or []
-        if not results:
-            return None
-
-        cnpj_raw = results[0].get("cnpj")
-        if not cnpj_raw:
-            return None
-        cnpj_digits = "".join(ch for ch in str(cnpj_raw) if ch.isdigit())
-        if not cnpj_digits:
-            return None
-
-        cnpj_map = self._get_cad_normalised() or {}
-        cd_cvm = cnpj_map.get(cnpj_digits)
-        if cd_cvm is None:
-            logger.warning(
-                f"CVMSpider: CNPJ {cnpj_digits} from Brapi for {ticker} not found in CAD"
-            )
-        return cd_cvm
 
     def _get_year(self, doc_type: str, year: int) -> CVMYearData | None:
         cache = self._dfp_cache if doc_type == "DFP" else self._itr_cache

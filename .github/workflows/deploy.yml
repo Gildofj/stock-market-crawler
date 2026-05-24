@@ -204,8 +204,7 @@ jobs:
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --update-env-vars="LOG_FORMAT=gcp,DEPLOYMENT_ENV=production,SERVICE_VERSION=${{ github.sha }},OTEL_ENABLED=true,OTEL_EXPORTER=gcp,OTEL_SAMPLE_RATIO=0.1" \
             --quiet
-      # No smoke-execute: a full refresh consumes ~200-3000 Brapi calls
-      # (free-tier monthly quota is 15k). The weekly Cloud Scheduler trigger
-      # validates the new image at no additional cost; trigger manually with
+      # No smoke-execute: the weekly Cloud Scheduler trigger validates
+      # the new image at no additional cost; trigger manually with
       # `gcloud run jobs execute refresh-universe` if a deploy-time smoke is
       # needed.

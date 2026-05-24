@@ -2,6 +2,7 @@ import asyncio
 import random
 import time
 from typing import Any, Protocol, runtime_checkable
+from urllib.parse import urlparse
 
 import nodriver as uc
 import orjson
@@ -60,9 +61,20 @@ class RequestManager:
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",  # noqa: E501 - Motivo: URL longa
     ]
 
-    def __init__(self, proxies: list[str] | None = None, max_concurrent_browsers: int = 2):
+    def __init__(
+        self,
+        proxies: list[str] | None = None,
+        max_concurrent_browsers: int = 2,
+        bypass_domains: frozenset[str] | None = None,
+    ):
         self.proxies = proxies
         self.proxy = random.choice(proxies) if proxies else None
+
+        if bypass_domains is None:
+            from core.config import settings
+
+            bypass_domains = settings.proxy_bypass_set
+        self._bypass: frozenset[str] = bypass_domains
 
         self._browser_semaphore = asyncio.Semaphore(max_concurrent_browsers)
 
@@ -76,6 +88,27 @@ class RequestManager:
             proxy=self.proxy,
             timeout=30,
         )
+        # Direct sessions: skip the proxy for Brazilian gov/exchange endpoints
+        # that have no anti-bot defense — routing them through webshare only
+        # introduces failure modes (e.g. 407 when the secret rotates).
+        # When no proxy is configured, alias to the same objects to avoid
+        # opening two redundant connection pools.
+        if self.proxy:
+            self._session_direct = requests.Session(impersonate="chrome124", timeout=30)
+            self._async_session_direct = requests.AsyncSession(
+                impersonate="chrome124", timeout=30
+            )
+        else:
+            self._session_direct = self._session
+            self._async_session_direct = self._async_session
+
+    def _should_bypass(self, url: str) -> bool:
+        hostname = (urlparse(url).hostname or "").lower()
+        if not hostname or not self._bypass:
+            return False
+        if hostname in self._bypass:
+            return True
+        return any(hostname.endswith(f".{domain}") for domain in self._bypass)
 
     def _get_headers(self, url: str) -> dict[str, str]:
         from urllib.parse import urlparse
@@ -97,14 +130,78 @@ class RequestManager:
             headers["From"] = settings.CRAWLER_CONTACT_EMAIL
         return headers
 
+    def _tier2_or_response(
+        self, url: str, response: ResponseProtocol
+    ) -> ResponseProtocol:
+        from core.config import settings
+
+        if not settings.ENABLE_TIER2_STEALTH:
+            logger.warning(
+                f"Tier 1 blocked for {url} (status={response.status_code}); "
+                "Tier 2 disabled by ENABLE_TIER2_STEALTH=false."
+            )
+            return response
+        logger.warning(
+            f"Tier 1 (curl_cffi) blocked for {url}. Falling back to Tier 2 (nodriver)."
+        )
+        return asyncio.run(self._nodriver_get(url))
+
+    def _tier2_or_raise(self, url: str, exc: Exception) -> ResponseProtocol:
+        from core.config import settings
+
+        if not settings.ENABLE_TIER2_STEALTH:
+            logger.warning(
+                f"Tier 1 failed for {url}: {exc}. Tier 2 disabled by "
+                "ENABLE_TIER2_STEALTH=false; not retrying."
+            )
+            raise exc
+        logger.warning(
+            f"Tier 1 (curl_cffi) failed for {url}: {exc}. Falling back to Tier 2 (nodriver)."
+        )
+        return asyncio.run(self._nodriver_get(url))
+
+    async def _tier2_or_response_async(
+        self, url: str, response: ResponseProtocol
+    ) -> ResponseProtocol:
+        from core.config import settings
+
+        if not settings.ENABLE_TIER2_STEALTH:
+            logger.warning(
+                f"Tier 1 async blocked for {url} (status={response.status_code}); "
+                "Tier 2 disabled by ENABLE_TIER2_STEALTH=false."
+            )
+            return response
+        logger.warning(
+            f"Tier 1 async blocked for {url}. Falling back to Tier 2 (nodriver)."
+        )
+        return await self._nodriver_get(url)
+
+    async def _tier2_or_raise_async(self, url: str, exc: Exception) -> ResponseProtocol:
+        from core.config import settings
+
+        if not settings.ENABLE_TIER2_STEALTH:
+            logger.warning(
+                f"Tier 1 async failed for {url}: {exc}. Tier 2 disabled by "
+                "ENABLE_TIER2_STEALTH=false; not retrying."
+            )
+            raise exc
+        logger.warning(
+            f"Tier 1 async failed for {url}: {exc}. Falling back to Tier 2 (nodriver)."
+        )
+        return await self._nodriver_get(url)
+
     async def _nodriver_get(self, url: str) -> StealthResponse:
         async with self._browser_semaphore:
             logger.info(f"Stealth: Launching headless browser for {url}")
             browser: uc.Browser | None = None
             try:
+                import os
+
+                executable_path = os.getenv("CHROME_BIN") or None
                 browser = await uc.start(
                     sandbox=False,
                     headless=True,
+                    browser_executable_path=executable_path,
                     browser_args=[
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
@@ -143,11 +240,13 @@ class RequestManager:
         if "headers" in kwargs:
             headers.update(kwargs.pop("headers"))
 
+        session = self._session_direct if self._should_bypass(url) else self._session
+
         time.sleep(random.uniform(1.0, 2.5))
 
         for attempt in range(max_retries):
             try:
-                response = self._session.get(url, headers=headers, **kwargs)
+                response = session.get(url, headers=headers, **kwargs)
 
                 if response.status_code in [403, 429]:
                     if attempt < max_retries - 1:
@@ -159,10 +258,7 @@ class RequestManager:
                         time.sleep(wait_time)
                         continue
 
-                    logger.warning(
-                        f"Tier 1 (curl_cffi) blocked for {url}. Falling back to Tier 2 (nodriver)."
-                    )
-                    return asyncio.run(self._nodriver_get(url))
+                    return self._tier2_or_response(url, response)
 
                 return response  # type: ignore - Motivo: Tipagem externa
             except (requests.RequestsError, Exception) as e:
@@ -172,12 +268,9 @@ class RequestManager:
                     time.sleep(wait_time)
                     continue
 
-                logger.warning(
-                    f"Tier 1 (curl_cffi) failed for {url}: {e}. Falling back to Tier 2 (nodriver)."
-                )
-                return asyncio.run(self._nodriver_get(url))
+                return self._tier2_or_raise(url, e)
 
-        return self._session.get(url, headers=headers, **kwargs)  # type: ignore - Motivo: Tipagem externa
+        return session.get(url, headers=headers, **kwargs)  # type: ignore - Motivo: Tipagem externa
 
     async def get_async(
         self,
@@ -190,11 +283,17 @@ class RequestManager:
         if "headers" in kwargs:
             headers.update(kwargs.pop("headers"))
 
+        session = (
+            self._async_session_direct
+            if self._should_bypass(url)
+            else self._async_session
+        )
+
         await asyncio.sleep(random.uniform(0.5, 1.5))
 
         for attempt in range(max_retries):
             try:
-                response = await self._async_session.get(url, headers=headers, **kwargs)
+                response = await session.get(url, headers=headers, **kwargs)
 
                 if response.status_code in [403, 429]:
                     if attempt < max_retries - 1:
@@ -208,10 +307,7 @@ class RequestManager:
                             "skipping nodriver fallback)."
                         )
                         return response  # type: ignore - Motivo: Tipagem externa
-                    logger.warning(
-                        f"Tier 1 async blocked for {url}. Falling back to Tier 2 (nodriver)."
-                    )
-                    return await self._nodriver_get(url)
+                    return await self._tier2_or_response_async(url, response)
 
                 return response  # type: ignore - Motivo: Tipagem externa
             except (requests.RequestsError, Exception) as e:
@@ -225,17 +321,18 @@ class RequestManager:
                         f"Tier 1 async failed for {url}: {e}. binary=True; not falling back."
                     )
                     raise
-                logger.warning(
-                    f"Tier 1 async failed for {url}: {e}. Falling back to Tier 2 (nodriver)."
-                )
-                return await self._nodriver_get(url)
+                return await self._tier2_or_raise_async(url, e)
 
-        return await self._async_session.get(url, headers=headers, **kwargs)  # type: ignore - Motivo: Tipagem externa
+        return await session.get(url, headers=headers, **kwargs)  # type: ignore - Motivo: Tipagem externa
 
     async def close(self):
         try:
             await self._async_session.close()
             self._session.close()
+            if self._async_session_direct is not self._async_session:
+                await self._async_session_direct.close()
+            if self._session_direct is not self._session:
+                self._session_direct.close()
         except Exception as e:
             logger.debug(f"RequestManager: Error during close: {e}")
 
@@ -244,6 +341,8 @@ class RequestManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._session.close()
+        if self._session_direct is not self._session:
+            self._session_direct.close()
 
     async def __aenter__(self):
         return self

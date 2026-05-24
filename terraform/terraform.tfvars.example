@@ -27,9 +27,7 @@ r2_bucket_ri_docs     = "ri-docs"
 r2_bucket_portfolios  = "portfolios"
 r2_ri_public_base_url = ""
 
-# Brapi (https://brapi.dev) — fallback CNPJ resolver for unmapped tickers.
-# Leave blank to disable the fallback (CVMSpider skips it silently).
-brapi_token = "kHaTnZY6uaousWzrsChc7F"
+
 
 # DB pool tuning (defaults match Supabase free tier behind Supavisor).
 # Bump only if Supabase tier is upgraded.

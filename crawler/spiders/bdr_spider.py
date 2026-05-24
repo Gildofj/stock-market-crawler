@@ -4,10 +4,10 @@ A BDR is a wrapper around a foreign equity (AAPL34 → AAPL, MSFT34 → MSFT).
 Fundamentals live with the underlying issuer, so:
 
 1. Resolve the underlying ticker (from companies.underlying_ticker cached by
-   refresh_universe, or via Brapi's response on first sight).
+   refresh_universe).
 2. Pull underlying fundamentals via yfinance (already a project dependency).
 3. Apply the BDR ratio so per-share metrics (EPS, market_cap) reflect the
-   BR-listed share, not the foreign one. Ratio comes from Brapi.
+   BR-listed share, not the foreign one.
 
 Persisted with ``asset_type='BDR'`` so consumers can distinguish a BR-listed
 EPS-in-BRL row from a US-native EPS-in-USD row.
@@ -21,23 +21,11 @@ from typing import Any
 import yfinance as yf
 from loguru import logger
 
-from core.services.brapi_client import (
-    BrapiClient,
-    BrapiQuotaExceededError,
-    BrapiUnauthorizedError,
-    get_brapi_client,
-)
-
 from ..models.contract import CrawlResult
 from .base_spider import BaseSpider
 
-_MODULES = ("summaryProfile", "defaultKeyStatistics")
-
 
 class BDRSpider(BaseSpider):
-    def __init__(self, client: BrapiClient | None = None) -> None:
-        self._client = client or get_brapi_client()
-
     async def crawl_ticker(
         self,
         symbol: str,
@@ -56,11 +44,6 @@ class BDRSpider(BaseSpider):
     ) -> None:
         resolved_underlying = underlying
         bdr_ratio = ratio
-
-        if resolved_underlying is None or bdr_ratio is None:
-            meta = await self._fetch_metadata(result)
-            resolved_underlying = resolved_underlying or meta.get("underlying")
-            bdr_ratio = bdr_ratio or meta.get("ratio")
 
         if not resolved_underlying:
             logger.warning(
@@ -100,21 +83,6 @@ class BDRSpider(BaseSpider):
         result.provenance.setdefault("underlying_ticker", resolved_underlying)
         result.provenance.setdefault("bdr_ratio", str(bdr_ratio or "unknown"))
 
-    async def _fetch_metadata(self, result: CrawlResult) -> dict[str, Any]:
-        if not self._client.enabled:
-            return {}
-        try:
-            quote = await asyncio.to_thread(self._client.fetch_quote, result.symbol, _MODULES)
-        except (BrapiUnauthorizedError, BrapiQuotaExceededError) as exc:
-            logger.warning(f"BDRSpider: Brapi metadata fetch failed for {result.symbol}: {exc}")
-            return {}
-        if quote is None:
-            return {}
-        raw = quote.raw or {}
-        return {
-            "underlying": raw.get("underlyingSymbol") or raw.get("underlying"),
-            "ratio": _to_float(raw.get("bdrRatio") or raw.get("ratio")),
-        }
 
 
 def _fetch_underlying_info(underlying_ticker: str) -> dict[str, Any]:

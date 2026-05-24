@@ -41,6 +41,15 @@ async def lifespan(app: FastAPI):
     FastAPICache.init(InMemoryBackend(), prefix="stock-api-cache")
     logger.info("API initialized with InMemory Cache.")
 
+    try:
+        import asyncio
+
+        from crawler.tasks._shared import cvm_spider_singleton
+        await asyncio.to_thread(cvm_spider_singleton._load_ticker_index)
+        logger.info(f"CVM index pre-warmed: {len(cvm_spider_singleton._ticker_index or {})}")
+    except Exception as exc:
+        logger.warning(f"CVM pre-warm failed (retries per-request): {exc}")
+
     await init_rate_limiter()
     yield
     await close_rate_limiter()

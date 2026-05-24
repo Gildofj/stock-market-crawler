@@ -20,6 +20,7 @@ _PRESERVE_IF_NULL_FIELDS = frozenset(
         "cd_cvm",
         "asset_type",
         "underlying_ticker",
+        "bdr_ratio",
     }
 )
 
@@ -36,10 +37,10 @@ class CompanyRepository:
         result = await self.db.execute(select(Company).filter(Company.symbol == symbol))
         return result.scalars().first()
 
-    async def get_taxonomy(self, symbol: str) -> dict[str, str | None] | None:
+    async def get_taxonomy(self, symbol: str) -> dict[str, str | float | None] | None:
         """Returns cached asset taxonomy for a symbol (cd_cvm, asset_type, etc).
 
-        Used by CrawlerEngine to short-circuit Brapi lookups when the
+        Used by CrawlerEngine to short-circuit upstream lookups when the
         refresh_universe job has already cached the mapping.
         """
         stmt = select(
@@ -47,6 +48,7 @@ class CompanyRepository:
             Company.cd_cvm,
             Company.asset_type,
             Company.underlying_ticker,
+            Company.bdr_ratio,
         ).filter(Company.symbol == symbol)
         row = (await self.db.execute(stmt)).first()
         if row is None:
@@ -56,6 +58,7 @@ class CompanyRepository:
             "cd_cvm": row.cd_cvm,
             "asset_type": row.asset_type,
             "underlying_ticker": row.underlying_ticker,
+            "bdr_ratio": float(row.bdr_ratio) if row.bdr_ratio is not None else None,
         }
 
     async def get_many_by_symbols(self, symbols: list[str]) -> list[Company]:

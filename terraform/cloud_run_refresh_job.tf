@@ -4,7 +4,7 @@
 
 resource "google_service_account" "refresh_universe_job_sa" {
   account_id   = "refresh-universe-job"
-  display_name = "Service Account for Brapi-driven ticker universe refresh"
+  display_name = "Service Account for B3-driven ticker universe refresh"
 }
 
 resource "google_artifact_registry_repository_iam_member" "refresh_universe_job_reader" {
@@ -24,15 +24,19 @@ resource "google_cloud_run_v2_job" "refresh_universe" {
 
     template {
       service_account = google_service_account.refresh_universe_job_sa.email
-      # 15 min is well above the expected ~3-5 min runtime (700 tickers × 1
-      # Brapi call each, with rate limiting on Brapi's side capping us anyway).
+      # 15 min is well above the expected ~3-5 min runtime.
       timeout     = "900s"
       max_retries = 1
 
       containers {
-        image   = var.image_name
+        image   = var.image_name_stealth != "" ? var.image_name_stealth : var.image_name
         command = ["python"]
         args    = ["-m", "crawler.tasks.refresh_universe"]
+
+        env {
+          name  = "ENABLE_TIER2_STEALTH"
+          value = "true"
+        }
 
         env {
           name = "DATABASE_URL"
@@ -47,15 +51,7 @@ resource "google_cloud_run_v2_job" "refresh_universe" {
           name  = "PYTHONPATH"
           value = "/app"
         }
-        env {
-          name = "BRAPI_TOKEN"
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.app["brapi-token"].secret_id
-              version = "latest"
-            }
-          }
-        }
+
         env {
           name  = "DB_POOL_SIZE"
           value = tostring(var.db_pool_size)
@@ -109,7 +105,7 @@ resource "google_cloud_run_v2_job_iam_member" "refresh_universe_run_invoker" {
 
 resource "google_cloud_scheduler_job" "refresh_universe_trigger" {
   name        = "refresh-universe-trigger"
-  description = "Weekly Brapi-driven refresh of the B3 ticker universe (Sun 03:00 BRT)."
+  description = "Weekly B3-driven refresh of the ticker universe (Sun 03:00 BRT)."
   schedule    = "0 3 * * 0"
   time_zone   = var.scheduler_timezone
   region      = var.region

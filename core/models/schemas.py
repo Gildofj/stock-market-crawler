@@ -34,6 +34,7 @@ class CompanySchema(BaseModel):
     cd_cvm: str | None = None
     asset_type: str | None = None
     underlying_ticker: str | None = None
+    bdr_ratio: float | None = None
 
 
 class FundamentalSchema(BaseModel):

@@ -25,6 +25,10 @@ resource "google_cloud_run_v2_service" "worker" {
         value = "production"
       }
       env {
+        name  = "ENABLE_TIER2_STEALTH"
+        value = "false"
+      }
+      env {
         name  = "GCP_PROJECT_ID"
         value = var.project_id
       }
@@ -89,15 +93,8 @@ resource "google_cloud_run_v2_service" "worker" {
           }
         }
       }
-      env {
-        name = "BRAPI_TOKEN"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.app["brapi-token"].secret_id
-            version = "latest"
-          }
-        }
-      }
+
+
       env {
         name  = "DB_POOL_SIZE"
         value = tostring(var.db_pool_size)
