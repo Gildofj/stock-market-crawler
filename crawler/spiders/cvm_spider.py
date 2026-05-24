@@ -217,9 +217,7 @@ class CVMSpider(BaseSpider):
         url = self.BRAPI_QUOTE_URL.format(ticker=ticker)
         headers = {"Authorization": f"Bearer {settings.BRAPI_TOKEN}"}
         try:
-            response = self.dataset_service.request_manager.get(
-                url, timeout=15, headers=headers
-            )
+            response = self.dataset_service.request_manager.get(url, timeout=15, headers=headers)
             response.raise_for_status()
             payload = response.json()
         except Exception as exc:

@@ -104,9 +104,7 @@ class BDRSpider(BaseSpider):
         if not self._client.enabled:
             return {}
         try:
-            quote = await asyncio.to_thread(
-                self._client.fetch_quote, result.symbol, _MODULES
-            )
+            quote = await asyncio.to_thread(self._client.fetch_quote, result.symbol, _MODULES)
         except (BrapiUnauthorizedError, BrapiQuotaExceededError) as exc:
             logger.warning(f"BDRSpider: Brapi metadata fetch failed for {result.symbol}: {exc}")
             return {}

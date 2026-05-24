@@ -184,9 +184,7 @@ class RISpider:
             dfs.append(df_year)
 
         if not dfs:
-            logger.error(
-                f"RISpider: no IPE CSV available for any of {years_to_fetch}; aborting."
-            )
+            logger.error(f"RISpider: no IPE CSV available for any of {years_to_fetch}; aborting.")
             return 0
 
         df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
@@ -195,8 +193,7 @@ class RISpider:
         cnpjs = watched_cnpjs()
         if "CNPJ_Companhia" not in df.columns:
             logger.error(
-                f"RISpider: unexpected CSV schema (no CNPJ_Companhia). "
-                f"columns={list(df.columns)}"
+                f"RISpider: unexpected CSV schema (no CNPJ_Companhia). columns={list(df.columns)}"
             )
             return 0
 

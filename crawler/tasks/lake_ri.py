@@ -7,9 +7,7 @@ from crawler.spiders.ri_spider import RISpider
 from crawler.tasks._shared import request_manager
 
 
-async def _run_ri_crawl(
-    days_back: int | None = None, year: int | None = None
-) -> int:
+async def _run_ri_crawl(days_back: int | None = None, year: int | None = None) -> int:
     db = session_local()
     try:
         company_repo = CompanyRepository(db)
@@ -20,13 +18,9 @@ async def _run_ri_crawl(
         await db.close()
 
 
-async def crawl_ri_task(
-    days_back: int | None = None, year: int | None = None
-) -> int:
+async def crawl_ri_task(days_back: int | None = None, year: int | None = None) -> int:
     task_logger = logger.bind(task="lake.ri")
-    task_logger.info(
-        f"Starting RI document collection (days_back={days_back}, year={year})..."
-    )
+    task_logger.info(f"Starting RI document collection (days_back={days_back}, year={year})...")
     try:
         persisted = await _run_ri_crawl(days_back=days_back, year=year)
         task_logger.info(f"RI document collection completed ({persisted} docs).")

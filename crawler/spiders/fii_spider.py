@@ -47,9 +47,7 @@ class FIISpider(BaseSpider):
             return
 
         try:
-            quote = await asyncio.to_thread(
-                self._client.fetch_quote, result.symbol, _MODULES
-            )
+            quote = await asyncio.to_thread(self._client.fetch_quote, result.symbol, _MODULES)
         except BrapiUnauthorizedError:
             logger.warning(f"FIISpider: Brapi auth failed for {result.symbol}")
             return
@@ -72,15 +70,19 @@ class FIISpider(BaseSpider):
         result.sub_sector = result.sub_sector or quote.industry
         result.segment = result.segment or "FII"
 
-        result.market_cap = result.market_cap or quote.market_cap or _to_float(
-            stats.get("netAssetsCurrent")
+        result.market_cap = (
+            result.market_cap or quote.market_cap or _to_float(stats.get("netAssetsCurrent"))
         )
-        result.p_vp = result.p_vp or _to_float(stats.get("priceToBook")) or _to_float(
-            funds.get("priceToBook")
+        result.p_vp = (
+            result.p_vp
+            or _to_float(stats.get("priceToBook"))
+            or _to_float(funds.get("priceToBook"))
         )
         # FIIs report DY as a percentage already (12.5 == 12.5% over 12m).
-        result.dy = result.dy or _to_float(funds.get("dividendYield")) or _to_float(
-            stats.get("trailingAnnualDividendYield")
+        result.dy = (
+            result.dy
+            or _to_float(funds.get("dividendYield"))
+            or _to_float(stats.get("trailingAnnualDividendYield"))
         )
         result.eps = result.eps or _to_float(stats.get("trailingEps"))
 
