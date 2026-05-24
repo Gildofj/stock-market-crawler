@@ -35,6 +35,18 @@ resource "google_cloud_run_v2_service" "api" {
         value = google_cloud_run_v2_service.worker.uri
       }
       env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "CLOUD_TASKS_LOCATION"
+        value = var.region
+      }
+      env {
+        name  = "CLOUD_TASKS_QUEUE"
+        value = google_cloud_tasks_queue.crawler_queue.name
+      }
+      env {
         name  = "ALLOWED_ORIGINS"
         value = var.allowed_origins
       }

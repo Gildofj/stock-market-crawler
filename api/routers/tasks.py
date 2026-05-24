@@ -94,14 +94,25 @@ async def enqueue_daily(request: Request):
         return {"status": "error", "detail": "No tickers found to enqueue."}
 
     logger.info("Enqueuing macro data task...")
-    tasks_service.enqueue_task("/_tasks/macro-data")
+    enqueued = 1 if tasks_service.enqueue_task("/_tasks/macro-data") else 0
 
     logger.info(f"Enqueuing {len(all_tickers)} ticker tasks...")
-    count = 0
-    for symbol in all_tickers:
-        tasks_service.enqueue_task(f"/_tasks/ticker/{symbol}")
-        count += 1
-        if count % 50 == 0:
-            logger.info(f"Enqueued {count}/{len(all_tickers)} tickers...")
+    for index, symbol in enumerate(all_tickers, start=1):
+        if tasks_service.enqueue_task(f"/_tasks/ticker/{symbol}"):
+            enqueued += 1
+        if index % 50 == 0:
+            logger.info(
+                f"Processed {index}/{len(all_tickers)} tickers ({enqueued} enqueued so far)..."
+            )
 
-    return {"status": "success", "enqueued": len(all_tickers) + 1}
+    attempted = len(all_tickers) + 1
+    if enqueued == 0:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Cloud Tasks not configured — no tasks were enqueued. "
+                "Check GCP_PROJECT_ID/CLOUD_RUN_URL on the Cloud Run service."
+            ),
+        )
+
+    return {"status": "success", "enqueued": enqueued, "attempted": attempted}

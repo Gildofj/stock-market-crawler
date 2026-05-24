@@ -38,16 +38,25 @@ class CloudTasksService:
             except Exception as e:
                 logger.warning(f"Could not initialize CloudTasksClient: {e}")
 
-    def enqueue_task(self, endpoint: str, payload: dict[str, Any] | None = None) -> None:
-        """
-        Enqueue a task to Cloud Tasks. If GCP_PROJECT_ID is not set,
-        fallback to logging (or in a real local dev, a direct HTTP post).
+    def enqueue_task(self, endpoint: str, payload: dict[str, Any] | None = None) -> bool:
+        """Enqueue a task. Returns True iff the task was actually created.
+
+        When Cloud Tasks isn't configured (no project / client), this used to
+        silently log and return — which made enqueue_daily report success while
+        creating zero tasks in production. Now we return False so callers can
+        surface a real error instead of a phantom 200.
         """
         url = f"{self.base_url}{endpoint}"
 
         if not self.client or not self.project:
-            logger.info(f"[Local Fallback] Enqueuing task to {url} with payload {payload}")
-            return
+            if settings.DEPLOYMENT_ENV == "production":
+                logger.error(
+                    f"Cloud Tasks not configured in production — task NOT enqueued to {url}. "
+                    "Check GCP_PROJECT_ID env var on the Cloud Run service."
+                )
+            else:
+                logger.info(f"[Local fallback] Skipping enqueue to {url}")
+            return False
 
         task: dict[str, Any] = {
             "http_request": {
@@ -75,6 +84,7 @@ class CloudTasksService:
                 )
             )
             logger.debug(f"Created task {response.name}")
+            return True
         except Exception as e:
             logger.error(f"Failed to create Cloud Task: {e}")
             raise

@@ -25,6 +25,10 @@ resource "google_cloud_run_v2_service" "worker" {
         value = "production"
       }
       env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
         name  = "ALLOWED_ORIGINS"
         value = var.allowed_origins
       }
