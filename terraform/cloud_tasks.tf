@@ -33,3 +33,14 @@ resource "google_project_iam_member" "cloud_run_invoker" {
   role    = "roles/run.invoker"
   member  = "serviceAccount:${google_service_account.api_runtime_sa.email}"
 }
+
+# Cloud Tasks attaches an OIDC token signed by `cloud-run-api-sa` to each
+# enqueued HTTP task (see CloudTasksService.enqueue_task). The caller — which
+# is *also* cloud-run-api-sa, since the API runs under that SA — must hold
+# `iam.serviceAccountUser` on the SA being impersonated. Without this, Cloud
+# Tasks returns 403 "lacks iam.serviceAccounts.actAs" on every create_task.
+resource "google_service_account_iam_member" "api_runtime_sa_actas_self" {
+  service_account_id = google_service_account.api_runtime_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.api_runtime_sa.email}"
+}
