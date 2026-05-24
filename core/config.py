@@ -102,9 +102,13 @@ class Settings(BaseSettings):
         # Secret Manager bootstrap writes a single space for unset optional
         # secrets (terraform/secrets.tf); normalise back to None so truthy
         # checks like `if settings.BRAPI_TOKEN:` behave as expected.
-        if isinstance(value, str) and not value.strip():
-            return None
-        return value
+        # Also strip surrounding whitespace — `gcloud secrets versions add`
+        # via stdin often appends \r\n, which httpx rejects as an illegal
+        # header value when the secret is used in an Authorization header.
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        return stripped or None
 
     CRAWLER_CONTACT_EMAIL: str = ""
 
