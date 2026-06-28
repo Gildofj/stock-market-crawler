@@ -27,7 +27,7 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
     for every indicator computed from CVM Dados Abertos. The reconciliation
     service emits one row per indicator into the data lake.
     """
-    engine = CrawlerEngine(db=db_session)
+    engine = CrawlerEngine(db=db_session, request_manager=mocker.Mock())
 
     mock_result = CrawlResult(
         symbol="FLOW3.SA",
@@ -133,7 +133,7 @@ async def test_engine_skips_fundamentals_when_no_indicators(db_session, mocker):
     signal. The previous behavior created exactly this kind of poisoned row
     in production.
     """
-    engine = CrawlerEngine(db=db_session)
+    engine = CrawlerEngine(db=db_session, request_manager=mocker.Mock())
 
     empty_result = CrawlResult(
         symbol="EMPTY3",
