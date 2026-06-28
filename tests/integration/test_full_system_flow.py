@@ -65,7 +65,9 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
     )
 
     mocker.patch.object(engine.cvm_spider.dataset_service, "get_cad", return_value=None)
-    mocker.patch.object(engine.cvm_spider.dataset_service, "get_sector_by_cvm_code", return_value={})
+    mocker.patch.object(
+        engine.cvm_spider.dataset_service, "get_sector_by_cvm_code", return_value={}
+    )
     mocker.patch.object(engine.metadata_resolver.logo_service, "resolve", return_value=None)
 
     engine.cvm_spider._ticker_index = {"FLOW3": CVM_CODE}
@@ -151,7 +153,9 @@ async def test_engine_skips_fundamentals_when_no_indicators(db_session, mocker):
     mocker.patch.object(engine.b3_spider, "crawl_ticker", return_value=empty_result)
     mocker.patch.object(engine.cvm_spider, "enrich", return_value=None)
     mocker.patch.object(engine.cvm_spider.dataset_service, "get_cad", return_value=None)
-    mocker.patch.object(engine.cvm_spider.dataset_service, "get_sector_by_cvm_code", return_value={})
+    mocker.patch.object(
+        engine.cvm_spider.dataset_service, "get_sector_by_cvm_code", return_value={}
+    )
     mocker.patch.object(engine.metadata_resolver.logo_service, "resolve", return_value=None)
 
     await engine.run_for_ticker("EMPTY3")
