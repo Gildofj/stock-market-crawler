@@ -64,10 +64,11 @@ def _prevent_unmocked_network_calls(monkeypatch):
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture(scope="session")
-def engine():
+@pytest.fixture
+async def engine():
     engine = create_async_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
-    return engine
+    yield engine
+    await engine.dispose()
 
 
 @pytest.fixture
