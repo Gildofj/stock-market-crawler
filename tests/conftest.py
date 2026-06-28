@@ -39,6 +39,28 @@ def _clear_cache_between_tests():
     InMemoryBackend._store.clear()
 
 
+@pytest.fixture(autouse=True)
+def _prevent_unmocked_network_calls(monkeypatch):
+    """Safety guard to ensure automated test runs never attempt real external
+    network calls to CVM Dados Abertos or web servers unless explicitly enabled
+    via RUN_NETWORK_TESTS=1.
+    """
+    if os.environ.get("RUN_NETWORK_TESTS") == "1":
+        yield
+        return
+
+    from crawler.services.cvm_dataset_service import CVMDatasetService
+    from crawler.services.logo_service import LogoService
+
+    monkeypatch.setattr(CVMDatasetService, "get_cad", lambda self: None)
+
+    async def _no_scrape(self, site_url):
+        return None
+
+    monkeypatch.setattr(LogoService, "_extract_logo_from_site", _no_scrape)
+    yield
+
+
 SQLALCHEMY_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
