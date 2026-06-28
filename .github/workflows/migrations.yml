@@ -17,20 +17,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Fetch DATABASE_URL from Secret Manager
-        run: |
-          DB=$(gcloud secrets versions access latest \
-            --secret=database-url --project="${{ secrets.GCP_PROJECT_ID }}")
-          echo "::add-mask::$DB"
-          echo "DATABASE_URL=$DB" >> "$GITHUB_ENV"
-
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -45,4 +31,6 @@ jobs:
         run: uv sync --frozen
 
       - name: Run Migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: uv run alembic upgrade head
