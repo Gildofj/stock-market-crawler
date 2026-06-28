@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DATABASE_URL: str | None = None
+    REDIS_URL: str | None = None
 
     DB_USER: str = "crawler_user"
     DB_PASSWORD: str = "crawler_pass"

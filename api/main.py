@@ -38,8 +38,23 @@ if not os.getenv("API_KEY"):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    FastAPICache.init(InMemoryBackend(), prefix="stock-api-cache")
-    logger.info("API initialized with InMemory Cache.")
+    from core.config import settings
+
+    redis_url = settings.REDIS_URL
+    if redis_url:
+        try:
+            from fastapi_cache.backends.redis import RedisBackend
+            from redis import asyncio as aioredis
+
+            redis_client = aioredis.from_url(redis_url, encoding="utf8", decode_responses=True)
+            FastAPICache.init(RedisBackend(redis_client), prefix="stock-api-cache")
+            logger.info("API initialized with Redis Cache.")
+        except Exception as exc:
+            logger.error(f"Redis Cache init failed: {exc}. Falling back to InMemory.")
+            FastAPICache.init(InMemoryBackend(), prefix="stock-api-cache")
+    else:
+        FastAPICache.init(InMemoryBackend(), prefix="stock-api-cache")
+        logger.info("API initialized with InMemory Cache.")
 
     try:
         import asyncio
