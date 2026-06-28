@@ -71,7 +71,7 @@ async def test_crawler_to_etl_full_flow(db_session, mocker):
     mocker.patch.object(engine.metadata_resolver.logo_service, "resolve", return_value=None)
 
     engine.cvm_spider._ticker_index = {"FLOW3": CVM_CODE}
-    for y in range(datetime.now().year - 6, datetime.now().year + 1):
+    for y in range(datetime.now().year - 10, datetime.now().year + 1):
         engine.cvm_spider._dfp_cache[y] = _synthetic_year()
         engine.cvm_spider._itr_cache[y] = None
 

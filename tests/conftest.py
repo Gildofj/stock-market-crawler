@@ -53,6 +53,7 @@ def _prevent_unmocked_network_calls(monkeypatch):
     from crawler.services.logo_service import LogoService
 
     monkeypatch.setattr(CVMDatasetService, "get_cad", lambda self: None)
+    monkeypatch.setattr(CVMDatasetService, "_download", lambda self, url: None)
 
     async def _no_scrape(self, site_url):
         return None
