@@ -9,17 +9,10 @@ router = APIRouter(prefix="/_tasks", tags=["Internal Tasks"])
 
 
 def _verify_task_auth(request: Request) -> None:
-    """
-    Verify that the request comes from Google Cloud Tasks or is authenticated.
-    In Cloud Run, Cloud Tasks attaches an OIDC token or a specific header.
-    For simplicity in this implementation, we check for 'X-CloudTasks-QueueName'
-    or a fallback admin API KEY if triggered manually.
-    """
-    # Se for acionado pelo Cloud Tasks internamente no GCP, ele injeta esse header
-    if request.headers.get("X-CloudTasks-QueueName"):
+    """Verify that the request comes from the internal Task Queue or is authenticated."""
+    if request.headers.get("X-CloudTasks-QueueName") or request.headers.get("X-Task-Queue"):
         return
 
-    # Se for acionado por outro meio (ex: curl local), verifica a API_KEY do admin
     import os
 
     expected_api_key = os.getenv("API_KEY")
@@ -73,18 +66,15 @@ async def trigger_ri(
 
 @router.post("/enqueue-daily")
 async def enqueue_daily(request: Request):
-    """
-    Enqueues the daily batch of tasks (Macro + all active tickers).
-    This runs entirely inside Cloud Run so it inherits the correct IAM permissions.
-    """
+    """Enqueues the daily batch of tasks (Macro + all active tickers)."""
     _verify_task_auth(request)
 
     from loguru import logger
 
-    from core.services.cloud_tasks_service import CloudTasksService
+    from core.services.queue_service import RedisTaskQueueService
     from crawler.services.ticker_service import TickerService
 
-    tasks_service = CloudTasksService()
+    tasks_service = RedisTaskQueueService()
     ticker_service = TickerService()
 
     logger.info("Discovering active tickers...")
@@ -109,10 +99,7 @@ async def enqueue_daily(request: Request):
     if enqueued == 0:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Cloud Tasks not configured — no tasks were enqueued. "
-                "Check GCP_PROJECT_ID/CLOUD_RUN_URL on the Cloud Run service."
-            ),
+            detail="Task Queue not configured — no tasks were enqueued.",
         )
 
     return {"status": "success", "enqueued": enqueued, "attempted": attempted}

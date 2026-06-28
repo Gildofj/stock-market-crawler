@@ -31,7 +31,6 @@ dependencies = [
     "pyrate-limiter>=3.0.0",
     "curl-cffi>=0.15.0",
     "nodriver>=0.48.1",
-    "google-cloud-tasks>=2.16.0",
     "feedparser>=6.0.11",
     "pdfplumber>=0.11.0",
     "python-multipart>=0.0.9",

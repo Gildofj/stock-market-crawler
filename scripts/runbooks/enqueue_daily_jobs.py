@@ -2,14 +2,14 @@ import time
 
 from loguru import logger
 
-from core.services.cloud_tasks_service import CloudTasksService
+from core.services.queue_service import RedisTaskQueueService
 from crawler.services.ticker_service import TickerService
 
 
 def enqueue_all():
     logger.info("Starting to enqueue daily jobs...")
 
-    tasks_service = CloudTasksService()
+    tasks_service = RedisTaskQueueService()
 
     ticker_service = TickerService()
     all_tickers = ticker_service.get_all_tickers()
