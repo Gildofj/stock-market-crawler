@@ -75,7 +75,7 @@ services:
   # HTTP with X-CloudTasks-* headers, applying retry_config/rate_limits.
   # OIDC tokens are NOT validated — keep this binding 127.0.0.1 only.
   cloud-tasks-emulator:
-    image: ghcr.io/aertje/cloud-tasks-emulator:latest
+    image: ghcr.io/ken109/cloud-tasks-emulator:latest
     container_name: stock_market_crawler_tasks_emulator
     restart: unless-stopped
     command:
